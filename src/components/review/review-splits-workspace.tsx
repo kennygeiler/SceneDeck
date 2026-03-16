@@ -60,6 +60,12 @@ type ShotSegment = {
   confidence: number | null;
 };
 
+type SegmentTagState = {
+  status: "idle" | "loading" | "ready" | "error";
+  tags: string[];
+  analyzedThumbnail: string | null;
+};
+
 type ExportSummary = {
   shotCount: number;
   added: number;
@@ -247,6 +253,17 @@ function getSplitSourceColor(source: SplitSource) {
 
 function boundaryKey(value: number) {
   return roundTime(value).toFixed(3);
+}
+
+function getSegmentFingerprint(segment: Pick<ShotSegment, "start" | "end">) {
+  return `${roundTime(segment.start).toFixed(3)}-${roundTime(segment.end).toFixed(3)}`;
+}
+
+function getTagDisplayLines(tags: string[]) {
+  const visibleTags = tags.slice(0, 4);
+  return [visibleTags.slice(0, 2).join(", "), visibleTags.slice(2, 4).join(", ")].filter(
+    Boolean,
+  );
 }
 
 function findSegmentIndexForSplit(segments: ShotSegment[], splitTime: number) {
@@ -505,7 +522,11 @@ export function ReviewSplitsWorkspace({
   const cardRefs = useRef(new Map<string, HTMLButtonElement>());
   const thumbnailPendingRef = useRef(new Set<string>());
   const thumbnailLoopActiveRef = useRef(false);
+  const tagPendingRef = useRef(new Set<string>());
+  const tagLoopActiveRef = useRef(false);
+  const playbackFrameRef = useRef<number | null>(null);
   const segmentsRef = useRef<ShotSegment[]>([]);
+  const segmentTagsRef = useRef<Record<string, SegmentTagState>>({});
   const nudgeTimeoutRef = useRef<number | null>(null);
   const selectedBoundaryAnchorRef = useRef<{
     id: string;
@@ -550,6 +571,9 @@ export function ReviewSplitsWorkspace({
   const [detectedBoundaryIds, setDetectedBoundaryIds] = useState<string[]>([]);
   const [cutPreview, setCutPreview] = useState<CutPreview | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [segmentTags, setSegmentTags] = useState<Record<string, SegmentTagState>>(
+    {},
+  );
 
   const effectiveDuration = Math.max(
     videoDuration,
@@ -558,6 +582,7 @@ export function ReviewSplitsWorkspace({
   );
 
   segmentsRef.current = segments;
+  segmentTagsRef.current = segmentTags;
 
   const activeShotIndex = useMemo(() => {
     const index = segments.findIndex(
@@ -591,6 +616,21 @@ export function ReviewSplitsWorkspace({
   const workspaceReady = Boolean(videoUrl && reviewPayload && effectiveDuration >= 0);
   const summary = computeExportSummary(initialSegments, segments);
 
+  function cancelPlaybackFrame() {
+    if (playbackFrameRef.current !== null) {
+      window.cancelAnimationFrame(playbackFrameRef.current);
+      playbackFrameRef.current = null;
+    }
+  }
+
+  function resetDerivedSegmentState() {
+    thumbnailPendingRef.current.clear();
+    thumbnailLoopActiveRef.current = false;
+    tagPendingRef.current.clear();
+    tagLoopActiveRef.current = false;
+    setSegmentTags({});
+  }
+
   useEffect(() => {
     if (!selectedBoundary) {
       selectedBoundaryAnchorRef.current = null;
@@ -609,6 +649,7 @@ export function ReviewSplitsWorkspace({
 
   useEffect(() => {
     return () => {
+      cancelPlaybackFrame();
       if (nudgeTimeoutRef.current !== null) {
         window.clearTimeout(nudgeTimeoutRef.current);
       }
@@ -617,6 +658,8 @@ export function ReviewSplitsWorkspace({
 
   useEffect(() => {
     if (!videoFile) {
+      cancelPlaybackFrame();
+      resetDerivedSegmentState();
       setVideoUrl((currentUrl) => {
         if (currentUrl) {
           URL.revokeObjectURL(currentUrl);
@@ -663,6 +706,7 @@ export function ReviewSplitsWorkspace({
           const builtSegments = buildSegments(data.splits, data.total_duration);
           setInitialSegments(builtSegments);
           setSegments(builtSegments);
+          resetDerivedSegmentState();
           selectBoundary(null, { cardId: null });
           setVideoFps(data.fps > 0 ? data.fps : DEFAULT_FPS);
           setErrorMessage(null);
@@ -689,7 +733,29 @@ export function ReviewSplitsWorkspace({
   }, [loadingSplitsFromUrl, reviewPayload, splitsUrlParam]);
 
   useEffect(() => {
+    const video = videoRef.current;
+    if (video) {
+      video.pause();
+      video.currentTime = 0;
+      video.load();
+    }
+
+    const captureVideo = captureVideoRef.current;
+    if (captureVideo) {
+      captureVideo.pause();
+      captureVideo.currentTime = 0;
+      captureVideo.load();
+    }
+
+    cancelPlaybackFrame();
+    setCurrentTime(0);
+    setIsPlaying(false);
+  }, [videoUrl]);
+
+  useEffect(() => {
     if (!workspaceReady) {
+      cancelPlaybackFrame();
+      setIsPlaying(false);
       return;
     }
 
@@ -698,8 +764,6 @@ export function ReviewSplitsWorkspace({
       return;
     }
 
-    let frameRequest = 0;
-
     const syncTime = () => {
       setCurrentTime(video.currentTime || 0);
     };
@@ -707,18 +771,31 @@ export function ReviewSplitsWorkspace({
     const tick = () => {
       syncTime();
       if (!video.paused && !video.ended) {
-        frameRequest = window.requestAnimationFrame(tick);
+        playbackFrameRef.current = window.requestAnimationFrame(tick);
+      } else {
+        playbackFrameRef.current = null;
       }
+    };
+
+    const startPlaybackSync = () => {
+      cancelPlaybackFrame();
+      playbackFrameRef.current = window.requestAnimationFrame(tick);
     };
 
     const handlePlay = () => {
       setIsPlaying(true);
-      frameRequest = window.requestAnimationFrame(tick);
+      startPlaybackSync();
     };
 
     const handlePause = () => {
       setIsPlaying(false);
-      window.cancelAnimationFrame(frameRequest);
+      cancelPlaybackFrame();
+      syncTime();
+    };
+
+    const handleEnded = () => {
+      setIsPlaying(false);
+      cancelPlaybackFrame();
       syncTime();
     };
 
@@ -726,21 +803,27 @@ export function ReviewSplitsWorkspace({
       setVideoDuration(video.duration || 0);
       setVideoFps(reviewPayload?.fps && reviewPayload.fps > 0 ? reviewPayload.fps : DEFAULT_FPS);
       syncTime();
+      if (!video.paused && !video.ended) {
+        setIsPlaying(true);
+        startPlaybackSync();
+      }
     };
 
     handleLoadedMetadata();
 
     video.addEventListener("play", handlePlay);
     video.addEventListener("pause", handlePause);
+    video.addEventListener("ended", handleEnded);
     video.addEventListener("seeking", syncTime);
     video.addEventListener("seeked", syncTime);
     video.addEventListener("timeupdate", syncTime);
     video.addEventListener("loadedmetadata", handleLoadedMetadata);
 
     return () => {
-      window.cancelAnimationFrame(frameRequest);
+      cancelPlaybackFrame();
       video.removeEventListener("play", handlePlay);
       video.removeEventListener("pause", handlePause);
+      video.removeEventListener("ended", handleEnded);
       video.removeEventListener("seeking", syncTime);
       video.removeEventListener("seeked", syncTime);
       video.removeEventListener("timeupdate", syncTime);
@@ -962,6 +1045,7 @@ export function ReviewSplitsWorkspace({
 
         captureVideo.addEventListener("loadedmetadata", handleLoadedMetadata);
         captureVideo.addEventListener("error", handleError);
+        captureVideo.load();
       });
     };
 
@@ -1019,6 +1103,8 @@ export function ReviewSplitsWorkspace({
       thumbnailLoopActiveRef.current = true;
 
       try {
+        await waitForMetadata();
+
         while (true) {
           const nextSegment = segmentsRef.current.find(
             (segment) =>
@@ -1043,7 +1129,9 @@ export function ReviewSplitsWorkspace({
               );
             }
           } catch {
-            break;
+            await new Promise<void>((resolve) => {
+              window.setTimeout(resolve, 120);
+            });
           } finally {
             thumbnailPendingRef.current.delete(nextSegment.id);
           }
@@ -1059,6 +1147,98 @@ export function ReviewSplitsWorkspace({
 
     void processQueue();
   }, [effectiveDuration, segments, videoUrl, workspaceReady]);
+
+  useEffect(() => {
+    if (!workspaceReady || tagLoopActiveRef.current) {
+      return;
+    }
+
+    const hasPendingAnalysis = segments.some((segment) => {
+      if (!segment.thumbnail || segment.thumbnailDirty || tagPendingRef.current.has(segment.id)) {
+        return false;
+      }
+
+      const tagState = segmentTagsRef.current[segment.id];
+      return !tagState || tagState.analyzedThumbnail !== segment.thumbnail;
+    });
+
+    if (!hasPendingAnalysis) {
+      return;
+    }
+
+    const processQueue = async () => {
+      tagLoopActiveRef.current = true;
+
+      try {
+        while (true) {
+          const nextSegmentIndex = segmentsRef.current.findIndex((segment) => {
+            if (!segment.thumbnail || segment.thumbnailDirty) {
+              return false;
+            }
+
+            const tagState = segmentTagsRef.current[segment.id];
+            return (
+              !tagPendingRef.current.has(segment.id) &&
+              (!tagState || tagState.analyzedThumbnail !== segment.thumbnail)
+            );
+          });
+
+          if (nextSegmentIndex === -1) {
+            break;
+          }
+
+          const nextSegment = segmentsRef.current[nextSegmentIndex];
+          if (!nextSegment?.thumbnail) {
+            break;
+          }
+
+          tagPendingRef.current.add(nextSegment.id);
+          setSegmentTags((current) => ({
+            ...current,
+            [nextSegment.id]: {
+              status: "loading",
+              tags: current[nextSegment.id]?.tags ?? [],
+              analyzedThumbnail: current[nextSegment.id]?.analyzedThumbnail ?? null,
+            },
+          }));
+
+          try {
+            const tags = await analyzeFrameTags(
+              nextSegment.thumbnail,
+              `Shot ${nextSegmentIndex + 1}, ${formatTimecode(nextSegment.start)} to ${formatTimecode(nextSegment.end)}, segment ${getSegmentFingerprint(nextSegment)}.`,
+            );
+            setSegmentTags((current) => ({
+              ...current,
+              [nextSegment.id]: {
+                status: "ready",
+                tags,
+                analyzedThumbnail: nextSegment.thumbnail ?? null,
+              },
+            }));
+          } catch {
+            setSegmentTags((current) => ({
+              ...current,
+              [nextSegment.id]: {
+                status: "error",
+                tags: current[nextSegment.id]?.tags ?? [],
+                analyzedThumbnail: nextSegment.thumbnail ?? null,
+              },
+            }));
+          } finally {
+            tagPendingRef.current.delete(nextSegment.id);
+          }
+
+          await new Promise<void>((resolve) => {
+            window.setTimeout(resolve, 0);
+          });
+        }
+      } finally {
+        tagLoopActiveRef.current = false;
+      }
+    };
+
+    void processQueue();
+  }, [segments, segmentTags, workspaceReady]);
 
   function getTimelineRatio(clientX: number) {
     const timeline = timelineRef.current;
@@ -1233,6 +1413,30 @@ export function ReviewSplitsWorkspace({
     }
 
     return Array.isArray(payload.cuts) ? payload.cuts : [];
+  }
+
+  async function analyzeFrameTags(image: string, context: string) {
+    const response = await fetch("/api/analyze-frame", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        image,
+        context,
+      }),
+    });
+
+    const payload = (await response.json()) as {
+      tags?: string[];
+      error?: string;
+    };
+
+    if (!response.ok) {
+      throw new Error(payload.error || "Unable to analyze frame.");
+    }
+
+    return Array.isArray(payload.tags) ? payload.tags : [];
   }
 
   function seekTo(time: number) {
@@ -1635,6 +1839,7 @@ export function ReviewSplitsWorkspace({
         parsedPayload.splits,
         parsedPayload.total_duration,
       );
+      resetDerivedSegmentState();
       setReviewPayload(parsedPayload);
       setInitialSegments(builtSegments);
       setSegments(builtSegments);
@@ -1654,6 +1859,15 @@ export function ReviewSplitsWorkspace({
       return;
     }
 
+    cancelPlaybackFrame();
+    resetDerivedSegmentState();
+    setSegments((currentSegments) =>
+      currentSegments.map((segment) => ({
+        ...segment,
+        thumbnail: null,
+        thumbnailDirty: true,
+      })),
+    );
     setVideoFile(file);
     setVideoDuration(0);
     setVideoFps(reviewPayload?.fps && reviewPayload.fps > 0 ? reviewPayload.fps : DEFAULT_FPS);
@@ -2556,12 +2770,15 @@ export function ReviewSplitsWorkspace({
                     </div>
                   </section>
 
-                  <section className="flex h-28 flex-none items-stretch gap-3 overflow-x-auto overflow-y-hidden px-2 py-2 scene-scrollbar-thin">
+                  <section className="flex h-32 flex-none items-stretch gap-3 overflow-x-auto overflow-y-hidden px-2 py-2 scene-scrollbar-thin">
                     {segments.map((segment, index) => {
                       const isActive = index === activeShotIndex;
                       const isSelected = selectedCardId === segment.id;
+                      const isHighlighted = isActive || isSelected;
                       const removeBoundaryId =
                         index === 0 ? segments[1]?.id ?? null : segment.id;
+                      const tagState = segmentTags[segment.id];
+                      const tagLines = getTagDisplayLines(tagState?.tags ?? []);
                       const rightBoundaryMeta = segments[index + 1]
                         ? {
                             source: segments[index + 1].splitSource,
@@ -2575,6 +2792,7 @@ export function ReviewSplitsWorkspace({
                       return (
                         <motion.button
                           key={segment.id}
+                          type="button"
                           ref={(node) => {
                             if (node) {
                               cardRefs.current.set(segment.id, node);
@@ -2582,7 +2800,8 @@ export function ReviewSplitsWorkspace({
                               cardRefs.current.delete(segment.id);
                             }
                           }}
-                          type="button"
+                          role="button"
+                          tabIndex={0}
                           layout
                           initial={{ opacity: 0, scale: 0.95 }}
                           animate={{ opacity: 1, scale: 1 }}
@@ -2592,18 +2811,11 @@ export function ReviewSplitsWorkspace({
                           onKeyDown={(event) => handleCardKeyDown(event, segment)}
                           aria-label={`Jump to shot ${index + 1}`}
                           aria-pressed={isSelected}
-                          className="group/card relative flex w-44 shrink-0 gap-2 rounded-xl border bg-[var(--color-surface-secondary)] p-2 text-left transition-all"
+                          className="group/card relative flex w-52 shrink-0 cursor-pointer gap-2 rounded-xl border bg-[var(--color-surface-secondary)] p-2 text-left transition-colors"
                           style={{
-                            borderColor: isSelected
-                              ? "var(--color-status-verified)"
-                              : isActive
-                                ? "var(--color-accent-base)"
-                                : "var(--color-border-default)",
-                            boxShadow: isSelected
-                              ? "0 0 12px color-mix(in oklch, var(--color-status-verified) 30%, transparent)"
-                              : isActive
-                                ? "0 0 12px color-mix(in oklch, var(--color-accent-base) 20%, transparent)"
-                                : "none",
+                            borderColor: isHighlighted
+                              ? "var(--color-border-strong)"
+                              : "var(--color-border-default)",
                           }}
                         >
                           {/* Thumbnail */}
@@ -2630,16 +2842,35 @@ export function ReviewSplitsWorkspace({
                                 {formatDuration(segment.end - segment.start)}
                               </p>
                             </div>
-                            <div className="flex items-center gap-1">
-                              <span
-                                className="size-1.5 shrink-0 rounded-full"
-                                style={{
-                                  backgroundColor: getSplitSourceColor(rightBoundaryMeta.source),
-                                }}
-                              />
-                              <span className="truncate font-mono text-[9px] text-[var(--color-text-tertiary)]">
+                            <div className="space-y-1">
+                              <p className="truncate font-mono text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]">
                                 {getSplitSourceShortLabel(rightBoundaryMeta.source)}
-                              </span>
+                              </p>
+                              {tagState?.status === "loading" ? (
+                                <div className="flex items-center gap-1 text-[var(--color-text-tertiary)]">
+                                  <LoaderCircle className="size-3 animate-spin" />
+                                  <span className="truncate text-[10px]">Analyzing frame...</span>
+                                </div>
+                              ) : tagLines.length > 0 ? (
+                                <div className="space-y-0.5">
+                                  {tagLines.map((line) => (
+                                    <p
+                                      key={`${segment.id}-${line}`}
+                                      className="truncate text-[10px] leading-4 text-[var(--color-text-tertiary)]"
+                                    >
+                                      {line}
+                                    </p>
+                                  ))}
+                                </div>
+                              ) : tagState?.status === "error" ? (
+                                <p className="truncate text-[10px] text-[var(--color-text-tertiary)]">
+                                  Tags unavailable
+                                </p>
+                              ) : (
+                                <p className="truncate text-[10px] text-[var(--color-text-tertiary)]">
+                                  Waiting for frame...
+                                </p>
+                              )}
                             </div>
                           </div>
 
