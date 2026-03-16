@@ -124,4 +124,39 @@
     );
     animation: scenedeck-shimmer 1.8s ease-in-out infinite;
   }
+
+  .scene-scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(
+        in oklch,
+        var(--color-border-strong) 72%,
+        transparent
+      )
+      transparent;
+  }
+
+  .scene-scrollbar-thin::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .scene-scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scene-scrollbar-thin::-webkit-scrollbar-thumb {
+    border-radius: var(--radius-full);
+    background: color-mix(
+      in oklch,
+      var(--color-border-strong) 72%,
+      transparent
+    );
+  }
+
+  .scene-scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: color-mix(
+      in oklch,
+      var(--color-accent-base) 44%,
+      var(--color-border-strong)
+    );
+  }
 }
