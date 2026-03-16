@@ -31,7 +31,12 @@
 }
 
 :root {
-  --font-heading: var(--font-body-family, "Inter Variable", system-ui, sans-serif);
+  --font-heading: var(
+    --font-heading-family,
+    "Inter Variable",
+    system-ui,
+    sans-serif
+  );
   --font-body: var(--font-body-family, "Inter Variable", system-ui, sans-serif);
   --font-mono: var(--font-mono-family, "JetBrains Mono", ui-monospace, monospace);
   --radius-token-sm: var(--radius-sm);
