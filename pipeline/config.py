@@ -19,10 +19,16 @@ VERCEL_BLOB_READ_WRITE_TOKEN = os.getenv("VERCEL_BLOB_READ_WRITE_TOKEN")
 OUTPUT_ROOT = PIPELINE_DIR / "output"
 CLIPS_OUTPUT_DIR = OUTPUT_ROOT / "clips"
 THUMBNAILS_OUTPUT_DIR = OUTPUT_ROOT / "thumbnails"
+REVIEW_OUTPUT_DIR = OUTPUT_ROOT / "review"
 GEMINI_MODEL_NAME = "gemini-2.5-flash"
 
 
-for directory in (OUTPUT_ROOT, CLIPS_OUTPUT_DIR, THUMBNAILS_OUTPUT_DIR):
+for directory in (
+    OUTPUT_ROOT,
+    CLIPS_OUTPUT_DIR,
+    THUMBNAILS_OUTPUT_DIR,
+    REVIEW_OUTPUT_DIR,
+):
     directory.mkdir(parents=True, exist_ok=True)
 
 

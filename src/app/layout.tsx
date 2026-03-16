@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "@/styles/globals.css";
 
-import { SiteShell } from "@/components/layout/site-shell";
-
 const inter = Inter({
   display: "swap",
   subsets: ["latin"],
@@ -66,7 +64,7 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${interBody.variable} ${jetBrainsMono.variable} antialiased`}
       >
-        <SiteShell>{children}</SiteShell>
+        {children}
       </body>
     </html>
   );

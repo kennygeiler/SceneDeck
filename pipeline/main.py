@@ -1,18 +1,19 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 from pathlib import Path
 from typing import Any
 
 try:
     from .classify import classify_shot
-    from .config import CLIPS_OUTPUT_DIR
-    from .shot_detect import detect_shots
+    from .config import CLIPS_OUTPUT_DIR, REVIEW_OUTPUT_DIR
+    from .shot_detect import detect_and_export, detect_shots
 except ImportError:
     from classify import classify_shot
-    from config import CLIPS_OUTPUT_DIR
-    from shot_detect import detect_shots
+    from config import CLIPS_OUTPUT_DIR, REVIEW_OUTPUT_DIR
+    from shot_detect import detect_and_export, detect_shots
 
 try:
     from .extract_clips import extract_clips
@@ -37,12 +38,62 @@ def _build_blob_filename(
     return f"films/{safe_title}/{safe_stem}/shot-{shot_index:04d}.{extension}"
 
 
-def run_pipeline(video_path: str, film_title: str, director: str, year: int | None) -> None:
+def _load_reviewed_shots(
+    splits_path: str, source_path: Path
+) -> list[dict[str, float | int]]:
+    payload = json.loads(Path(splits_path).read_text(encoding="utf-8"))
+    splits = payload.get("splits", [])
+    if not isinstance(splits, list):
+        raise ValueError("Reviewed splits JSON must contain a 'splits' array.")
+
+    declared_source = payload.get("source_video")
+    if declared_source and Path(str(declared_source)).resolve() != source_path.resolve():
+        print(
+            "Warning: splits JSON source video does not match the provided --video path."
+        )
+
+    shots: list[dict[str, float | int]] = []
+    for index, split in enumerate(splits, start=1):
+        start_time = float(split["start"])
+        end_time = float(split["end"])
+        shots.append(
+            {
+                "index": index,
+                "start_time": start_time,
+                "end_time": end_time,
+                "duration": max(0.0, end_time - start_time),
+            }
+        )
+
+    return shots
+
+
+def run_review_export(video_path: str) -> None:
+    source_path = Path(video_path).resolve()
+    export_path = REVIEW_OUTPUT_DIR / f"{source_path.stem}-splits.json"
+
+    print("Step 1/1: Detecting shots and exporting review package")
+    detect_and_export(str(source_path), str(export_path))
+    print(f"Review the splits in /review-splits, then continue with --splits {export_path}")
+
+
+def run_pipeline(
+    video_path: str,
+    film_title: str,
+    director: str,
+    year: int | None,
+    splits_path: str | None = None,
+) -> None:
     source_path = Path(video_path).resolve()
     output_dir = CLIPS_OUTPUT_DIR / source_path.stem
 
-    print("Step 1/5: Detecting shots")
-    shots = detect_shots(str(source_path))
+    if splits_path:
+        print("Step 1/5: Loading reviewed splits")
+        shots = _load_reviewed_shots(splits_path, source_path)
+    else:
+        print("Step 1/5: Detecting shots")
+        shots = detect_shots(str(source_path))
+
     if not shots:
         print("No shots detected; nothing to process.")
         return
@@ -96,12 +147,35 @@ def run_pipeline(video_path: str, film_title: str, director: str, year: int | No
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="SceneDeck video ingestion pipeline")
     parser.add_argument("--video", required=True, help="Path to the source video file")
-    parser.add_argument("--film-title", required=True, help="Film title")
-    parser.add_argument("--director", required=True, help="Film director")
+    parser.add_argument("--film-title", help="Film title")
+    parser.add_argument("--director", help="Film director")
     parser.add_argument("--year", type=int, help="Film release year")
-    return parser.parse_args()
+    parser.add_argument(
+        "--review",
+        action="store_true",
+        help="Detect shots, export review JSON, and stop before extraction/classification",
+    )
+    parser.add_argument(
+        "--splits",
+        help="Path to reviewed splits JSON exported from the review tool",
+    )
+    args = parser.parse_args()
+
+    if args.review and args.splits:
+        parser.error("--review and --splits cannot be used together.")
+
+    if not args.review and not args.film_title:
+        parser.error("--film-title is required unless --review is used.")
+
+    if not args.review and not args.director:
+        parser.error("--director is required unless --review is used.")
+
+    return args
 
 
 if __name__ == "__main__":
     args = parse_args()
-    run_pipeline(args.video, args.film_title, args.director, args.year)
+    if args.review:
+        run_review_export(args.video)
+    else:
+        run_pipeline(args.video, args.film_title, args.director, args.year, args.splits)
