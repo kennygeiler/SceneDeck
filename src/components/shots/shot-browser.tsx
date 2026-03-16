@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 type ShotBrowserProps = {
   shots: ShotWithDetails[];
   totalShots: number;
+  availableFilmTitles: string[];
   availableDirectors: string[];
   availableShotSizes: ShotSizeSlug[];
 };
@@ -36,6 +37,7 @@ function filterShots(
   shots: ShotWithDetails[],
   filters: {
     movementType: string;
+    filmTitle: string;
     director: string;
     shotSize: string;
   },
@@ -52,6 +54,10 @@ function filterShots(
       return false;
     }
 
+    if (filters.filmTitle !== "all" && shot.film.title !== filters.filmTitle) {
+      return false;
+    }
+
     if (filters.shotSize !== "all" && shot.metadata.shotSize !== filters.shotSize) {
       return false;
     }
@@ -63,6 +69,7 @@ function filterShots(
 export function ShotBrowser({
   shots,
   totalShots,
+  availableFilmTitles,
   availableDirectors,
   availableShotSizes,
 }: ShotBrowserProps) {
@@ -71,6 +78,7 @@ export function ShotBrowser({
   const searchParams = useSearchParams();
 
   const movementType = searchParams.get("movementType") ?? "all";
+  const filmTitle = searchParams.get("filmTitle") ?? "all";
   const director = searchParams.get("director") ?? "all";
   const shotSize = searchParams.get("shotSize") ?? "all";
   const query = searchParams.get("q") ?? "";
@@ -158,7 +166,10 @@ export function ShotBrowser({
     return () => window.clearTimeout(timeoutId);
   }, [deferredSearchInput, pathname, query, router, searchParams]);
 
-  function updateFilter(key: "movementType" | "director" | "shotSize", value: string) {
+  function updateFilter(
+    key: "movementType" | "filmTitle" | "director" | "shotSize",
+    value: string,
+  ) {
     const params = new URLSearchParams(searchParams.toString());
 
     if (value === "all") {
@@ -181,11 +192,17 @@ export function ShotBrowser({
   }
 
   const displayedShots = query
-    ? filterShots(searchResults ?? shots, { movementType, director, shotSize })
+    ? filterShots(searchResults ?? shots, {
+        movementType,
+        filmTitle,
+        director,
+        shotSize,
+      })
     : shots;
   const hasActiveFilters =
     Boolean(query) ||
     movementType !== "all" ||
+    filmTitle !== "all" ||
     director !== "all" ||
     shotSize !== "all";
   const archiveIsEmpty = totalShots === 0;
@@ -248,6 +265,7 @@ export function ShotBrowser({
             <ExportButton
               filters={{
                 movementType: movementType !== "all" ? movementType : undefined,
+                filmTitle: filmTitle !== "all" ? filmTitle : undefined,
                 director: director !== "all" ? director : undefined,
                 shotSize: shotSize !== "all" ? shotSize : undefined,
               }}
@@ -328,6 +346,7 @@ export function ShotBrowser({
             </p>
             <div className="mt-3 space-y-2 text-sm text-[var(--color-text-secondary)]">
               <p>Movement: {movementType === "all" ? "All" : MOVEMENT_TYPES[movementType as MovementTypeSlug]?.displayName ?? movementType}</p>
+              <p>Film: {filmTitle === "all" ? "All" : filmTitle}</p>
               <p>Director: {director === "all" ? "All" : director}</p>
               <p>Shot size: {shotSize === "all" ? "All" : getShotSizeDisplayName(shotSize as ShotSizeSlug)}</p>
             </div>
@@ -375,6 +394,45 @@ export function ShotBrowser({
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          <div>
+            <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+              Film
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => updateFilter("filmTitle", "all")}
+                className={cn(
+                  buttonVariants({
+                    variant: filmTitle === "all" ? "default" : "outline",
+                    size: "sm",
+                  }),
+                  "rounded-full px-3",
+                )}
+              >
+                All
+              </button>
+              {availableFilmTitles.map((filmTitleOption) => (
+                <button
+                  key={filmTitleOption}
+                  type="button"
+                  onClick={() => updateFilter("filmTitle", filmTitleOption)}
+                  className={cn(
+                    buttonVariants({
+                      variant: filmTitle === filmTitleOption ? "default" : "outline",
+                      size: "sm",
+                    }),
+                    "rounded-full px-3",
+                    filmTitle !== filmTitleOption &&
+                      "border-[var(--color-border-default)] bg-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]",
+                  )}
+                >
+                  {filmTitleOption}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -512,7 +570,7 @@ export function ShotBrowser({
           </motion.section>
         ) : (
           <motion.section
-            key={`${query}-${movementType}-${director}-${shotSize}`}
+            key={`${query}-${movementType}-${filmTitle}-${director}-${shotSize}`}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
@@ -546,6 +604,11 @@ export function ShotBrowser({
               {movementType !== "all" ? (
                 <span className="rounded-full border px-3 py-1 font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-secondary)]">
                   {MOVEMENT_TYPES[movementType as MovementTypeSlug]?.displayName ?? movementType}
+                </span>
+              ) : null}
+              {filmTitle !== "all" ? (
+                <span className="rounded-full border px-3 py-1 font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-secondary)]">
+                  {filmTitle}
                 </span>
               ) : null}
               {director !== "all" ? (

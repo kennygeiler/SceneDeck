@@ -11,7 +11,7 @@ import type { ShotSizeSlug } from "@/lib/taxonomy";
 
 export const metadata: Metadata = {
   title: "Browse",
-  description: "Browse the SceneDeck Neon archive and filter by movement type, director, shot size, and text search.",
+  description: "Browse the SceneDeck Neon archive and filter by movement type, film, director, shot size, and text search.",
 };
 
 type BrowsePageProps = {
@@ -26,21 +26,30 @@ export default async function BrowsePage({ searchParams }: BrowsePageProps) {
   const resolvedSearchParams = await searchParams;
   const movementType = getParamValue(resolvedSearchParams.movementType)?.trim();
   const director = getParamValue(resolvedSearchParams.director)?.trim();
+  const filmTitle = getParamValue(resolvedSearchParams.filmTitle)?.trim();
   const shotSize = getParamValue(resolvedSearchParams.shotSize)?.trim();
   const query = getParamValue(resolvedSearchParams.q)?.trim();
 
   const filters = {
     movementType,
     director,
+    filmTitle,
     shotSize,
   };
 
   const [allShots, initialShots] = await Promise.all([
     getAllShots(),
-    query ? searchShots(query) : getAllShots(filters),
+    query
+      ? searchShots(query, {
+          openAiApiKey: process.env.OPENAI_API_KEY,
+        })
+      : getAllShots(filters),
   ]);
 
   const shots = query ? filterShotsCollection(initialShots, filters) : initialShots;
+  const availableFilmTitles = Array.from(
+    new Set(allShots.map((shot) => shot.film.title)),
+  ).sort((left, right) => left.localeCompare(right));
   const availableDirectors = Array.from(
     new Set(allShots.map((shot) => shot.film.director)),
   ).sort((left, right) => left.localeCompare(right));
@@ -56,6 +65,7 @@ export default async function BrowsePage({ searchParams }: BrowsePageProps) {
     <ShotBrowser
       shots={shots}
       totalShots={allShots.length}
+      availableFilmTitles={availableFilmTitles}
       availableDirectors={availableDirectors}
       availableShotSizes={availableShotSizes}
     />

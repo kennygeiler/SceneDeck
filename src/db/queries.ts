@@ -1,6 +1,19 @@
-import { and, desc, eq, ilike, or, type SQL } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 
 import { db, schema } from "@/db";
+import {
+  generateTextEmbedding,
+  toVectorLiteral,
+} from "@/db/embeddings";
 import type {
   ExportShotRecord,
   ShotReviewQueueItem,
@@ -25,6 +38,7 @@ const REVIEW_PASSING_RATING = 4;
 export type ShotQueryFilters = {
   movementType?: string;
   director?: string;
+  filmTitle?: string;
   shotSize?: string;
 };
 
@@ -326,6 +340,10 @@ export function filterShotsCollection(
       return false;
     }
 
+    if (filters.filmTitle && shot.film.title !== filters.filmTitle) {
+      return false;
+    }
+
     if (filters.shotSize && shot.metadata.shotSize !== filters.shotSize) {
       return false;
     }
@@ -348,6 +366,10 @@ export async function getAllShots(filters?: ShotQueryFilters) {
 
   if (filters?.director) {
     conditions.push(eq(schema.films.director, filters.director));
+  }
+
+  if (filters?.filmTitle) {
+    conditions.push(eq(schema.films.title, filters.filmTitle));
   }
 
   if (filters?.shotSize) {
@@ -413,14 +435,8 @@ export async function getShotsForExport(filters?: {
   return rows.map(mapExportShotRow);
 }
 
-export async function searchShots(query: string) {
-  const normalizedQuery = query.trim();
-
-  if (!normalizedQuery) {
-    return [];
-  }
-
-  const searchTerm = `%${normalizedQuery}%`;
+async function searchShotsWithIlike(query: string): Promise<ShotWithDetails[]> {
+  const searchTerm = `%${query}%`;
   const rows = await selectJoinedShots()
     .where(
       or(
@@ -438,7 +454,7 @@ export async function searchShots(query: string) {
 
       return {
         ...shot,
-        relevance: getRelevanceScore(shot, normalizedQuery),
+        relevance: getRelevanceScore(shot, query),
       };
     })
     .sort((left, right) => {
@@ -448,6 +464,88 @@ export async function searchShots(query: string) {
 
       return (right.createdAt ?? "").localeCompare(left.createdAt ?? "");
     });
+}
+
+type SearchShotsOptions = {
+  openAiApiKey?: string;
+};
+
+type RankedEmbeddingRow = {
+  shotId: string;
+  distance: number;
+};
+
+async function searchShotsWithEmbeddings(
+  query: string,
+  options?: SearchShotsOptions,
+): Promise<ShotWithDetails[] | null> {
+  const [existingEmbedding] = await db
+    .select({ shotId: schema.shotEmbeddings.shotId })
+    .from(schema.shotEmbeddings)
+    .limit(1);
+
+  if (!existingEmbedding) {
+    return null;
+  }
+
+  const queryEmbedding = await generateTextEmbedding(query, options?.openAiApiKey);
+  const queryVector = toVectorLiteral(queryEmbedding);
+  const embeddingResult = await db.execute(
+    sql<RankedEmbeddingRow>`
+      SELECT shot_id AS "shotId", embedding <=> ${queryVector}::vector AS "distance"
+      FROM ${schema.shotEmbeddings}
+      ORDER BY embedding <=> ${queryVector}::vector
+      LIMIT 20
+    `,
+  );
+  const rankedEmbeddings = embeddingResult.rows as RankedEmbeddingRow[];
+  const shotIds = rankedEmbeddings.map((row) => row.shotId);
+
+  if (shotIds.length === 0) {
+    return [];
+  }
+
+  const rows = await selectJoinedShots().where(inArray(schema.shots.id, shotIds));
+  const shotsById = new Map(rows.map((row) => [row.shotId, mapShotRow(row)]));
+  const rankedShots: ShotWithDetails[] = [];
+
+  for (const row of rankedEmbeddings) {
+    const shot = shotsById.get(row.shotId);
+
+    if (!shot) {
+      continue;
+    }
+
+    rankedShots.push({
+      ...shot,
+      relevance: 1 - row.distance,
+    });
+  }
+
+  return rankedShots;
+}
+
+export async function searchShots(query: string, options?: SearchShotsOptions) {
+  const normalizedQuery = query.trim();
+
+  if (!normalizedQuery) {
+    return [];
+  }
+
+  try {
+    const semanticResults = await searchShotsWithEmbeddings(
+      normalizedQuery,
+      options,
+    );
+
+    if (semanticResults) {
+      return semanticResults;
+    }
+  } catch (error) {
+    console.error("Semantic search failed. Falling back to ILIKE.", error);
+  }
+
+  return searchShotsWithIlike(normalizedQuery);
 }
 
 export async function getShotsForReview(): Promise<ShotReviewQueueItem[]> {

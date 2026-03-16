@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
       "movementType",
     );
     const director = getParamValue(request.nextUrl.searchParams, "director");
+    const filmTitle = getParamValue(request.nextUrl.searchParams, "filmTitle");
     const shotSize = getParamValue(request.nextUrl.searchParams, "shotSize");
     const query =
       getParamValue(request.nextUrl.searchParams, "query") ??
@@ -28,11 +29,17 @@ export async function GET(request: NextRequest) {
     const filters = {
       movementType,
       director,
+      filmTitle,
       shotSize,
     };
 
     const shots = query
-      ? filterShotsCollection(await searchShots(query), filters)
+      ? filterShotsCollection(
+          await searchShots(query, {
+            openAiApiKey: process.env.OPENAI_API_KEY,
+          }),
+          filters,
+        )
       : await getAllShots(filters);
 
     return Response.json(shots);

@@ -10,7 +10,9 @@ export async function GET(request: NextRequest) {
       return Response.json([]);
     }
 
-    const shots = await searchShots(query);
+    const shots = await searchShots(query, {
+      openAiApiKey: process.env.OPENAI_API_KEY,
+    });
 
     return Response.json(shots);
   } catch (error) {
