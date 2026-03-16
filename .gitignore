@@ -48,3 +48,6 @@ __pycache__/
 # kiln temp
 .kiln/tmp/
 settings.local.json
+
+# pipeline output (video clips, thumbnails)
+pipeline/output/
