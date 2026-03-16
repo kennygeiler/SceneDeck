@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
 import { getShotsForReview, getVerificationStats } from "@/db/queries";
@@ -146,10 +147,13 @@ export default async function VerifyPage() {
             >
               <div className="relative aspect-video overflow-hidden border-b border-[var(--color-border-subtle)]">
                 {shot.thumbnailUrl ? (
-                  <div
+                  <Image
                     aria-hidden="true"
-                    className="absolute inset-0 bg-cover bg-center opacity-60"
-                    style={{ backgroundImage: `url(${shot.thumbnailUrl})` }}
+                    alt=""
+                    src={shot.thumbnailUrl}
+                    fill
+                    sizes="(min-width: 1024px) 560px, 100vw"
+                    className="absolute inset-0 object-cover opacity-60"
                   />
                 ) : null}
                 <div

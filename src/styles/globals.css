@@ -55,6 +55,7 @@
     color: var(--color-text-primary);
     color-scheme: dark;
     font-family: var(--font-body);
+    scroll-behavior: smooth;
   }
 
   body {
@@ -79,5 +80,48 @@
       transparent
     );
     color: var(--color-text-primary);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+@keyframes scenedeck-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@layer utilities {
+  .scene-skeleton {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(
+      135deg,
+      color-mix(in oklch, var(--color-surface-tertiary) 76%, transparent),
+      color-mix(in oklch, var(--color-surface-secondary) 92%, transparent)
+    );
+  }
+
+  .scene-skeleton::after {
+    position: absolute;
+    inset: 0;
+    content: "";
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      color-mix(in oklch, var(--color-accent-light) 14%, transparent) 46%,
+      color-mix(in oklch, var(--color-neutral-50) 8%, transparent) 50%,
+      color-mix(in oklch, var(--color-overlay-trajectory) 12%, transparent) 54%,
+      transparent 100%
+    );
+    animation: scenedeck-shimmer 1.8s ease-in-out infinite;
   }
 }

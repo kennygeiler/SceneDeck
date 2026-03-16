@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 import {
@@ -26,10 +27,13 @@ export function ShotCard({ shot }: ShotCardProps) {
     >
       <div className="relative aspect-video overflow-hidden border-b border-[var(--color-border-subtle)]">
         {shot.thumbnailUrl ? (
-          <div
+          <Image
             aria-hidden="true"
-            className="absolute inset-0 bg-cover bg-center opacity-60"
-            style={{ backgroundImage: `url(${shot.thumbnailUrl})` }}
+            alt=""
+            src={shot.thumbnailUrl}
+            fill
+            sizes="(min-width: 1280px) 360px, (min-width: 640px) 50vw, 100vw"
+            className="absolute inset-0 object-cover opacity-60"
           />
         ) : null}
         <div

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { Search } from "lucide-react";
+import { ArrowUpRight, Search } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -45,10 +45,19 @@ export function SiteHeader() {
           <div className="flex items-center gap-6">
             <Link
               href="/"
-              className="text-base font-bold tracking-[var(--letter-spacing-snug)] text-[var(--color-text-primary)] transition-colors hover:text-[var(--color-interactive-hover)] sm:text-lg"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="transition-colors hover:text-[var(--color-interactive-hover)]"
             >
-              SceneDeck
+              <div>
+                <p
+                  className="text-base font-bold tracking-[var(--letter-spacing-snug)] text-[var(--color-text-primary)] sm:text-lg"
+                  style={{ fontFamily: "var(--font-heading)" }}
+                >
+                  SceneDeck
+                </p>
+                <p className="hidden font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)] sm:block">
+                  Motion intelligence archive
+                </p>
+              </div>
             </Link>
 
             <nav
@@ -83,16 +92,29 @@ export function SiteHeader() {
             </nav>
           </div>
 
-          <Link
-            href="/browse"
-            aria-label="Search shots"
-            className={cn(
-              buttonVariants({ variant: "outline", size: "icon-sm" }),
-              "rounded-full border-[var(--color-border-default)] bg-transparent text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-tertiary)] hover:text-[var(--color-text-primary)]",
-            )}
-          >
-            <Search aria-hidden="true" />
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/browse"
+              aria-label="Search shots"
+              className={cn(
+                buttonVariants({ variant: "outline", size: "icon-sm" }),
+                "rounded-full border-[var(--color-border-default)] bg-transparent text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-tertiary)] hover:text-[var(--color-text-primary)] sm:hidden",
+              )}
+            >
+              <Search aria-hidden="true" />
+            </Link>
+
+            <Link
+              href="/browse"
+              className={cn(
+                buttonVariants({ variant: "outline", size: "sm" }),
+                "hidden rounded-full border-[var(--color-border-default)] bg-transparent px-4 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-tertiary)] hover:text-[var(--color-text-primary)] sm:inline-flex",
+              )}
+            >
+              Open archive
+              <ArrowUpRight aria-hidden="true" />
+            </Link>
+          </div>
         </div>
       </div>
     </motion.header>

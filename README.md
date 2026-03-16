@@ -1,36 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SceneDeck
 
-## Getting Started
+Searchable film-scene intelligence with structured camera motion metadata and playback-aware overlays.
 
-First, run the development server:
+![Next.js](https://img.shields.io/badge/Next.js-15-black)
+![React](https://img.shields.io/badge/React-19-1d9bf0)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38bdf8)
+![Drizzle](https://img.shields.io/badge/Drizzle-ORM-c5f74f)
+![Neon](https://img.shields.io/badge/Neon-Postgres-00e699)
+![Vercel](https://img.shields.io/badge/Vercel-Deploy-black)
+
+## Screenshot
+
+`[Screenshot placeholder: landing page / browse archive / shot detail overlay]`
+
+## Live Demo
+
+Placeholder: `https://scenedeck-demo.vercel.app`
+
+## Quick Start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+git clone <your-repo-url>
+cd Claude
+pnpm install
+cp .env.example .env.local
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Set the following values in `.env.local` for the Next.js app and `.env` for the Python pipeline:
 
-## Learn More
+```bash
+DATABASE_URL=
+GOOGLE_API_KEY=
+VERCEL_BLOB_READ_WRITE_TOKEN=
+OPENAI_API_KEY=
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Pipeline Usage
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+cd pipeline
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+From there, run the ingestion / classification / upload steps against your source footage and database configuration. The pipeline is responsible for:
 
-## Deploy on Vercel
+- Scene detection via PySceneDetect
+- Camera-motion classification via Gemini
+- Database writes to Neon PostgreSQL
+- Clip and thumbnail upload to Vercel Blob
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Architecture Overview
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+SceneDeck is a Next.js 15 App Router monolith deployed to Vercel. The web app renders a searchable archive of film shots backed by Neon PostgreSQL and Drizzle ORM, with a hero SVG metadata overlay layered over shot playback. Offline analysis lives in `/pipeline`, where source footage is segmented into shots, classified against a shared camera-motion taxonomy, and written back into the application database.
+
+Core product surfaces:
+
+- Landing page with product framing and featured live records
+- Browse archive with filterable motion taxonomy controls
+- Shot detail page with playback-aware overlay telemetry
+- Verification queue for QA review and metadata correction
+- Export surface for dataset extraction workflows
+
+## Built With
+
+- Next.js 15 App Router
+- React 19
+- TypeScript
+- Tailwind CSS 4
+- Framer Motion
+- shadcn/ui + Radix primitives
+- Drizzle ORM
+- Neon PostgreSQL + pgvector
+- Vercel Blob
+- Gemini 2.0 Flash
+- OpenAI API
+- PySceneDetect
+
+## Notes
+
+- Built entirely through AI-assisted development
+- Designed as a portfolio-ready demo surface, not a generic CRUD app

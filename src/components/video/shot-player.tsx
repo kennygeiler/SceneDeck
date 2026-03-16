@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
@@ -62,12 +63,17 @@ export function ShotPlayer({ shot }: ShotPlayerProps) {
             controls
             muted
             playsInline
+            preload="metadata"
           />
         ) : shot.thumbnailUrl ? (
-          <div
+          <Image
             aria-hidden="true"
-            className="absolute inset-0 bg-cover bg-center opacity-60"
-            style={{ backgroundImage: `url(${shot.thumbnailUrl})` }}
+            alt=""
+            src={shot.thumbnailUrl}
+            fill
+            priority
+            sizes="(min-width: 1024px) 960px, 100vw"
+            className="absolute inset-0 object-cover opacity-60"
           />
         ) : null}
 
