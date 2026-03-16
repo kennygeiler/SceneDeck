@@ -9,6 +9,22 @@ import type {
   VerticalAngleSlug,
 } from "@/lib/taxonomy";
 
+export type VerificationFieldKey =
+  | "movementType"
+  | "direction"
+  | "speed"
+  | "shotSize"
+  | "angleVertical"
+  | "angleHorizontal";
+
+export type VerificationFieldRatingsMap = Partial<
+  Record<VerificationFieldKey, number | null>
+>;
+
+export type VerificationCorrectionsMap = Partial<
+  Record<VerificationFieldKey, string | null>
+>;
+
 export type ShotWithDetails = {
   id: string;
   film: {
@@ -51,4 +67,29 @@ export type ShotWithDetails = {
   thumbnailUrl: string | null;
   createdAt: string | null;
   relevance?: number;
+};
+
+export type VerificationRecord = {
+  id: string;
+  shotId: string;
+  overallRating: number | null;
+  fieldRatings: VerificationFieldRatingsMap | null;
+  corrections: VerificationCorrectionsMap | null;
+  notes: string | null;
+  verifiedAt: string | null;
+};
+
+export type VerificationStats = {
+  totalShots: number;
+  verifiedShots: number;
+  unverifiedShots: number;
+  totalVerifications: number;
+  averageOverallRating: number | null;
+  reviewQueueCount: number;
+};
+
+export type ShotReviewQueueItem = ShotWithDetails & {
+  verificationCount: number;
+  averageOverallRating: number | null;
+  latestVerifiedAt: string | null;
 };

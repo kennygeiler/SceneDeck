@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { Search } from "lucide-react";
 
@@ -14,6 +15,16 @@ const navigation = [
 ] as const;
 
 export function SiteHeader() {
+  const pathname = usePathname();
+
+  function isActiveRoute(href: string) {
+    if (href === "/") {
+      return pathname === href;
+    }
+
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
+
   return (
     <motion.header
       initial={{ opacity: 0, y: -18 }}
@@ -50,8 +61,21 @@ export function SiteHeader() {
                   href={item.href}
                   className={cn(
                     buttonVariants({ variant: "ghost", size: "sm" }),
-                    "rounded-full px-3 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]",
+                    "rounded-full px-3 hover:text-[var(--color-text-primary)]",
+                    isActiveRoute(item.href)
+                      ? "text-[var(--color-text-primary)]"
+                      : "text-[var(--color-text-secondary)]",
                   )}
+                  style={
+                    isActiveRoute(item.href)
+                      ? {
+                          backgroundColor:
+                            "color-mix(in oklch, var(--color-accent-base) 14%, transparent)",
+                          borderColor:
+                            "color-mix(in oklch, var(--color-accent-base) 32%, transparent)",
+                        }
+                      : undefined
+                  }
                 >
                   {item.label}
                 </Link>

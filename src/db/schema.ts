@@ -25,7 +25,7 @@ export type CompoundPart = {
 };
 
 export type VerificationFieldRatings = Record<string, number | null>;
-export type VerificationCorrections = Record<string, unknown>;
+export type VerificationCorrections = Record<string, string | null>;
 
 const vector = customType<{
   data: number[];
@@ -110,6 +110,7 @@ export const verifications = pgTable("verifications", {
   overallRating: integer("overall_rating"),
   fieldRatings: jsonb("field_ratings").$type<VerificationFieldRatings>(),
   corrections: jsonb("corrections").$type<VerificationCorrections>(),
+  notes: text("notes"),
   verifiedAt: timestamp("verified_at", { withTimezone: true }).defaultNow(),
 });
 

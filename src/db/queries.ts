@@ -1,7 +1,14 @@
 import { and, desc, eq, ilike, or, type SQL } from "drizzle-orm";
 
 import { db, schema } from "@/db";
-import type { ShotWithDetails } from "@/lib/types";
+import type {
+  ShotReviewQueueItem,
+  ShotWithDetails,
+  VerificationCorrectionsMap,
+  VerificationFieldRatingsMap,
+  VerificationRecord,
+  VerificationStats,
+} from "@/lib/types";
 import type {
   DirectionSlug,
   DurationCategorySlug,
@@ -11,6 +18,8 @@ import type {
   SpeedSlug,
   VerticalAngleSlug,
 } from "@/lib/taxonomy";
+
+const REVIEW_PASSING_RATING = 4;
 
 export type ShotQueryFilters = {
   movementType?: string;
@@ -72,6 +81,14 @@ function toIsoString(value: Date | null) {
   return value ? value.toISOString() : null;
 }
 
+function toRoundedAverage(values: number[]) {
+  if (values.length === 0) {
+    return null;
+  }
+
+  return Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10;
+}
+
 function mapShotRow(row: ShotRow): ShotWithDetails {
   return {
     id: row.shotId,
@@ -117,6 +134,62 @@ function mapShotRow(row: ShotRow): ShotWithDetails {
     thumbnailUrl: row.shotThumbnailUrl ?? null,
     createdAt: toIsoString(row.shotCreatedAt ?? null),
   };
+}
+
+function mapVerificationRecord(
+  row: typeof schema.verifications.$inferSelect,
+): VerificationRecord {
+  return {
+    id: row.id,
+    shotId: row.shotId,
+    overallRating: row.overallRating ?? null,
+    fieldRatings: (row.fieldRatings as VerificationFieldRatingsMap | null) ?? null,
+    corrections: (row.corrections as VerificationCorrectionsMap | null) ?? null,
+    notes: row.notes ?? null,
+    verifiedAt: toIsoString(row.verifiedAt ?? null),
+  };
+}
+
+function buildVerificationSummary(
+  verifications: Array<{
+    shotId: string;
+    overallRating: number | null;
+    verifiedAt: Date | null;
+  }>,
+) {
+  const summaryByShot = new Map<
+    string,
+    {
+      verificationCount: number;
+      ratings: number[];
+      latestVerifiedAt: Date | null;
+    }
+  >();
+
+  for (const verification of verifications) {
+    const summary = summaryByShot.get(verification.shotId) ?? {
+      verificationCount: 0,
+      ratings: [],
+      latestVerifiedAt: null,
+    };
+
+    summary.verificationCount += 1;
+
+    if (typeof verification.overallRating === "number") {
+      summary.ratings.push(verification.overallRating);
+    }
+
+    if (
+      verification.verifiedAt &&
+      (!summary.latestVerifiedAt || verification.verifiedAt > summary.latestVerifiedAt)
+    ) {
+      summary.latestVerifiedAt = verification.verifiedAt;
+    }
+
+    summaryByShot.set(verification.shotId, summary);
+  }
+
+  return summaryByShot;
 }
 
 function getRelevanceScore(shot: ShotWithDetails, query: string) {
@@ -258,4 +331,130 @@ export async function searchShots(query: string) {
 
       return (right.createdAt ?? "").localeCompare(left.createdAt ?? "");
     });
+}
+
+export async function getShotsForReview(): Promise<ShotReviewQueueItem[]> {
+  const [shots, verificationRows] = await Promise.all([
+    getAllShots(),
+    db
+      .select({
+        shotId: schema.verifications.shotId,
+        overallRating: schema.verifications.overallRating,
+        verifiedAt: schema.verifications.verifiedAt,
+      })
+      .from(schema.verifications),
+  ]);
+
+  const verificationSummary = buildVerificationSummary(verificationRows);
+
+  return shots
+    .map((shot) => {
+      const summary = verificationSummary.get(shot.id);
+      const averageOverallRating = toRoundedAverage(summary?.ratings ?? []);
+
+      return {
+        ...shot,
+        verificationCount: summary?.verificationCount ?? 0,
+        averageOverallRating,
+        latestVerifiedAt: toIsoString(summary?.latestVerifiedAt ?? null),
+      };
+    })
+    .filter(
+      (shot) =>
+        shot.verificationCount === 0 ||
+        (shot.averageOverallRating ?? 0) < REVIEW_PASSING_RATING,
+    )
+    .sort((left, right) => {
+      if ((left.verificationCount === 0) !== (right.verificationCount === 0)) {
+        return left.verificationCount === 0 ? -1 : 1;
+      }
+
+      const leftRating = left.averageOverallRating ?? Number.POSITIVE_INFINITY;
+      const rightRating = right.averageOverallRating ?? Number.POSITIVE_INFINITY;
+
+      if (leftRating !== rightRating) {
+        return leftRating - rightRating;
+      }
+
+      return left.film.title.localeCompare(right.film.title);
+    });
+}
+
+export async function getVerificationsForShot(
+  shotId: string,
+): Promise<VerificationRecord[]> {
+  const rows = await db
+    .select()
+    .from(schema.verifications)
+    .where(eq(schema.verifications.shotId, shotId))
+    .orderBy(desc(schema.verifications.verifiedAt));
+
+  return rows.map(mapVerificationRecord);
+}
+
+export async function submitVerification(data: {
+  shotId: string;
+  overallRating: number;
+  fieldRatings: Record<string, number>;
+  corrections?: Record<string, string>;
+  notes?: string;
+}): Promise<VerificationRecord> {
+  const fieldRatings = Object.fromEntries(
+    Object.entries(data.fieldRatings)
+      .filter(([, value]) => typeof value === "number")
+      .map(([field, value]) => [field, value]),
+  ) as VerificationFieldRatingsMap;
+
+  const corrections = Object.fromEntries(
+    Object.entries(data.corrections ?? {}).filter(([, value]) => Boolean(value)),
+  ) as VerificationCorrectionsMap;
+
+  const [row] = await db
+    .insert(schema.verifications)
+    .values({
+      shotId: data.shotId,
+      overallRating: data.overallRating,
+      fieldRatings,
+      corrections: Object.keys(corrections).length > 0 ? corrections : null,
+      notes: data.notes?.trim() ? data.notes.trim() : null,
+    })
+    .returning();
+
+  return mapVerificationRecord(row);
+}
+
+export async function getVerificationStats(): Promise<VerificationStats> {
+  const [shots, verificationRows] = await Promise.all([
+    db.select({ id: schema.shots.id }).from(schema.shots),
+    db
+      .select({
+        shotId: schema.verifications.shotId,
+        overallRating: schema.verifications.overallRating,
+        verifiedAt: schema.verifications.verifiedAt,
+      })
+      .from(schema.verifications),
+  ]);
+
+  const verificationSummary = buildVerificationSummary(verificationRows);
+  const ratings = verificationRows
+    .map((verification) => verification.overallRating)
+    .filter((rating): rating is number => typeof rating === "number");
+
+  return {
+    totalShots: shots.length,
+    verifiedShots: verificationSummary.size,
+    unverifiedShots: shots.length - verificationSummary.size,
+    totalVerifications: verificationRows.length,
+    averageOverallRating: toRoundedAverage(ratings),
+    reviewQueueCount: shots.filter((shot) => {
+      const summary = verificationSummary.get(shot.id);
+      const averageOverallRating = toRoundedAverage(summary?.ratings ?? []);
+
+      return (
+        !summary ||
+        summary.verificationCount === 0 ||
+        (averageOverallRating ?? 0) < REVIEW_PASSING_RATING
+      );
+    }).length,
+  };
 }
