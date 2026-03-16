@@ -4,3 +4,4 @@ anthropic
 httpx
 python-dotenv
 ffmpeg-python
+psycopg2-binary
