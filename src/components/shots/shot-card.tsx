@@ -1,14 +1,15 @@
 import Link from "next/link";
 
 import {
+  getDirectionDisplayName,
   formatShotDuration,
   getMovementDisplayName,
   getShotSizeDisplayName,
 } from "@/lib/shot-display";
-import type { MockShot } from "@/lib/mock/shots";
+import type { ShotWithDetails } from "@/lib/types";
 
 type ShotCardProps = {
-  shot: MockShot;
+  shot: ShotWithDetails;
 };
 
 export function ShotCard({ shot }: ShotCardProps) {
@@ -24,6 +25,13 @@ export function ShotCard({ shot }: ShotCardProps) {
       }}
     >
       <div className="relative aspect-video overflow-hidden border-b border-[var(--color-border-subtle)]">
+        {shot.thumbnailUrl ? (
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-cover bg-center opacity-60"
+            style={{ backgroundImage: `url(${shot.thumbnailUrl})` }}
+          />
+        ) : null}
         <div
           aria-hidden="true"
           className="absolute inset-0"
@@ -81,7 +89,7 @@ export function ShotCard({ shot }: ShotCardProps) {
             {shot.metadata.isCompound ? "Compound movement" : "Single vector"}
           </p>
           <p className="mt-1 font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-            {shot.metadata.direction.replaceAll("_", " ")}
+            {getDirectionDisplayName(shot.metadata.direction)}
           </p>
         </div>
         <span className="text-sm text-[var(--color-text-accent)] transition-transform duration-300 group-hover:translate-x-1">

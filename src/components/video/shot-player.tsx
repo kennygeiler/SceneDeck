@@ -6,10 +6,10 @@ import { Eye, EyeOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { MetadataOverlay } from "@/components/video/metadata-overlay";
-import type { MockShot } from "@/lib/mock/shots";
+import type { ShotWithDetails } from "@/lib/types";
 
 type ShotPlayerProps = {
-  shot: MockShot;
+  shot: ShotWithDetails;
 };
 
 const legendItems = [
@@ -54,6 +54,23 @@ export function ShotPlayer({ shot }: ShotPlayerProps) {
           }}
         />
 
+        {shot.videoUrl ? (
+          <video
+            className="absolute inset-0 h-full w-full object-cover"
+            src={shot.videoUrl}
+            poster={shot.thumbnailUrl ?? undefined}
+            controls
+            muted
+            playsInline
+          />
+        ) : shot.thumbnailUrl ? (
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-cover bg-center opacity-60"
+            style={{ backgroundImage: `url(${shot.thumbnailUrl})` }}
+          />
+        ) : null}
+
         <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -71,9 +88,10 @@ export function ShotPlayer({ shot }: ShotPlayerProps) {
               {shot.film.title}
             </h2>
             <p className="mt-3 text-sm leading-7 text-[var(--color-text-secondary)] sm:text-base">
-              The M2 overlay is live on top of a synthetic plate so motion,
-              angle, speed, and compound movement states can be reviewed before
-              video ingestion lands.
+              {shot.videoUrl
+                ? "Playback is sourced from the database clip record, with the telemetry overlay layered directly on top."
+                : shot.semantic?.description ??
+                  "The overlay remains active even when a real media asset has not been attached yet, so motion metadata can still be reviewed in context."}
             </p>
           </motion.div>
         </div>

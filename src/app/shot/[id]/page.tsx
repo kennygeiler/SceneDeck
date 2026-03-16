@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { getShotById } from "@/db/queries";
 import { ShotPlayer } from "@/components/video/shot-player";
 import {
   formatShotDuration,
@@ -14,7 +15,6 @@ import {
   getSpeedDisplayName,
   getVerticalAngleDisplayName,
 } from "@/lib/shot-display";
-import { getMockShotById, mockShots } from "@/lib/mock/shots";
 
 type ShotDetailPageProps = {
   params: Promise<{
@@ -26,7 +26,7 @@ export async function generateMetadata({
   params,
 }: ShotDetailPageProps): Promise<Metadata> {
   const { id } = await params;
-  const shot = getMockShotById(id);
+  const shot = await getShotById(id);
 
   if (!shot) {
     return {
@@ -36,17 +36,15 @@ export async function generateMetadata({
 
   return {
     title: `${shot.film.title} • ${getMovementDisplayName(shot.metadata.movementType)}`,
-    description: `${shot.film.title} (${shot.film.year}) with ${getMovementDisplayName(shot.metadata.movementType)} movement rendered in the SceneDeck overlay.`,
+    description:
+      shot.semantic?.description ??
+      `${shot.film.title} (${shot.film.year ?? "Unknown year"}) with ${getMovementDisplayName(shot.metadata.movementType)} movement rendered in the SceneDeck overlay.`,
   };
-}
-
-export function generateStaticParams() {
-  return mockShots.map((shot) => ({ id: shot.id }));
 }
 
 export default async function ShotDetailPage({ params }: ShotDetailPageProps) {
   const { id } = await params;
-  const shot = getMockShotById(id);
+  const shot = await getShotById(id);
 
   if (!shot) {
     notFound();
@@ -108,7 +106,7 @@ export default async function ShotDetailPage({ params }: ShotDetailPageProps) {
             {shot.film.title}
           </h1>
           <p className="mt-4 text-base leading-8 text-[var(--color-text-secondary)]">
-            {shot.film.director} · {shot.film.year} · {shot.id}
+            {shot.film.director} · {shot.film.year ?? "Unknown year"} · {shot.id}
           </p>
         </div>
 
@@ -168,13 +166,17 @@ export default async function ShotDetailPage({ params }: ShotDetailPageProps) {
           }}
         >
           <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-            Clip note
+            Semantic note
           </p>
           <p className="mt-4 text-base leading-8 text-[var(--color-text-secondary)]">
-            This view uses synthetic playback artwork only. Once media ingestion
-            is added, the same overlay will render on top of real clips and stay
-            synchronized with playback time.
+            {shot.semantic?.description ??
+              "A semantic description has not been attached to this shot yet."}
           </p>
+          {shot.semantic?.techniqueNotes ? (
+            <p className="mt-4 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] p-4 text-sm leading-7 text-[var(--color-text-secondary)]">
+              {shot.semantic.techniqueNotes}
+            </p>
+          ) : null}
         </aside>
       </section>
     </div>

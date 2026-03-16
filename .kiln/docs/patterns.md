@@ -2,7 +2,7 @@
 # Patterns & Quality Guide
 
 ## TL;DR
-Patterns tracked: 12. Pitfalls tracked: 10. Key guidance: Use App Router Server Components for all data fetching (never Pages Router). Define taxonomy constants once in TypeScript and Python — any drift is a bug. All Drizzle queries go through typed schema; never raw SQL strings. Canvas overlay sync must use requestAnimationFrame tied to video.currentTime, never setInterval.
+Patterns tracked: 16. Pitfalls tracked: 12. Key guidance: Taxonomy constants use `{ slug, displayName }` object structure — not plain arrays. Filter state for browse lives in URL search params (not useState). Drizzle schema lives in `src/db/schema.ts`; all types derive from `$inferSelect`/`$inferInsert`. The `src/` directory prefix applies to all app, lib, components, and db paths. pgvector extension must be enabled in Neon before migration. OpenAI embedding calls belong only in Route Handlers, never in Server Components.
 
 ---
 
@@ -11,7 +11,7 @@ Patterns tracked: 12. Pitfalls tracked: 10. Key guidance: Use App Router Server 
 - **Rule**: Fetch all data in Server Components or Route Handlers. Never use `getServerSideProps` or `getStaticProps`.
 - **Example**:
   ```tsx
-  // app/shots/page.tsx — correct
+  // src/app/shots/page.tsx — correct
   import { db } from '@/db'
   import { shots } from '@/db/schema'
 
@@ -36,11 +36,11 @@ Patterns tracked: 12. Pitfalls tracked: 10. Key guidance: Use App Router Server 
 - **Rule**: Add `'use client'` only when the component requires browser APIs, event handlers, or React hooks like `useState`/`useEffect`. Keep the client boundary as deep in the tree as possible.
 - **Example**:
   ```tsx
-  // components/VideoPlayer.tsx — correct, client needed for video events
+  // src/components/video/shot-player.tsx — correct, client needed for video events
   'use client'
   import { useRef, useEffect } from 'react'
 
-  export function VideoPlayer({ src }: { src: string }) {
+  export function ShotPlayer({ src }: { src: string }) {
     const videoRef = useRef<HTMLVideoElement>(null)
     // ... overlay sync via requestAnimationFrame
   }
@@ -58,20 +58,20 @@ Patterns tracked: 12. Pitfalls tracked: 10. Key guidance: Use App Router Server 
 
 ## P-003: Shared Taxonomy Constants — Single Source of Truth
 - **Category**: data-flow
-- **Rule**: The camera movement taxonomy must be defined in `lib/taxonomy.ts` (TypeScript) and `pipeline/taxonomy.py` (Python) with identical values. Any addition or rename must happen in both files simultaneously.
+- **Rule**: The camera movement taxonomy is defined in `src/lib/taxonomy.ts` (TypeScript) and `pipeline/taxonomy.py` (Python) with identical slug values. Any addition or rename must happen in both files simultaneously.
 - **Example**:
   ```typescript
-  // lib/taxonomy.ts
-  export const MOVEMENT_TYPES = [
-    'static', 'pan', 'tilt', 'dolly', 'truck', 'pedestal',
-    'crane', 'boom', 'zoom', 'dolly_zoom', 'handheld', 'steadicam',
-    'drone', 'aerial', 'arc', 'whip_pan', 'whip_tilt', 'rack_focus',
-    'follow', 'reveal', 'reframe'
-  ] as const
-  export type MovementType = typeof MOVEMENT_TYPES[number]
+  // src/lib/taxonomy.ts — actual project shape
+  export const MOVEMENT_TYPES = {
+    static: { slug: "static", displayName: "Static" },
+    pan:    { slug: "pan",    displayName: "Pan" },
+    // ... 21 total
+  } as const
+  export type MovementTypeKey = keyof typeof MOVEMENT_TYPES
+  export type MovementTypeSlug = (typeof MOVEMENT_TYPES)[MovementTypeKey]["slug"]
   ```
   ```python
-  # pipeline/taxonomy.py
+  # pipeline/taxonomy.py — must match slugs exactly
   MOVEMENT_TYPES = [
     'static', 'pan', 'tilt', 'dolly', 'truck', 'pedestal',
     'crane', 'boom', 'zoom', 'dolly_zoom', 'handheld', 'steadicam',
@@ -84,15 +84,14 @@ Patterns tracked: 12. Pitfalls tracked: 10. Key guidance: Use App Router Server 
 
 ## P-004: Drizzle Schema as the Type Contract
 - **Category**: structure
-- **Rule**: Define all database shapes in `db/schema.ts`. Use Drizzle's `$inferSelect` / `$inferInsert` as TypeScript types throughout the app. Never declare parallel interface types that duplicate schema fields.
+- **Rule**: Define all database shapes in `src/db/schema.ts`. Use Drizzle's `$inferSelect` / `$inferInsert` as TypeScript types throughout the app. Never declare parallel interface types that duplicate schema fields.
 - **Example**:
   ```typescript
-  // db/schema.ts
+  // src/db/schema.ts
   export const shots = pgTable('shots', {
     id: uuid('id').primaryKey().defaultRandom(),
     filmTitle: text('film_title').notNull(),
     movementType: text('movement_type').notNull(),
-    embedding: vector('embedding', { dimensions: 1536 }),
   })
 
   // types used across the app
@@ -130,10 +129,10 @@ Patterns tracked: 12. Pitfalls tracked: 10. Key guidance: Use App Router Server 
 
 ## P-006: Route Handler Pattern for API Endpoints
 - **Category**: structure
-- **Rule**: API endpoints live in `app/api/[resource]/route.ts`. Export named async functions `GET`, `POST`, `PUT`, `DELETE`. Use `NextRequest` and `NextResponse`. Never use Express-style middleware patterns.
+- **Rule**: API endpoints live in `src/app/api/[resource]/route.ts`. Export named async functions `GET`, `POST`, `PUT`, `DELETE`. Use `NextRequest` and `NextResponse`. Never use Express-style middleware patterns.
 - **Example**:
   ```typescript
-  // app/api/shots/route.ts
+  // src/app/api/shots/route.ts
   import { NextRequest, NextResponse } from 'next/server'
   import { db } from '@/db'
   import { shots } from '@/db/schema'
@@ -151,7 +150,7 @@ Patterns tracked: 12. Pitfalls tracked: 10. Key guidance: Use App Router Server 
 - **Rule**: Use Server Actions (with `'use server'` directive) for form submissions and data mutations. This avoids needing a separate API route for simple write operations.
 - **Example**:
   ```typescript
-  // app/actions/verify.ts
+  // src/app/actions/verify.ts
   'use server'
   import { db } from '@/db'
   import { verifications } from '@/db/schema'
@@ -169,7 +168,7 @@ Patterns tracked: 12. Pitfalls tracked: 10. Key guidance: Use App Router Server 
 - **Example**:
   ```
   /pipeline
-    taxonomy.py       # taxonomy constants (mirrors lib/taxonomy.ts)
+    taxonomy.py       # taxonomy constants (mirrors src/lib/taxonomy.ts)
     ingest.py         # shot detection via PySceneDetect
     classify.py       # Gemini classification
     upload.py         # Vercel Blob + Neon writes
@@ -219,7 +218,7 @@ Patterns tracked: 12. Pitfalls tracked: 10. Key guidance: Use App Router Server 
 
 ## P-011: shadcn/ui Component Addition Pattern
 - **Category**: structure
-- **Rule**: Add shadcn/ui components via the CLI (`npx shadcn@latest add [component]`), not by manually copying files. Components land in `components/ui/`. Never import from `@radix-ui` directly when a shadcn wrapper exists.
+- **Rule**: Add shadcn/ui components via the CLI (`npx shadcn@latest add [component]`), not by manually copying files. Components land in `src/components/ui/`. Never import from `@radix-ui` directly when a shadcn wrapper exists.
 - **Example**:
   ```bash
   npx shadcn@latest add button card dialog slider
@@ -229,13 +228,104 @@ Patterns tracked: 12. Pitfalls tracked: 10. Key guidance: Use App Router Server 
 
 ## P-012: TypeScript Strict Mode Required
 - **Category**: naming
-- **Rule**: `strict: true` in `tsconfig.json` is non-negotiable. All taxonomy types must be `as const` union types derived from the constant arrays, not bare `string` types. Use `!` non-null assertions only when the value is guaranteed by prior logic; prefer optional chaining + early return otherwise.
+- **Rule**: `strict: true` in `tsconfig.json` is non-negotiable. All taxonomy types must be `as const` derived types, not bare `string` types. Use `!` non-null assertions only when the value is guaranteed by prior logic; prefer optional chaining + early return otherwise.
 - **Example**:
   ```typescript
-  // Correct — narrow type
-  export type MovementType = typeof MOVEMENT_TYPES[number]
-  function classify(m: MovementType) { ... }
+  // Correct — narrow type derived from taxonomy object
+  export type MovementTypeSlug = (typeof MOVEMENT_TYPES)[keyof typeof MOVEMENT_TYPES]["slug"]
+  function classify(m: MovementTypeSlug) { ... }
 
   // Wrong — too broad
   function classify(m: string) { ... }
+  ```
+
+---
+
+## P-013: Taxonomy Object Shape — `{ slug, displayName }` Pattern
+- **Category**: data-flow
+- **Rule**: All taxonomy constants in `src/lib/taxonomy.ts` use the object shape `{ slug: string, displayName: string }` keyed by slug. Iterate with `Object.values(TAXONOMY)` to get display items; use `.slug` for DB storage and URL params, `.displayName` for UI rendering. Do NOT treat them as plain arrays.
+- **Example**:
+  ```typescript
+  // Rendering filter buttons — correct
+  Object.values(MOVEMENT_TYPES).map((movement) => (
+    <button key={movement.slug} onClick={() => setFilter(movement.slug)}>
+      {movement.displayName}
+    </button>
+  ))
+
+  // Accessing a specific entry — correct
+  const label = MOVEMENT_TYPES['dolly_zoom'].displayName  // "Dolly Zoom"
+  ```
+- **Counter-example**:
+  ```typescript
+  // WRONG — treating as plain array
+  MOVEMENT_TYPES.map(m => m)  // TypeError: MOVEMENT_TYPES.map is not a function
+  ```
+
+---
+
+## P-014: Filter State in URL Search Params
+- **Category**: structure
+- **Rule**: For the browse page, filter state must live in URL search params (via `useSearchParams` / `useRouter`), not local `useState`. This makes filter URLs shareable and satisfies M3 AC "Filter URLs are shareable — visiting a filter URL restores the filter state."
+- **Example**:
+  ```typescript
+  'use client'
+  import { useRouter, useSearchParams } from 'next/navigation'
+
+  export function FilterSidebar() {
+    const router = useRouter()
+    const searchParams = useSearchParams()
+    const active = searchParams.get('movement') ?? 'all'
+
+    function setFilter(slug: string) {
+      const params = new URLSearchParams(searchParams.toString())
+      if (slug === 'all') params.delete('movement')
+      else params.set('movement', slug)
+      router.push(`/browse?${params.toString()}`)
+    }
+    // ...
+  }
+  ```
+- **Counter-example**:
+  ```typescript
+  // WRONG — filter state lost on navigation / cannot be bookmarked
+  const [activeFilter, setActiveFilter] = useState('all')
+  ```
+
+---
+
+## P-015: Drizzle db Client Singleton Pattern
+- **Category**: structure
+- **Rule**: Instantiate the Neon HTTP driver and Drizzle client exactly once in `src/db/index.ts`. Import `db` from this module everywhere. Never call `neon()` or `drizzle()` inside a component or Route Handler body.
+- **Example**:
+  ```typescript
+  // src/db/index.ts
+  import { neon } from '@neondatabase/serverless'
+  import { drizzle } from 'drizzle-orm/neon-http'
+  import * as schema from './schema'
+
+  const sql = neon(process.env.DATABASE_URL!)
+  export const db = drizzle(sql, { schema })
+  ```
+
+---
+
+## P-016: OpenAI Embedding Calls in Route Handlers Only
+- **Category**: async
+- **Rule**: Calls to the OpenAI embeddings API (`text-embedding-3-small`) must only happen inside Route Handlers (`src/app/api/search/route.ts`). Never call the embeddings API from a Server Component — it adds latency to the initial page render and cannot be cached independently.
+- **Example**:
+  ```typescript
+  // src/app/api/search/route.ts — correct
+  import OpenAI from 'openai'
+  const openai = new OpenAI()
+
+  export async function GET(req: NextRequest) {
+    const query = req.nextUrl.searchParams.get('q') ?? ''
+    const { data } = await openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: query,
+    })
+    const embedding = data[0].embedding
+    // ... pgvector similarity search
+  }
   ```

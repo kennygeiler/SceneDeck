@@ -14,11 +14,11 @@ import {
   getVerticalAngleDisplayName,
   SPEED_PROGRESS,
 } from "@/lib/shot-display";
-import type { MockShot } from "@/lib/mock/shots";
+import type { ShotWithDetails } from "@/lib/types";
 import type { DirectionSlug } from "@/lib/taxonomy";
 
 type MetadataOverlayProps = {
-  shot: MockShot;
+  shot: ShotWithDetails;
 };
 
 const containerVariants: Variants = {
