@@ -4,10 +4,10 @@
 - **skill**: /Users/kenny.geiler/.claude/plugins/cache/kiln/kiln/1.0.5/skills/kiln-pipeline/SKILL.md
 - **roster**: /Users/kenny.geiler/.claude/plugins/cache/kiln/kiln/1.0.5/skills/kiln-pipeline/references/blueprints/step-5-build.md
 - **stage**: build
-- **build_iteration**: 1
+- **build_iteration**: 3
 - **correction_cycle**: 0
 - **milestone_count**: 7
-- **milestones_complete**: 0
+- **milestones_complete**: 2
 - **run_id**: kiln-603324
 - **started**: 2026-03-15
 - **updated**: 2026-03-15
