@@ -128,7 +128,7 @@ export function interpolateBbox(keyframes: ShotObjectKeyframe[], time: number): 
   };
 }
 
-function getTrackColor(yoloClass: string | null) {
+export function getTrackColor(yoloClass: string | null) {
   if (yoloClass === "person") {
     return "var(--color-overlay-object-person)";
   }

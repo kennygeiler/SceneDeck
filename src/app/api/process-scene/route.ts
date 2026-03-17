@@ -15,6 +15,7 @@ import {
   detectObjectsMultiFrame,
   replaceShotObjects,
 } from "@/lib/object-detection";
+import { searchTmdbMovieId } from "@/lib/tmdb";
 import type { ShotWithDetails } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -313,7 +314,13 @@ async function uploadAsset(
   return result.url;
 }
 
-function buildSearchText(film: { id: string; title: string; director: string; year: number }) {
+function buildSearchText(film: {
+  id: string;
+  title: string;
+  director: string;
+  year: number;
+  tmdbId: number | null;
+}) {
   return (shot: ProcessedShot) => {
     const shotForEmbedding: ShotWithDetails = {
       id: "",
@@ -322,7 +329,7 @@ function buildSearchText(film: { id: string; title: string; director: string; ye
         title: film.title,
         director: film.director,
         year: film.year,
-        tmdbId: null,
+        tmdbId: film.tmdbId,
         createdAt: null,
       },
       metadata: {
@@ -367,21 +374,26 @@ async function upsertFilm(
   filmTitle: string,
   director: string,
   year: number,
+  tmdbId: number | null,
 ) {
   const [existingFilm] = await db
     .select({
       id: schema.films.id,
       year: schema.films.year,
+      tmdbId: schema.films.tmdbId,
     })
     .from(schema.films)
     .where(and(eq(schema.films.title, filmTitle), eq(schema.films.director, director)))
     .limit(1);
 
   if (existingFilm) {
-    if (existingFilm.year === null) {
+    if (existingFilm.year === null || (existingFilm.tmdbId === null && tmdbId !== null)) {
       await db
         .update(schema.films)
-        .set({ year })
+        .set({
+          ...(existingFilm.year === null ? { year } : {}),
+          ...(existingFilm.tmdbId === null && tmdbId !== null ? { tmdbId } : {}),
+        })
         .where(eq(schema.films.id, existingFilm.id));
     }
 
@@ -394,6 +406,7 @@ async function upsertFilm(
       title: filmTitle,
       director,
       year,
+      tmdbId,
     })
     .returning({ id: schema.films.id });
 
@@ -411,6 +424,7 @@ export async function POST(request: Request) {
     const blobToken = resolveBlobToken();
     const sourceFile = path.basename(payload.videoPath);
     const filmSlug = `${sanitizePathSegment(payload.filmTitle)}-${payload.year}`;
+    const tmdbId = await searchTmdbMovieId(payload.filmTitle, payload.year);
 
     const extractedShots: ProcessedShot[] = [];
 
@@ -424,6 +438,7 @@ export async function POST(request: Request) {
           title: payload.filmTitle,
           director: payload.director,
           year: payload.year,
+          tmdbId,
         },
       );
       const shotSlug = `shot-${String(index + 1).padStart(4, "0")}`;
@@ -458,12 +473,13 @@ export async function POST(request: Request) {
     }
 
     let filmId = "";
-    filmId = await upsertFilm(payload.filmTitle, payload.director, payload.year);
+    filmId = await upsertFilm(payload.filmTitle, payload.director, payload.year, tmdbId);
     const makeSearchText = buildSearchText({
       id: filmId,
       title: payload.filmTitle,
       director: payload.director,
       year: payload.year,
+      tmdbId,
     });
 
     for (const shot of extractedShots) {

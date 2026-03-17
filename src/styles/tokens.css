@@ -65,6 +65,7 @@
   --color-overlay-object-object: var(--color-overlay-object-default);
   --color-overlay-object-environment: var(--color-overlay-object-food);
   --color-overlay-object-text: var(--color-overlay-object-default);
+  --color-overlay-live: var(--color-signal-red);
 
   /* ─── Semantic: Status ─── */
   --color-status-verified:   var(--color-signal-green);

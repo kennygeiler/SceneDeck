@@ -3,11 +3,13 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Boxes, Eye, EyeOff } from "lucide-react";
+import { Boxes, Cpu, Eye, EyeOff, LoaderCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { MetadataOverlay } from "@/components/video/metadata-overlay";
 import { ObjectOverlay } from "@/components/video/object-overlay";
+import { RealtimeObjectOverlay } from "@/components/video/realtime-object-overlay";
+import { useRealtimeDetection } from "@/hooks/use-realtime-detection";
 import type { ShotWithDetails } from "@/lib/types";
 
 type ShotPlayerProps = {
@@ -35,14 +37,40 @@ const legendItems = [
     label: "Object recognition",
     color: "var(--color-overlay-info)",
   },
+  {
+    label: "Live client inference",
+    color: "var(--color-overlay-live)",
+  },
 ] as const;
+
+type VideoMetrics = {
+  width: number;
+  height: number;
+  sourceWidth: number;
+  sourceHeight: number;
+};
 
 export function ShotPlayer({ shot }: ShotPlayerProps) {
   const [showOverlay, setShowOverlay] = useState(true);
   const [showObjects, setShowObjects] = useState(true);
+  const [showLive, setShowLive] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [videoMetrics, setVideoMetrics] = useState<VideoMetrics>({
+    width: 0,
+    height: 0,
+    sourceWidth: 0,
+    sourceHeight: 0,
+  });
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const frameRef = useRef<number | null>(null);
+  const liveEnabled = showLive && Boolean(shot.videoUrl);
+
+  const { detections, isModelLoaded, isLoading, loadError } = useRealtimeDetection({
+    videoRef,
+    enabled: liveEnabled,
+    fps: 5,
+    minConfidence: 0.5,
+  });
 
   useEffect(() => {
     const video = videoRef.current;
@@ -102,6 +130,43 @@ export function ShotPlayer({ shot }: ShotPlayerProps) {
       video.removeEventListener("seeking", handleDiscreteSync);
       video.removeEventListener("seeked", handleDiscreteSync);
       video.removeEventListener("timeupdate", handleDiscreteSync);
+    };
+  }, [shot.videoUrl]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+
+    if (!video) {
+      setVideoMetrics({
+        width: 0,
+        height: 0,
+        sourceWidth: 0,
+        sourceHeight: 0,
+      });
+      return;
+    }
+
+    const syncMetrics = () => {
+      setVideoMetrics({
+        width: video.clientWidth,
+        height: video.clientHeight,
+        sourceWidth: video.videoWidth || video.clientWidth,
+        sourceHeight: video.videoHeight || video.clientHeight,
+      });
+    };
+
+    syncMetrics();
+
+    const resizeObserver = new ResizeObserver(syncMetrics);
+    resizeObserver.observe(video);
+
+    video.addEventListener("loadedmetadata", syncMetrics);
+    video.addEventListener("loadeddata", syncMetrics);
+
+    return () => {
+      resizeObserver.disconnect();
+      video.removeEventListener("loadedmetadata", syncMetrics);
+      video.removeEventListener("loadeddata", syncMetrics);
     };
   }, [shot.videoUrl]);
 
@@ -180,6 +245,7 @@ export function ShotPlayer({ shot }: ShotPlayerProps) {
                 "color-mix(in oklch, var(--color-surface-primary) 58%, transparent)",
             }}
             onClick={() => setShowOverlay((current) => !current)}
+            aria-pressed={showOverlay}
           >
             {showOverlay ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
             Overlay
@@ -194,14 +260,74 @@ export function ShotPlayer({ shot }: ShotPlayerProps) {
                 "color-mix(in oklch, var(--color-surface-primary) 58%, transparent)",
             }}
             onClick={() => setShowObjects((current) => !current)}
+            aria-pressed={showObjects}
           >
             <Boxes aria-hidden="true" />
             Objects
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-full border-[var(--color-border-default)] px-3 text-[var(--color-text-primary)] backdrop-blur-xl hover:bg-[var(--color-surface-tertiary)]"
+            style={{
+              backgroundColor:
+                "color-mix(in oklch, var(--color-surface-primary) 58%, transparent)",
+            }}
+            onClick={() => setShowLive((current) => !current)}
+            aria-pressed={showLive}
+            disabled={!shot.videoUrl}
+          >
+            {isLoading ? (
+              <LoaderCircle aria-hidden="true" className="animate-spin" />
+            ) : (
+              <Cpu aria-hidden="true" />
+            )}
+            Live
+          </Button>
         </div>
+
+        {liveEnabled ? (
+          <div className="absolute left-4 top-4 z-30">
+            {isLoading ? (
+              <div
+                className="flex items-center gap-2 rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-primary)]"
+                style={{
+                  backgroundColor:
+                    "color-mix(in oklch, var(--color-surface-primary) 78%, transparent)",
+                  borderColor:
+                    "color-mix(in oklch, var(--color-overlay-live) 32%, transparent)",
+                }}
+              >
+                <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin" />
+                Loading model...
+              </div>
+            ) : loadError ? (
+              <div
+                className="rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-primary)]"
+                style={{
+                  backgroundColor:
+                    "color-mix(in oklch, var(--color-surface-primary) 78%, transparent)",
+                  borderColor:
+                    "color-mix(in oklch, var(--color-status-error) 40%, transparent)",
+                }}
+              >
+                Live unavailable
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         {showOverlay ? <MetadataOverlay shot={shot} /> : null}
         <ObjectOverlay tracks={shot.objects} currentTime={currentTime} visible={showObjects} />
+        <RealtimeObjectOverlay
+          detections={detections}
+          videoWidth={videoMetrics.width}
+          videoHeight={videoMetrics.height}
+          sourceWidth={videoMetrics.sourceWidth}
+          sourceHeight={videoMetrics.sourceHeight}
+          visible={liveEnabled && isModelLoaded && !isLoading && !loadError}
+        />
       </div>
 
       <div

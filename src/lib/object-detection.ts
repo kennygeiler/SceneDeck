@@ -12,6 +12,7 @@ import type {
   ShotObjectKeyframe,
   ShotSceneContext,
 } from "@/db/schema";
+import { fetchTmdbCast } from "@/lib/tmdb";
 
 export const GEMINI_OBJECT_MODEL = "gemini-2.5-flash";
 export const OBJECT_SAMPLE_INTERVAL_SECONDS = 1;
@@ -21,7 +22,6 @@ export const YOLO_REPLICATE_MODEL =
 const YOLO_REPLICATE_MODEL_REF = YOLO_REPLICATE_MODEL as `${string}/${string}:${string}`;
 
 const YOLO_CONFIDENCE_THRESHOLD = 0.25;
-const YOLO_IOU_THRESHOLD = 0.45;
 const TRACK_LINK_IOU_THRESHOLD = 0.3;
 const MATCH_FRAME_GAP = 1;
 
@@ -29,6 +29,7 @@ type FilmContext = {
   title: string;
   director: string;
   year: number | null;
+  tmdbId: number | null;
 };
 
 type NormalizedBbox = {
@@ -235,6 +236,22 @@ function getMimeTypeFromPath(filePath: string) {
       return "image/webp";
     default:
       return "application/octet-stream";
+  }
+}
+
+function getVideoMimeTypeFromPath(filePath: string) {
+  const extension = path.extname(filePath).toLowerCase();
+
+  switch (extension) {
+    case ".mov":
+      return "video/quicktime";
+    case ".webm":
+      return "video/webm";
+    case ".m4v":
+      return "video/x-m4v";
+    case ".mp4":
+    default:
+      return "video/mp4";
   }
 }
 
@@ -798,18 +815,13 @@ function getDisplayLabelForTrack(track: Pick<ObjectTrack, "cinematicLabel" | "yo
 
 function buildGeminiPrompt(
   filmContext: FilmContext,
-  frame: SampledFrame,
   tracks: ObjectTrack[],
-  indexesByTrackId: Map<string, number>,
+  castList: string[],
 ) {
   const year = filmContext.year ?? "Unknown year";
   const detections = tracks
-    .map((track) => {
-      const yoloIndex = indexesByTrackId.get(track.trackId) ?? 0;
-      const matchingKeyframe =
-        track.keyframes.find(
-          (keyframe) => Math.abs(keyframe.t - frame.timestamp) <= 0.001,
-        ) ?? track.keyframes[0];
+    .map((track, yoloIndex) => {
+      const matchingKeyframe = track.keyframes[0];
 
       if (!matchingKeyframe) {
         return null;
@@ -826,15 +838,23 @@ function buildGeminiPrompt(
       return `- yolo_index: ${yoloIndex}
   class: ${track.yoloClass ?? "object"}
   confidence: ${roundNumber(track.yoloConfidence ?? track.confidence ?? 0, 3)}
-  bbox_xyxy_normalized: [${bbox.join(", ")}]
-  visible_in_frame: ${
-    frame.timestamp >= track.startTime && frame.timestamp <= track.endTime ? "yes" : "no"
-  }`;
+  first_bbox_xyxy_normalized: [${bbox.join(", ")}]
+  visible_from_seconds: ${roundTime(track.startTime)}
+  visible_until_seconds: ${roundTime(track.endTime)}
+  keyframe_count: ${track.keyframes.length}`;
     })
     .filter((value): value is string => Boolean(value))
     .join("\n");
 
-  return `You are a film analysis expert. I'm showing you a frame from "${filmContext.title}" (${year}) directed by ${filmContext.director}.
+  const castSection =
+    castList.length > 0
+      ? `This film stars: ${castList.join(", ")}.
+When you see a person, identify which character they are from this cast list. If the cast list does not support a confident identification, keep the label descriptive instead of guessing.`
+      : "No verified cast list is available, so avoid inventing specific character names.";
+
+  return `You are a film analysis expert. I'm showing you a video clip from "${filmContext.title}" (${year}) directed by ${filmContext.director}. Watch the full clip and identify tracked objects across the duration.
+
+${castSection}
 
 YOLO object detection found these elements:
 ${detections}
@@ -846,6 +866,7 @@ For each detected element, provide cinematic enrichment:
 4. What is the location or setting of this scene?
 5. What time of day is it based on the lighting?
 6. What is the overall mood or atmosphere?
+7. Track each object's identity consistently across the entire clip.
 
 Also identify any scene-level metadata:
 - Interior or exterior
@@ -999,47 +1020,18 @@ export async function detectWithYolo(imagePath: string): Promise<YoloDetection[]
 }
 
 export async function enrichWithGemini(
-  imagePath: string,
-  yoloDetections: YoloDetection[],
+  videoPath: string,
+  tracks: ObjectTrack[],
   filmContext: FilmContext,
 ): Promise<{
   enrichments: Enrichment[];
   sceneContext: ShotSceneContext | null;
 }> {
-  const imageBuffer = await readFile(imagePath);
-  const prompt = `You are a film analysis expert. I'm showing you a frame from "${filmContext.title}" (${filmContext.year ?? "Unknown year"}) directed by ${filmContext.director}.
-
-YOLO object detection found these elements:
-${yoloDetections
-  .map(
-    (detection, index) =>
-      `- yolo_index: ${index}
-  class: ${detection.class}
-  confidence: ${roundNumber(detection.confidence, 3)}
-  bbox_xyxy_normalized: [${[
-        roundNumber(detection.bbox.x),
-        roundNumber(detection.bbox.y),
-        roundNumber(detection.bbox.x + detection.bbox.w),
-        roundNumber(detection.bbox.y + detection.bbox.h),
-      ].join(", ")}]`,
-  )
-  .join("\n")}
-
-For each detected element, provide cinematic enrichment:
-1. If it's a person — who is the character? What are they wearing, doing, and what is their emotional state?
-2. If it's a vehicle — what era, make, or significance does it have in the scene?
-3. If it's a prop or object — why is it cinematographically significant?
-4. What is the location or setting of this scene?
-5. What time of day is it based on the lighting?
-6. What is the overall mood or atmosphere?
-
-Also identify any scene-level metadata:
-- Interior or exterior
-- Time of day (dawn, morning, midday, afternoon, golden hour, dusk, night)
-- Weather if visible
-- Film era or period being depicted
-
-Return ONLY valid JSON with enrichments and scene_context.`;
+  const [videoBuffer, castList] = await Promise.all([
+    readFile(videoPath),
+    fetchTmdbCast(filmContext.tmdbId),
+  ]);
+  const prompt = buildGeminiPrompt(filmContext, tracks, castList);
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_OBJECT_MODEL}:generateContent`,
@@ -1056,8 +1048,8 @@ Return ONLY valid JSON with enrichments and scene_context.`;
               { text: prompt },
               {
                 inline_data: {
-                  mime_type: getMimeTypeFromPath(imagePath),
-                  data: imageBuffer.toString("base64"),
+                  mime_type: getVideoMimeTypeFromPath(videoPath),
+                  data: videoBuffer.toString("base64"),
                 },
               },
             ],
@@ -1073,7 +1065,7 @@ Return ONLY valid JSON with enrichments and scene_context.`;
   );
 
   const text = await extractGeminiTextResponse(response);
-  return normalizeEnrichmentPayload(extractJsonObject(text), yoloDetections.length);
+  return normalizeEnrichmentPayload(extractJsonObject(text), tracks.length);
 }
 
 function initializeTrack(detection: YoloDetection, frame: SampledFrame, index: number) {
@@ -1183,15 +1175,6 @@ function trackDetections(frames: SampledFrame[]) {
     );
 }
 
-function selectBestFrame(frames: SampledFrame[]) {
-  return [...frames].sort((left, right) => {
-    const leftScore = left.detections.reduce((sum, detection) => sum + detection.confidence, 0);
-    const rightScore = right.detections.reduce((sum, detection) => sum + detection.confidence, 0);
-
-    return rightScore - leftScore;
-  })[0] ?? null;
-}
-
 function mergeTrackEnrichments(
   tracks: MutableTrack[],
   enrichments: Enrichment[],
@@ -1257,51 +1240,13 @@ export async function detectAndEnrich(
     return [];
   }
 
-  const bestFrame = selectBestFrame(frames);
-  if (!bestFrame) {
-    return tracks;
-  }
+  const enrichmentPayload = await enrichWithGemini(videoPath, tracks, filmContext);
 
-  const indexesByTrackId = new Map(tracks.map((track, index) => [track.trackId, index]));
-  const prompt = buildGeminiPrompt(filmContext, bestFrame, tracks, indexesByTrackId);
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_OBJECT_MODEL}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": resolveGeminiApiKey(),
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: prompt },
-              {
-                inline_data: {
-                  mime_type: bestFrame.contentType,
-                  data: bestFrame.buffer.toString("base64"),
-                },
-              },
-            ],
-          },
-        ],
-        generation_config: {
-          temperature: 0,
-          response_mime_type: "application/json",
-          media_resolution: "MEDIA_RESOLUTION_HIGH",
-        },
-      }),
-    },
+  return mergeTrackEnrichments(
+    tracks,
+    enrichmentPayload.enrichments,
+    enrichmentPayload.sceneContext,
   );
-
-  const text = await extractGeminiTextResponse(response);
-  const enrichmentPayload = normalizeEnrichmentPayload(
-    extractJsonObject(text),
-    tracks.length,
-  );
-
-  return mergeTrackEnrichments(tracks, enrichmentPayload.enrichments, enrichmentPayload.sceneContext);
 }
 
 function mapStoredTrack(row: typeof schema.shotObjects.$inferSelect): StoredObjectTrack {
@@ -1397,6 +1342,7 @@ export async function detectObjectsFromVideo(shotId: string): Promise<StoredObje
       filmTitle: schema.films.title,
       filmDirector: schema.films.director,
       filmYear: schema.films.year,
+      filmTmdbId: schema.films.tmdbId,
     })
     .from(schema.shots)
     .innerJoin(schema.films, eq(schema.shots.filmId, schema.films.id))
@@ -1431,6 +1377,7 @@ export async function detectObjectsFromVideo(shotId: string): Promise<StoredObje
       title: shot.filmTitle,
       director: shot.filmDirector,
       year: shot.filmYear ?? null,
+      tmdbId: shot.filmTmdbId ?? null,
     });
 
     return replaceShotObjects(shotId, tracks);

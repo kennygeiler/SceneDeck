@@ -1,0 +1,108 @@
+const TMDB_API_BASE = "https://api.themoviedb.org/3";
+const MAX_CAST_MEMBERS = 15;
+
+type TmdbSearchResponse = {
+  results?: Array<{
+    id?: number;
+    title?: string;
+    release_date?: string;
+  }>;
+};
+
+type TmdbCreditsResponse = {
+  cast?: Array<{
+    name?: string;
+    character?: string;
+  }>;
+};
+
+function resolveTmdbApiKey() {
+  return process.env.TMDB_API_KEY?.trim() || "";
+}
+
+async function fetchTmdbJson<T>(
+  pathname: string,
+  searchParams: Record<string, string>,
+): Promise<T | null> {
+  const apiKey = resolveTmdbApiKey();
+
+  if (!apiKey) {
+    return null;
+  }
+
+  const url = new URL(`${TMDB_API_BASE}${pathname}`);
+  url.searchParams.set("api_key", apiKey);
+
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (value) {
+      url.searchParams.set(key, value);
+    }
+  }
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      Accept: "application/json",
+    },
+    next: { revalidate: 86400 },
+  });
+
+  if (!response.ok) {
+    console.warn(`TMDB request failed for ${pathname}: ${response.status}`);
+    return null;
+  }
+
+  return (await response.json()) as T;
+}
+
+export async function searchTmdbMovieId(
+  title: string,
+  year: number | null,
+): Promise<number | null> {
+  const normalizedTitle = title.trim();
+
+  if (!normalizedTitle) {
+    return null;
+  }
+
+  const payload = await fetchTmdbJson<TmdbSearchResponse>("/search/movie", {
+    query: normalizedTitle,
+    ...(Number.isInteger(year) ? { year: String(year) } : {}),
+  });
+
+  const exactMatch = payload?.results?.find((result) => {
+    const releaseYear = result.release_date?.slice(0, 4);
+    const titleMatches = result.title?.trim().toLowerCase() === normalizedTitle.toLowerCase();
+    const yearMatches = !year || releaseYear === String(year);
+
+    return Boolean(result.id) && titleMatches && yearMatches;
+  });
+
+  if (exactMatch?.id) {
+    return exactMatch.id;
+  }
+
+  return payload?.results?.find((result) => typeof result.id === "number")?.id ?? null;
+}
+
+export async function fetchTmdbCast(tmdbId: number | null | undefined): Promise<string[]> {
+  if (!Number.isInteger(tmdbId) || !tmdbId) {
+    return [];
+  }
+
+  const payload = await fetchTmdbJson<TmdbCreditsResponse>(`/movie/${tmdbId}/credits`, {});
+
+  return (
+    payload?.cast
+      ?.slice(0, MAX_CAST_MEMBERS)
+      .flatMap((member) => {
+        const name = member.name?.trim();
+        const character = member.character?.trim();
+
+        if (!name) {
+          return [];
+        }
+
+        return [character ? `${name} as ${character}` : name];
+      }) ?? []
+  );
+}
