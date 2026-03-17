@@ -1,14 +1,29 @@
 # Project Report: SceneDeck
 
-Generated: 2026-03-16T00:00:00Z
+Generated: 2026-03-17T00:00:00Z
 Pipeline: Kiln v5 | Run ID: kiln-603324
 Started: 2026-03-15
+Updated: 2026-03-17 (post-pipeline operational phase)
 
 ---
 
 ## 1. Executive Summary
 
-SceneDeck is a searchable database of iconic cinema shots tagged with structured camera motion metadata -- built to fill the gap between static film reference tools (like ShotDeck) and AI video generation platforms that need camera motion inputs. The entire application was built through AI-assisted development by a solo product manager with zero manual coding, using the Kiln multi-agent pipeline for orchestration. The system consists of a Next.js 15 monolith (deployed on Vercel), a Python data pipeline (Gemini 2.0 Flash for camera classification, PySceneDetect for shot detection), and a Neon PostgreSQL database. All 7 planned milestones were coded through the pipeline, producing 57 source files across TypeScript, TSX, Python, and CSS. Validation found 2 of 10 success criteria fully met (zero manual code, documentation) and 8 partially met -- the code is structurally complete but the system has not yet been deployed, the database has not been provisioned, and real video content has not been ingested. Seven concrete correction tasks will bring the project to full operational status.
+SceneDeck is a searchable database of iconic cinema shots tagged with structured camera motion metadata -- built to fill the gap between static film reference tools (like ShotDeck) and AI video generation platforms that need camera motion inputs. The entire application was built through AI-assisted development by a solo product manager with zero manual coding, using the Kiln multi-agent pipeline for orchestration.
+
+The system consists of a Next.js 15 monolith (deployed on Vercel at scene-deck.vercel.app), a Python data pipeline (Gemini 2.5 Flash for camera classification, PySceneDetect for shot detection), a Neon PostgreSQL database with pgvector semantic search, and a two-stage object recognition system (Grounding DINO on Replicate for precise bounding boxes + Gemini for cinematic enrichment).
+
+9 milestones were delivered (7 planned + 2 post-plan): the original 7 from the master plan, plus a shot boundary review tool (M8) and a real object detection system (M9). The project is deployed, operational, and has processed its first real film scene (The Godfather) through the full pipeline — from video upload to shot detection, human-reviewed split correction, Gemini camera classification, Grounding DINO object detection, cinematic enrichment, and database storage.
+
+**Post-pipeline operational achievements:**
+- Live deployment at scene-deck.vercel.app (SC-01 MET)
+- First real pipeline run: The Godfather scene processed end-to-end
+- Gemini 2.5 Flash validated for camera motion classification (accurate on test clips)
+- NLE-style shot boundary review tool with drag-to-detect AI assistance
+- Real object detection via Grounding DINO (Replicate) replacing LLM coordinate estimation
+- Two-stage detect-then-enrich: YOLO precision + Gemini cinematic intelligence
+- Blob proxy with Range request support for private video playback
+- Approve-to-database flow: single UX from video upload to shots live on site
 
 ---
 
