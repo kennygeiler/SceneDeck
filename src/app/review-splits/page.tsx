@@ -4,7 +4,7 @@ import { ReviewSplitsWorkspace } from "@/components/review/review-splits-workspa
 
 export const metadata: Metadata = {
   title: "Review Splits",
-  description: "Review detected shot boundaries and export corrected splits.",
+  description: "Review detected shot boundaries and write approved shots directly to the database.",
 };
 
 export default function ReviewSplitsPage() {

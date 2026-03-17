@@ -2,12 +2,14 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import {
   type DragEvent,
+  type FormEvent,
   type PointerEvent as ReactPointerEvent,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, CircleHelp, Film, LoaderCircle, Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,8 +31,27 @@ type DetectSplitResponse = {
   cuts?: Array<{ time?: unknown; confidence?: unknown }>;
   error?: string;
 };
+type ProcessSceneResponse = {
+  success?: boolean;
+  filmId?: string;
+  shotCount?: number;
+  error?: string;
+};
+type FilmFormState = {
+  filmTitle: string;
+  director: string;
+  year: string;
+};
+type ApprovalStage = "idle" | "metadata" | "processing" | "success";
+
 const DEFAULT_FPS = 24;
 const DRAG_THRESHOLD = 5;
+const PROCESSING_STEPS = [
+  "Extracting clips...",
+  "Classifying with Gemini...",
+  "Uploading to storage...",
+  "Saving to database...",
+] as const;
 const MARKER_COLORS: Record<SplitSource, string> = {
   auto: "var(--color-overlay-motion)",
   detected: "var(--color-overlay-badge)",
@@ -148,6 +169,7 @@ async function waitForSeek(video: HTMLVideoElement, time: number) {
   });
 }
 export function ReviewSplitsWorkspace() {
+  const router = useRouter();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const timelineRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{
@@ -157,6 +179,8 @@ export function ReviewSplitsWorkspace() {
     rect: DOMRect;
   } | null>(null);
   const thumbnailRunRef = useRef(0);
+  const progressTimerRef = useRef<number | null>(null);
+  const redirectTimerRef = useRef<number | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [uploadedVideoPath, setUploadedVideoPath] = useState<string | null>(null);
@@ -170,6 +194,15 @@ export function ReviewSplitsWorkspace() {
   const [status, setStatus] = useState("Drop a video to begin");
   const [dragRegion, setDragRegion] = useState<{ start: number; end: number } | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [approvalStage, setApprovalStage] = useState<ApprovalStage>("idle");
+  const [filmForm, setFilmForm] = useState<FilmFormState>({
+    filmTitle: "",
+    director: "",
+    year: "",
+  });
+  const [approvalError, setApprovalError] = useState<string | null>(null);
+  const [processingStepIndex, setProcessingStepIndex] = useState(0);
+  const [successMessage, setSuccessMessage] = useState("");
   const duration = videoDuration || getDurationFromSplits(splits);
   const selectedSplit = splits.find((split) => split.id === selectedSplitId) ?? null;
   const splitCuts = useMemo(() => getCuts(splits), [splits]);
@@ -177,11 +210,32 @@ export function ReviewSplitsWorkspace() {
     splits.find((split) => currentTime >= split.start && currentTime < split.end + 0.001)?.id ??
     splits.at(-1)?.id ??
     null;
+
+  const clearTimers = () => {
+    if (progressTimerRef.current !== null) {
+      window.clearInterval(progressTimerRef.current);
+      progressTimerRef.current = null;
+    }
+    if (redirectTimerRef.current !== null) {
+      window.clearTimeout(redirectTimerRef.current);
+      redirectTimerRef.current = null;
+    }
+  };
+
+  const resetApprovalState = () => {
+    clearTimers();
+    setApprovalStage("idle");
+    setApprovalError(null);
+    setProcessingStepIndex(0);
+    setSuccessMessage("");
+  };
+
   useEffect(() => {
     return () => {
       if (videoUrl) {
         URL.revokeObjectURL(videoUrl);
       }
+      clearTimers();
     };
   }, [videoUrl]);
   useEffect(() => {
@@ -295,33 +349,84 @@ export function ReviewSplitsWorkspace() {
       setSelectedSplitId(splits.find((split) => Math.abs(split.end - target) < 0.05)?.id ?? null);
     }
   };
-  const approve = () => {
+  const openApprovalModal = () => {
     if (!videoFile || splits.length === 0) {
       return;
     }
-    const payload = {
-      source_video: videoFile.name,
-      total_duration: roundTime(duration),
-      fps: DEFAULT_FPS,
-      splits: splits.map((split) => ({
-        start: roundTime(split.start),
-        end: roundTime(split.end),
-        split_source: split.source,
-        confidence: split.confidence,
-      })),
-    };
-    const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${videoFile.name.replace(/\.[^.]+$/, "") || "review"}-splits.json`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    setStatus("Downloaded corrected splits.");
+
+    setApprovalError(null);
+    setProcessingStepIndex(0);
+    setApprovalStage("metadata");
+  };
+
+  const submitApproval = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!uploadedVideoPath) {
+      setApprovalError("Video path unavailable. Re-upload the source video and try again.");
+      return;
+    }
+
+    const filmTitle = filmForm.filmTitle.trim();
+    const director = filmForm.director.trim();
+    const year = Number.parseInt(filmForm.year, 10);
+
+    if (!filmTitle || !director || !Number.isInteger(year)) {
+      setApprovalError("Film title, director, and a valid year are required.");
+      return;
+    }
+
+    clearTimers();
+    setApprovalError(null);
+    setProcessingStepIndex(0);
+    setApprovalStage("processing");
+    setStatus("Processing scene...");
+
+    progressTimerRef.current = window.setInterval(() => {
+      setProcessingStepIndex((current) => Math.min(current + 1, PROCESSING_STEPS.length - 1));
+    }, 1400);
+
+    try {
+      const response = await fetch("/api/process-scene", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          videoPath: uploadedVideoPath,
+          filmTitle,
+          director,
+          year,
+          splits: splits.map((split) => ({
+            start: roundTime(split.start),
+            end: roundTime(split.end),
+            source: split.source,
+            confidence: split.confidence,
+          })),
+        }),
+      });
+      const payload = (await response.json()) as ProcessSceneResponse;
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error || "Scene processing failed.");
+      }
+
+      clearTimers();
+      setProcessingStepIndex(PROCESSING_STEPS.length - 1);
+      setApprovalStage("success");
+      setSuccessMessage(`Added ${payload.shotCount ?? splits.length} shots from ${filmTitle}`);
+      setStatus(`Added ${payload.shotCount ?? splits.length} shots to the archive.`);
+      redirectTimerRef.current = window.setTimeout(() => {
+        router.push("/");
+      }, 2000);
+    } catch (error) {
+      clearTimers();
+      setApprovalStage("metadata");
+      setApprovalError(error instanceof Error ? error.message : "Scene processing failed.");
+      setStatus(error instanceof Error ? error.message : "Scene processing failed.");
+    }
   };
   useEffect(() => {
     const handleKeydown = async (event: KeyboardEvent) => {
-      if (!videoUrl) {
+      if (!videoUrl || approvalStage !== "idle") {
         return;
       }
       const target = event.target;
@@ -364,7 +469,7 @@ export function ReviewSplitsWorkspace() {
       }
       if (event.key === "Enter") {
         event.preventDefault();
-        approve();
+        openApprovalModal();
         return;
       }
       if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
@@ -379,12 +484,18 @@ export function ReviewSplitsWorkspace() {
     };
     window.addEventListener("keydown", handleKeydown);
     return () => window.removeEventListener("keydown", handleKeydown);
-  }, [currentTime, duration, selectedSplit, videoUrl]);
+  }, [approvalStage, currentTime, duration, selectedSplit, videoUrl]);
   const loadVideo = async (file: File) => {
     if (!file.type.startsWith("video/")) {
       setStatus("Only video/* files are supported.");
       return;
     }
+    resetApprovalState();
+    setFilmForm({
+      filmTitle: "",
+      director: "",
+      year: "",
+    });
     setIsLoading(true);
     setStatus("Analyzing...");
     setCurrentTime(0);
@@ -421,7 +532,7 @@ export function ReviewSplitsWorkspace() {
         : [];
       setUploadedVideoPath(payload.videoPath);
       setSplits(normalizeSegments(rawSplits, rawSplits.at(-1)?.end ?? 0));
-      setStatus("Review detected splits, then approve to download JSON.");
+      setStatus("Review detected splits, then approve to save.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Shot detection failed.");
     } finally {
@@ -532,7 +643,7 @@ export function ReviewSplitsWorkspace() {
     splits.findIndex((split) => split.id === activeSplitId),
   );
   return (
-    <div className="flex h-full flex-col bg-[var(--color-surface-primary)] text-[var(--color-text-primary)]">
+    <div className="relative flex h-full flex-col bg-[var(--color-surface-primary)] text-[var(--color-text-primary)]">
       <div className="flex h-12 items-center justify-between border-b border-[var(--color-border-subtle)] bg-[color:color-mix(in_oklch,var(--color-surface-secondary)_84%,transparent)] px-4">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setShowHelp((value) => !value)}>
@@ -544,7 +655,12 @@ export function ReviewSplitsWorkspace() {
           </span>
         </div>
         <motion.div whileTap={{ scale: 0.98 }}>
-          <Button variant="default" size="sm" onClick={approve} disabled={!videoFile || splits.length === 0}>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={openApprovalModal}
+            disabled={!videoFile || splits.length === 0 || approvalStage === "processing"}
+          >
             <Check />
             Approve
           </Button>
@@ -565,7 +681,7 @@ export function ReviewSplitsWorkspace() {
               <span>`Delete` remove selected split</span>
               <span>`J / L` previous/next split</span>
               <span>`← / →` seek or nudge selected split</span>
-              <span>`Enter` approve and download</span>
+              <span>`Enter` approve and save</span>
             </div>
           </motion.div>
         ) : null}
@@ -755,6 +871,224 @@ export function ReviewSplitsWorkspace() {
           </div>
         </>
       )}
+
+      <AnimatePresence>
+        {approvalStage !== "idle" ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 flex items-center justify-center bg-[color:color-mix(in_oklch,var(--color-surface-primary)_64%,transparent)] px-4 backdrop-blur-xl"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 18, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
+              className="w-full max-w-xl rounded-[var(--radius-xl)] border p-6 shadow-[var(--shadow-xl)]"
+              style={{
+                background:
+                  "linear-gradient(180deg, color-mix(in oklch, var(--color-surface-secondary) 90%, transparent), color-mix(in oklch, var(--color-surface-primary) 96%, transparent))",
+                borderColor:
+                  "color-mix(in oklch, var(--color-border-default) 76%, transparent)",
+              }}
+            >
+              {approvalStage === "metadata" ? (
+                <form onSubmit={submitApproval} className="space-y-5">
+                  <div className="space-y-2">
+                    <p className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
+                      Add scene
+                    </p>
+                    <h2
+                      className="text-2xl font-semibold tracking-[var(--letter-spacing-snug)] text-[var(--color-text-primary)]"
+                      style={{ fontFamily: "var(--font-heading)" }}
+                    >
+                      Process approved splits into the database
+                    </h2>
+                    <p className="text-sm leading-7 text-[var(--color-text-secondary)]">
+                      Save the reviewed scene, upload assets, classify every shot, and write records directly to Neon.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <label className="block">
+                      <span className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
+                        Film title
+                      </span>
+                      <input
+                        type="text"
+                        value={filmForm.filmTitle}
+                        onChange={(event) =>
+                          setFilmForm((current) => ({ ...current, filmTitle: event.target.value }))
+                        }
+                        placeholder="The Godfather"
+                        className="mt-2 w-full rounded-[var(--radius-md)] border px-3 py-3 text-sm text-[var(--color-text-primary)] outline-none transition-colors placeholder:text-[var(--color-text-tertiary)]"
+                        style={{
+                          backgroundColor:
+                            "color-mix(in oklch, var(--color-surface-primary) 72%, transparent)",
+                          borderColor:
+                            "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
+                        }}
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
+                        Director
+                      </span>
+                      <input
+                        type="text"
+                        value={filmForm.director}
+                        onChange={(event) =>
+                          setFilmForm((current) => ({ ...current, director: event.target.value }))
+                        }
+                        placeholder="Francis Ford Coppola"
+                        className="mt-2 w-full rounded-[var(--radius-md)] border px-3 py-3 text-sm text-[var(--color-text-primary)] outline-none transition-colors placeholder:text-[var(--color-text-tertiary)]"
+                        style={{
+                          backgroundColor:
+                            "color-mix(in oklch, var(--color-surface-primary) 72%, transparent)",
+                          borderColor:
+                            "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
+                        }}
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
+                        Year
+                      </span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={filmForm.year}
+                        onChange={(event) =>
+                          setFilmForm((current) => ({ ...current, year: event.target.value }))
+                        }
+                        placeholder="1972"
+                        className="mt-2 w-full rounded-[var(--radius-md)] border px-3 py-3 text-sm text-[var(--color-text-primary)] outline-none transition-colors placeholder:text-[var(--color-text-tertiary)]"
+                        style={{
+                          backgroundColor:
+                            "color-mix(in oklch, var(--color-surface-primary) 72%, transparent)",
+                          borderColor:
+                            "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
+                        }}
+                      />
+                    </label>
+                  </div>
+
+                  {approvalError ? (
+                    <div
+                      className="rounded-[var(--radius-lg)] border px-4 py-3 text-sm text-[var(--color-text-primary)]"
+                      style={{
+                        backgroundColor:
+                          "color-mix(in oklch, var(--color-overlay-badge) 12%, transparent)",
+                        borderColor:
+                          "color-mix(in oklch, var(--color-overlay-badge) 48%, transparent)",
+                      }}
+                    >
+                      {approvalError}
+                    </div>
+                  ) : null}
+
+                  <div className="flex flex-wrap justify-end gap-3">
+                    <Button type="button" variant="outline" onClick={resetApprovalState}>
+                      Cancel
+                    </Button>
+                    <Button type="submit">
+                      Process & Save
+                    </Button>
+                  </div>
+                </form>
+              ) : null}
+
+              {approvalStage === "processing" ? (
+                <div className="space-y-5">
+                  <div className="space-y-2">
+                    <p className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
+                      Processing
+                    </p>
+                    <h2
+                      className="text-2xl font-semibold tracking-[var(--letter-spacing-snug)] text-[var(--color-text-primary)]"
+                      style={{ fontFamily: "var(--font-heading)" }}
+                    >
+                      Processing approved shots
+                    </h2>
+                  </div>
+
+                  <div className="h-2 overflow-hidden rounded-full bg-[color:color-mix(in_oklch,var(--color-surface-primary)_72%,transparent)]">
+                    <motion.div
+                      className="h-full rounded-full bg-[var(--color-accent-light)]"
+                      animate={{
+                        width: `${((processingStepIndex + 1) / PROCESSING_STEPS.length) * 100}%`,
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    {PROCESSING_STEPS.map((step, index) => {
+                      const isComplete = index < processingStepIndex;
+                      const isActive = index === processingStepIndex;
+
+                      return (
+                        <div
+                          key={step}
+                          className="flex items-center justify-between rounded-[var(--radius-lg)] border px-4 py-3"
+                          style={{
+                            backgroundColor:
+                              "color-mix(in oklch, var(--color-surface-primary) 68%, transparent)",
+                            borderColor:
+                              isActive || isComplete
+                                ? "color-mix(in oklch, var(--color-accent-light) 40%, transparent)"
+                                : "color-mix(in oklch, var(--color-border-default) 62%, transparent)",
+                          }}
+                        >
+                          <div>
+                            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
+                              Step {index + 1} / {PROCESSING_STEPS.length}
+                            </p>
+                            <p className="mt-1 text-sm text-[var(--color-text-primary)]">{step}</p>
+                          </div>
+                          {isComplete ? (
+                            <Check className="text-[var(--color-text-accent)]" />
+                          ) : (
+                            <LoaderCircle
+                              className={cn(
+                                "text-[var(--color-text-secondary)]",
+                                isActive ? "animate-spin text-[var(--color-text-accent)]" : "",
+                              )}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {approvalStage === "success" ? (
+                <div className="space-y-4 text-center">
+                  <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[color:color-mix(in_oklch,var(--color-accent-base)_20%,transparent)] text-[var(--color-text-accent)]">
+                    <Check className="size-7" />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
+                      Saved
+                    </p>
+                    <h2
+                      className="text-2xl font-semibold tracking-[var(--letter-spacing-snug)] text-[var(--color-text-primary)]"
+                      style={{ fontFamily: "var(--font-heading)" }}
+                    >
+                      {successMessage}
+                    </h2>
+                    <p className="text-sm text-[var(--color-text-secondary)]">
+                      Redirecting to the home page.
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }
