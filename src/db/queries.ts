@@ -207,10 +207,16 @@ function mapShotObjectRow(row: typeof schema.shotObjects.$inferSelect) {
     label: row.label,
     category: row.category ?? null,
     confidence: row.confidence ?? null,
+    yoloClass: row.yoloClass ?? null,
+    yoloConfidence: row.yoloConfidence ?? null,
+    cinematicLabel: row.cinematicLabel ?? null,
+    description: row.description ?? null,
+    significance: row.significance ?? null,
     keyframes: row.keyframes ?? [],
     startTime: row.startTime ?? 0,
     endTime: row.endTime ?? 0,
     attributes: (row.attributes as Record<string, string> | null) ?? null,
+    sceneContext: row.sceneContext ?? null,
   };
 }
 

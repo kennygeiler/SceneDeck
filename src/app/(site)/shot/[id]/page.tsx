@@ -20,20 +20,24 @@ import {
 function getObjectCategoryColor(category: string | null) {
   switch (category) {
     case "person":
-      return "var(--color-overlay-motion)";
+      return "var(--color-overlay-object-person)";
     case "vehicle":
-      return "var(--color-overlay-badge)";
-    case "object":
-      return "var(--color-signal-violet)";
-    case "environment":
-      return "var(--color-overlay-info)";
+      return "var(--color-overlay-object-vehicle)";
     case "animal":
-      return "var(--color-signal-amber)";
-    case "text":
-      return "var(--color-text-secondary)";
+      return "var(--color-overlay-object-animal)";
+    case "furniture":
+      return "var(--color-overlay-object-furniture)";
+    case "food":
+      return "var(--color-overlay-object-food)";
+    case "object":
+      return "var(--color-overlay-object-default)";
     default:
-      return "var(--color-border-strong)";
+      return "var(--color-overlay-object-default)";
   }
+}
+
+function formatSceneValue(value: string | undefined | null) {
+  return value ? value.replace(/_/gu, " ") : "Unknown";
 }
 
 type ShotDetailPageProps = {
@@ -111,6 +115,8 @@ export default async function ShotDetailPage({ params }: ShotDetailPageProps) {
           : "No",
     },
   ] as const;
+  const sceneContext =
+    shot.objects.find((object) => object.sceneContext)?.sceneContext ?? null;
 
   return (
     <div className="space-y-10">
@@ -242,7 +248,10 @@ export default async function ShotDetailPage({ params }: ShotDetailPageProps) {
               const attributes = Object.entries(object.attributes ?? {});
               const confidence = Math.max(
                 0,
-                Math.min(100, Math.round((object.confidence ?? 0) * 100)),
+                Math.min(
+                  100,
+                  Math.round((object.yoloConfidence ?? object.confidence ?? 0) * 100),
+                ),
               );
 
               return (
@@ -259,7 +268,7 @@ export default async function ShotDetailPage({ params }: ShotDetailPageProps) {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-[var(--color-text-primary)]">
-                        {object.label}
+                        {object.cinematicLabel ?? object.label}
                       </p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <span
@@ -272,6 +281,16 @@ export default async function ShotDetailPage({ params }: ShotDetailPageProps) {
                         >
                           {object.category ?? "untyped"}
                         </span>
+                        {object.yoloClass ? (
+                          <span className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+                            {object.yoloClass.replace(/_/gu, " ")}
+                          </span>
+                        ) : null}
+                        {object.significance ? (
+                          <span className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+                            Cinematic note
+                          </span>
+                        ) : null}
                         <span className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
                           {object.startTime.toFixed(2)}s - {object.endTime.toFixed(2)}s
                         </span>
@@ -281,9 +300,24 @@ export default async function ShotDetailPage({ params }: ShotDetailPageProps) {
                       </div>
                     </div>
                     <span className="font-mono text-xs text-[var(--color-text-secondary)]">
-                      {typeof object.confidence === "number" ? `${confidence}%` : "n/a"}
+                      {typeof object.yoloConfidence === "number" ||
+                      typeof object.confidence === "number"
+                        ? `${confidence}%`
+                        : "n/a"}
                     </span>
                   </div>
+
+                  {object.description ? (
+                    <p className="mt-4 text-sm leading-6 text-[var(--color-text-secondary)]">
+                      {object.description}
+                    </p>
+                  ) : null}
+
+                  {object.significance ? (
+                    <p className="mt-3 border-l-2 border-[var(--color-border-subtle)] pl-3 text-sm leading-6 text-[var(--color-text-secondary)]">
+                      {object.significance}
+                    </p>
+                  ) : null}
 
                   <div className="mt-4">
                     <div
@@ -332,6 +366,64 @@ export default async function ShotDetailPage({ params }: ShotDetailPageProps) {
         ) : (
           <p className="mt-6 text-sm text-[var(--color-text-secondary)]">
             No detected objects are attached to this shot yet.
+          </p>
+        )}
+      </section>
+
+      <section
+        className="rounded-[var(--radius-xl)] border p-6"
+        style={{
+          backgroundColor:
+            "color-mix(in oklch, var(--color-surface-secondary) 76%, transparent)",
+          borderColor:
+            "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
+        }}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+              Scene context
+            </p>
+            <h2
+              className="mt-2 text-2xl font-semibold tracking-[var(--letter-spacing-snug)] text-[var(--color-text-primary)]"
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
+              Gemini scene enrichment
+            </h2>
+          </div>
+        </div>
+
+        {sceneContext ? (
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            {[
+              ["Location", sceneContext.location],
+              ["Time of day", sceneContext.timeOfDay],
+              ["Period", sceneContext.period],
+              ["Mood", sceneContext.mood],
+              ["Interior / exterior", sceneContext.interiorExterior],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="rounded-[var(--radius-lg)] border p-4"
+                style={{
+                  backgroundColor:
+                    "color-mix(in oklch, var(--color-surface-primary) 72%, transparent)",
+                  borderColor:
+                    "color-mix(in oklch, var(--color-border-subtle) 90%, transparent)",
+                }}
+              >
+                <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+                  {label}
+                </p>
+                <p className="mt-2 text-sm text-[var(--color-text-primary)]">
+                  {formatSceneValue(value)}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-6 text-sm text-[var(--color-text-secondary)]">
+            Scene-level enrichment has not been attached to this shot yet.
           </p>
         )}
       </section>

@@ -2,6 +2,7 @@ import type {
   CompoundPart,
   ShotObjectAttributes,
   ShotObjectKeyframe,
+  ShotSceneContext,
 } from "@/db/schema";
 import type {
   DirectionSlug,
@@ -76,10 +77,16 @@ export type ShotWithDetails = {
     label: string;
     category: string | null;
     confidence: number | null;
+    yoloClass: string | null;
+    yoloConfidence: number | null;
+    cinematicLabel: string | null;
+    description: string | null;
+    significance: string | null;
     keyframes: ShotObjectKeyframe[];
     startTime: number;
     endTime: number;
     attributes: ShotObjectAttributes | null;
+    sceneContext: ShotSceneContext | null;
   }>;
   relevance?: number;
 };

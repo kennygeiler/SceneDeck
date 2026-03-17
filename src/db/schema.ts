@@ -34,6 +34,14 @@ export type ShotObjectKeyframe = {
   w: number;
   h: number;
 };
+export type ShotSceneContext = {
+  location?: string;
+  interiorExterior?: string;
+  timeOfDay?: string;
+  period?: string;
+  mood?: string;
+  weather?: string;
+};
 
 const vector = customType<{
   data: number[];
@@ -140,10 +148,16 @@ export const shotObjects = pgTable("shot_objects", {
   label: text("label").notNull(),
   category: text("category"),
   confidence: real("confidence"),
+  yoloClass: text("yolo_class"),
+  yoloConfidence: real("yolo_confidence"),
+  cinematicLabel: text("cinematic_label"),
+  description: text("description"),
+  significance: text("significance"),
   keyframes: jsonb("keyframes").$type<ShotObjectKeyframe[]>().notNull(),
   startTime: real("start_time").notNull(),
   endTime: real("end_time").notNull(),
   attributes: jsonb("attributes").$type<ShotObjectAttributes>(),
+  sceneContext: jsonb("scene_context").$type<ShotSceneContext>(),
 });
 
 export type Film = typeof films.$inferSelect;

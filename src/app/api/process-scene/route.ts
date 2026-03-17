@@ -420,6 +420,11 @@ export async function POST(request: Request) {
       const detectedObjects = await detectObjectsMultiFrame(
         assets.clipPath,
         assets.duration,
+        {
+          title: payload.filmTitle,
+          director: payload.director,
+          year: payload.year,
+        },
       );
       const shotSlug = `shot-${String(index + 1).padStart(4, "0")}`;
       const videoUrl = await uploadAsset(
@@ -522,7 +527,7 @@ export async function POST(request: Request) {
     const message =
       error instanceof Error
         ? error.message
-        : "Scene processing failed. Confirm ffmpeg, Python, Gemini, Blob, OpenAI, and database access are configured.";
+        : "Scene processing failed. Confirm ffmpeg, Python, Gemini, Replicate, Blob, OpenAI, and database access are configured.";
     const status =
       error instanceof Error &&
       (message.includes("required") ||

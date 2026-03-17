@@ -58,10 +58,13 @@
   --color-overlay-speed:      var(--color-accent-light);
   --color-overlay-object-person: #22d3ee;
   --color-overlay-object-vehicle: #f59e0b;
-  --color-overlay-object-object: #a78bfa;
-  --color-overlay-object-environment: #4ade80;
   --color-overlay-object-animal: #fb923c;
-  --color-overlay-object-text: #94a3b8;
+  --color-overlay-object-furniture: #a78bfa;
+  --color-overlay-object-food: #4ade80;
+  --color-overlay-object-default: #94a3b8;
+  --color-overlay-object-object: var(--color-overlay-object-default);
+  --color-overlay-object-environment: var(--color-overlay-object-food);
+  --color-overlay-object-text: var(--color-overlay-object-default);
 
   /* ─── Semantic: Status ─── */
   --color-status-verified:   var(--color-signal-green);
