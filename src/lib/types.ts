@@ -32,6 +32,7 @@ export type VerificationCorrectionsMap = Partial<
 
 export type ShotWithDetails = {
   id: string;
+  sceneId: string | null;
   film: {
     id: string;
     title: string;
@@ -145,4 +146,59 @@ export type ShotReviewQueueItem = ShotWithDetails & {
   verificationCount: number;
   averageOverallRating: number | null;
   latestVerifiedAt: string | null;
+};
+
+export type SceneWithShots = {
+  id: string;
+  filmId: string;
+  sceneNumber: number;
+  title: string | null;
+  description: string | null;
+  startTc: number | null;
+  endTc: number | null;
+  totalDuration: number | null;
+  videoUrl: string | null;
+  thumbnailUrl: string | null;
+  location: string | null;
+  interiorExterior: string | null;
+  timeOfDay: string | null;
+  shots: ShotWithDetails[];
+  shotCount: number;
+};
+
+export type FilmWithDetails = {
+  id: string;
+  title: string;
+  director: string;
+  year: number | null;
+  tmdbId: number | null;
+  posterUrl: string | null;
+  backdropUrl: string | null;
+  overview: string | null;
+  runtime: number | null;
+  genres: string[];
+  sceneCount: number;
+  shotCount: number;
+  totalDuration: number;
+  scenes: SceneWithShots[];
+};
+
+export type FilmCard = {
+  id: string;
+  title: string;
+  director: string;
+  year: number | null;
+  posterUrl: string | null;
+  sceneCount: number;
+  shotCount: number;
+  totalDuration: number;
+};
+
+export type FilmCoverageStats = {
+  shotSizeDistribution: Record<string, number>;
+  movementTypeFrequency: Record<string, number>;
+  averageShotLength: number;
+  shotCount: number;
+  sceneCount: number;
+  totalDuration: number;
 };

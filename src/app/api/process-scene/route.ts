@@ -23,6 +23,15 @@ export const dynamic = "force-dynamic";
 
 type SplitSource = "auto" | "detected" | "manual";
 
+type SceneGrouping = {
+  title?: string;
+  description?: string;
+  location?: string;
+  interiorExterior?: string;
+  timeOfDay?: string;
+  shotIndices: number[];
+};
+
 type ProcessSceneRequest = {
   videoPath?: unknown;
   filmTitle?: unknown;
@@ -34,6 +43,7 @@ type ProcessSceneRequest = {
     source?: unknown;
     confidence?: unknown;
   }>;
+  scenes?: SceneGrouping[];
 };
 
 type NormalizedSplit = {
@@ -203,12 +213,21 @@ function parseBody(body: ProcessSceneRequest) {
     }
   }
 
+  // Optional scene groupings
+  const sceneGroupings: SceneGrouping[] = Array.isArray(body.scenes)
+    ? body.scenes.filter(
+        (s): s is SceneGrouping =>
+          Array.isArray(s?.shotIndices) && s.shotIndices.length > 0,
+      )
+    : [];
+
   return {
     videoPath,
     filmTitle,
     director,
     year,
     splits: normalizedSplits,
+    scenes: sceneGroupings,
   };
 }
 
@@ -324,6 +343,7 @@ function buildSearchText(film: {
   return (shot: ProcessedShot) => {
     const shotForEmbedding: ShotWithDetails = {
       id: "",
+      sceneId: null,
       film: {
         id: film.id,
         title: film.title,
@@ -487,6 +507,7 @@ export async function POST(request: Request) {
       shot.embedding = await generateTextEmbedding(shot.searchText);
     }
 
+    const insertedShotIds: string[] = [];
     for (const shot of extractedShots) {
       const [insertedShot] = await db
         .insert(schema.shots)
@@ -532,6 +553,50 @@ export async function POST(request: Request) {
       });
 
       await replaceShotObjects(insertedShot.id, shot.detectedObjects);
+
+      insertedShotIds.push(insertedShot.id);
+    }
+
+    // Create scene groupings if provided
+    if (payload.scenes.length > 0) {
+      for (let sceneIdx = 0; sceneIdx < payload.scenes.length; sceneIdx++) {
+        const sceneGroup = payload.scenes[sceneIdx];
+        const sceneShotIds = sceneGroup.shotIndices
+          .filter((i) => i >= 0 && i < insertedShotIds.length)
+          .map((i) => insertedShotIds[i]);
+
+        if (sceneShotIds.length === 0) continue;
+
+        const sceneSplits = sceneGroup.shotIndices
+          .filter((i) => i >= 0 && i < payload.splits.length)
+          .map((i) => payload.splits[i]);
+
+        const startTc = Math.min(...sceneSplits.map((s) => s.start));
+        const endTc = Math.max(...sceneSplits.map((s) => s.end));
+
+        const [insertedScene] = await db
+          .insert(schema.scenes)
+          .values({
+            filmId,
+            sceneNumber: sceneIdx + 1,
+            title: sceneGroup.title ?? null,
+            description: sceneGroup.description ?? null,
+            location: sceneGroup.location ?? null,
+            interiorExterior: sceneGroup.interiorExterior ?? null,
+            timeOfDay: sceneGroup.timeOfDay ?? null,
+            startTc,
+            endTc,
+            totalDuration: endTc - startTc,
+          })
+          .returning({ id: schema.scenes.id });
+
+        for (const shotId of sceneShotIds) {
+          await db
+            .update(schema.shots)
+            .set({ sceneId: insertedScene.id })
+            .where(eq(schema.shots.id, shotId));
+        }
+      }
     }
 
     return NextResponse.json({

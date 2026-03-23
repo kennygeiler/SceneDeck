@@ -23,6 +23,10 @@ import {
 } from "@/db/embeddings";
 import type {
   ExportShotRecord,
+  FilmCard,
+  FilmCoverageStats,
+  FilmWithDetails,
+  SceneWithShots,
   ShotReviewQueueItem,
   ShotWithDetails,
   VerificationCorrectionsMap,
@@ -51,6 +55,7 @@ export type ShotQueryFilters = {
 
 const shotSelection = {
   shotId: schema.shots.id,
+  shotSceneId: schema.shots.sceneId,
   shotSourceFile: schema.shots.sourceFile,
   shotStartTc: schema.shots.startTc,
   shotEndTc: schema.shots.endTc,
@@ -155,6 +160,7 @@ function toCompoundNotation(
 function mapShotRow(row: ShotRow): ShotWithDetails {
   return {
     id: row.shotId,
+    sceneId: row.shotSceneId ?? null,
     film: {
       id: row.filmId,
       title: row.filmTitle,
@@ -745,5 +751,213 @@ export async function getVerificationStats(): Promise<VerificationStats> {
         (averageOverallRating ?? 0) < REVIEW_PASSING_RATING
       );
     }).length,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Film & Scene Queries
+// ---------------------------------------------------------------------------
+
+export async function getAllFilms(): Promise<FilmCard[]> {
+  const rows = await db
+    .select({
+      id: schema.films.id,
+      title: schema.films.title,
+      director: schema.films.director,
+      year: schema.films.year,
+      posterUrl: schema.films.posterUrl,
+    })
+    .from(schema.films)
+    .orderBy(schema.films.title);
+
+  const filmIds = rows.map((r) => r.id);
+  if (filmIds.length === 0) return [];
+
+  const sceneCounts = await db
+    .select({
+      filmId: schema.scenes.filmId,
+      count: sql<number>`count(*)`.as("count"),
+    })
+    .from(schema.scenes)
+    .where(inArray(schema.scenes.filmId, filmIds))
+    .groupBy(schema.scenes.filmId);
+
+  const shotAgg = await db
+    .select({
+      filmId: schema.shots.filmId,
+      count: sql<number>`count(*)`.as("count"),
+      totalDuration: sql<number>`coalesce(sum(${schema.shots.duration}), 0)`.as(
+        "total_duration",
+      ),
+    })
+    .from(schema.shots)
+    .where(inArray(schema.shots.filmId, filmIds))
+    .groupBy(schema.shots.filmId);
+
+  const sceneMap = new Map(sceneCounts.map((r) => [r.filmId, Number(r.count)]));
+  const shotMap = new Map(
+    shotAgg.map((r) => [
+      r.filmId,
+      { count: Number(r.count), duration: Number(r.totalDuration) },
+    ]),
+  );
+
+  return rows.map((film) => ({
+    id: film.id,
+    title: film.title,
+    director: film.director,
+    year: film.year ?? null,
+    posterUrl: film.posterUrl ?? null,
+    sceneCount: sceneMap.get(film.id) ?? 0,
+    shotCount: shotMap.get(film.id)?.count ?? 0,
+    totalDuration: shotMap.get(film.id)?.duration ?? 0,
+  }));
+}
+
+export async function getFilmById(
+  id: string,
+): Promise<FilmWithDetails | null> {
+  const [filmRow] = await db
+    .select()
+    .from(schema.films)
+    .where(eq(schema.films.id, id))
+    .limit(1);
+
+  if (!filmRow) return null;
+
+  const sceneRows = await db
+    .select()
+    .from(schema.scenes)
+    .where(eq(schema.scenes.filmId, id))
+    .orderBy(schema.scenes.sceneNumber);
+
+  const allShots = await getAllShots({ filmTitle: filmRow.title });
+
+  const sceneMap = new Map<string, ShotWithDetails[]>();
+  const ungrouped: ShotWithDetails[] = [];
+
+  for (const shot of allShots) {
+    if (shot.sceneId) {
+      const list = sceneMap.get(shot.sceneId) ?? [];
+      list.push(shot);
+      sceneMap.set(shot.sceneId, list);
+    } else {
+      ungrouped.push(shot);
+    }
+  }
+
+  const scenes: SceneWithShots[] = sceneRows.map((row) => {
+    const shots = sceneMap.get(row.id) ?? [];
+    return {
+      id: row.id,
+      filmId: row.filmId,
+      sceneNumber: row.sceneNumber,
+      title: row.title,
+      description: row.description,
+      startTc: row.startTc,
+      endTc: row.endTc,
+      totalDuration: row.totalDuration,
+      videoUrl: row.videoUrl,
+      thumbnailUrl: row.thumbnailUrl,
+      location: row.location,
+      interiorExterior: row.interiorExterior,
+      timeOfDay: row.timeOfDay,
+      shots,
+      shotCount: shots.length,
+    };
+  });
+
+  if (ungrouped.length > 0) {
+    scenes.push({
+      id: "ungrouped",
+      filmId: id,
+      sceneNumber: scenes.length + 1,
+      title: "Ungrouped Shots",
+      description: null,
+      startTc: null,
+      endTc: null,
+      totalDuration: null,
+      videoUrl: null,
+      thumbnailUrl: null,
+      location: null,
+      interiorExterior: null,
+      timeOfDay: null,
+      shots: ungrouped,
+      shotCount: ungrouped.length,
+    });
+  }
+
+  return {
+    id: filmRow.id,
+    title: filmRow.title,
+    director: filmRow.director,
+    year: filmRow.year ?? null,
+    tmdbId: filmRow.tmdbId ?? null,
+    posterUrl: filmRow.posterUrl ?? null,
+    backdropUrl: filmRow.backdropUrl ?? null,
+    overview: filmRow.overview ?? null,
+    runtime: filmRow.runtime ?? null,
+    genres: filmRow.genres ?? [],
+    sceneCount: sceneRows.length,
+    shotCount: allShots.length,
+    totalDuration: allShots.reduce((sum, s) => sum + s.duration, 0),
+    scenes,
+  };
+}
+
+export async function getFilmCoverageStats(
+  filmId: string,
+): Promise<FilmCoverageStats> {
+  const shotSizeRows = await db
+    .select({
+      shotSize: schema.shotMetadata.shotSize,
+      count: sql<number>`count(*)`.as("count"),
+    })
+    .from(schema.shotMetadata)
+    .innerJoin(schema.shots, eq(schema.shotMetadata.shotId, schema.shots.id))
+    .where(eq(schema.shots.filmId, filmId))
+    .groupBy(schema.shotMetadata.shotSize);
+
+  const movementRows = await db
+    .select({
+      movementType: schema.shotMetadata.movementType,
+      count: sql<number>`count(*)`.as("count"),
+    })
+    .from(schema.shotMetadata)
+    .innerJoin(schema.shots, eq(schema.shotMetadata.shotId, schema.shots.id))
+    .where(eq(schema.shots.filmId, filmId))
+    .groupBy(schema.shotMetadata.movementType);
+
+  const [aggRow] = await db
+    .select({
+      shotCount: sql<number>`count(*)`.as("shot_count"),
+      totalDuration: sql<number>`coalesce(sum(${schema.shots.duration}), 0)`.as(
+        "total_duration",
+      ),
+      avgDuration: sql<number>`coalesce(avg(${schema.shots.duration}), 0)`.as(
+        "avg_duration",
+      ),
+    })
+    .from(schema.shots)
+    .where(eq(schema.shots.filmId, filmId));
+
+  const [sceneCountRow] = await db
+    .select({
+      count: sql<number>`count(*)`.as("count"),
+    })
+    .from(schema.scenes)
+    .where(eq(schema.scenes.filmId, filmId));
+
+  return {
+    shotSizeDistribution: Object.fromEntries(
+      shotSizeRows.map((r) => [r.shotSize ?? "unknown", Number(r.count)]),
+    ),
+    movementTypeFrequency: Object.fromEntries(
+      movementRows.map((r) => [r.movementType, Number(r.count)]),
+    ),
+    averageShotLength: Number(aggRow?.avgDuration ?? 0),
+    shotCount: Number(aggRow?.shotCount ?? 0),
+    sceneCount: Number(sceneCountRow?.count ?? 0),
+    totalDuration: Number(aggRow?.totalDuration ?? 0),
   };
 }

@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { getAllShots } from "@/db/queries";
+import { getAllFilms, getAllShots } from "@/db/queries";
+import { FilmCard } from "@/components/films/film-card";
 import { HomeHero } from "@/components/home/home-hero";
 import { ShotCard } from "@/components/shots/shot-card";
 import {
@@ -33,7 +34,8 @@ const workflowSteps = [
 ] as const;
 
 export default async function Home() {
-  const featuredShots = (await getAllShots()).slice(0, 3);
+  const [films, allShots] = await Promise.all([getAllFilms(), getAllShots()]);
+  const featuredShots = allShots.slice(0, 3);
   const [spotlightShot, ...secondaryShots] = featuredShots;
 
   return (
@@ -252,6 +254,41 @@ export default async function Home() {
           </div>
         )}
       </section>
+
+      {/* Featured Films */}
+      {films.length > 0 ? (
+        <section className="space-y-8" aria-labelledby="films-heading">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="max-w-3xl">
+              <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+                Film analysis
+              </p>
+              <h2
+                id="films-heading"
+                className="mt-3 text-3xl font-semibold tracking-[var(--letter-spacing-snug)] text-[var(--color-text-primary)] sm:text-4xl"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                Complete films with scene-level coverage analysis.
+              </h2>
+              <p className="mt-4 max-w-2xl text-base leading-8 text-[var(--color-text-secondary)]">
+                Every shot classified, every scene mapped. Explore how directors
+                build coverage across an entire film.
+              </p>
+            </div>
+            <Link
+              href="/browse?view=films"
+              className="inline-flex h-10 items-center justify-center rounded-full border border-[var(--color-border-default)] px-5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-tertiary)] hover:text-[var(--color-text-primary)]"
+            >
+              Browse all films
+            </Link>
+          </div>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {films.map((film) => (
+              <FilmCard key={film.id} film={film} />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section aria-labelledby="how-it-works-heading" className="space-y-8">
         <div className="max-w-3xl">

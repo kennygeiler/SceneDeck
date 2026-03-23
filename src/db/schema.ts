@@ -69,6 +69,30 @@ export const films = pgTable("films", {
   director: text("director").notNull(),
   year: integer("year"),
   tmdbId: integer("tmdb_id"),
+  posterUrl: text("poster_url"),
+  backdropUrl: text("backdrop_url"),
+  overview: text("overview"),
+  runtime: integer("runtime"),
+  genres: text("genres").array(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const scenes = pgTable("scenes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  filmId: uuid("film_id")
+    .references(() => films.id, { onDelete: "cascade" })
+    .notNull(),
+  sceneNumber: integer("scene_number").notNull(),
+  title: text("title"),
+  description: text("description"),
+  startTc: real("start_tc"),
+  endTc: real("end_tc"),
+  totalDuration: real("total_duration"),
+  videoUrl: text("video_url"),
+  thumbnailUrl: text("thumbnail_url"),
+  location: text("location"),
+  interiorExterior: text("interior_exterior"),
+  timeOfDay: text("time_of_day"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
@@ -77,6 +101,7 @@ export const shots = pgTable("shots", {
   filmId: uuid("film_id")
     .references(() => films.id, { onDelete: "cascade" })
     .notNull(),
+  sceneId: uuid("scene_id").references(() => scenes.id, { onDelete: "set null" }),
   sourceFile: text("source_file"),
   startTc: real("start_tc"),
   endTc: real("end_tc"),
@@ -162,6 +187,9 @@ export const shotObjects = pgTable("shot_objects", {
 
 export type Film = typeof films.$inferSelect;
 export type NewFilm = typeof films.$inferInsert;
+
+export type Scene = typeof scenes.$inferSelect;
+export type NewScene = typeof scenes.$inferInsert;
 
 export type Shot = typeof shots.$inferSelect;
 export type NewShot = typeof shots.$inferInsert;

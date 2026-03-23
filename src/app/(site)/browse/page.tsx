@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 
+import { FilmBrowser } from "@/components/films/film-browser";
 import { ShotBrowser } from "@/components/shots/shot-browser";
 import {
   filterShotsCollection,
+  getAllFilms,
   getAllShots,
   searchShots,
 } from "@/db/queries";
@@ -11,7 +13,7 @@ import type { ShotSizeSlug } from "@/lib/taxonomy";
 
 export const metadata: Metadata = {
   title: "Browse",
-  description: "Browse the SceneDeck Neon archive and filter by movement type, film, director, shot size, and text search.",
+  description: "Browse the SceneDeck archive — films, scenes, and shots with camera movement analysis.",
 };
 
 type BrowsePageProps = {
@@ -37,7 +39,8 @@ export default async function BrowsePage({ searchParams }: BrowsePageProps) {
     shotSize,
   };
 
-  const [allShots, initialShots] = await Promise.all([
+  const [films, allShots, initialShots] = await Promise.all([
+    getAllFilms(),
     getAllShots(),
     query
       ? searchShots(query, {
@@ -62,12 +65,18 @@ export default async function BrowsePage({ searchParams }: BrowsePageProps) {
   ) as ShotSizeSlug[];
 
   return (
-    <ShotBrowser
-      shots={shots}
-      totalShots={allShots.length}
-      availableFilmTitles={availableFilmTitles}
+    <FilmBrowser
+      films={films}
       availableDirectors={availableDirectors}
-      availableShotSizes={availableShotSizes}
+      shotsView={
+        <ShotBrowser
+          shots={shots}
+          totalShots={allShots.length}
+          availableFilmTitles={availableFilmTitles}
+          availableDirectors={availableDirectors}
+          availableShotSizes={availableShotSizes}
+        />
+      }
     />
   );
 }

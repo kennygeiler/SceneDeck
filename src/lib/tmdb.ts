@@ -9,6 +9,14 @@ type TmdbSearchResponse = {
   }>;
 };
 
+type TmdbMovieDetailsResponse = {
+  poster_path?: string | null;
+  backdrop_path?: string | null;
+  overview?: string | null;
+  runtime?: number | null;
+  genres?: Array<{ id?: number; name?: string }>;
+};
+
 type TmdbCreditsResponse = {
   cast?: Array<{
     name?: string;
@@ -82,6 +90,42 @@ export async function searchTmdbMovieId(
   }
 
   return payload?.results?.find((result) => typeof result.id === "number")?.id ?? null;
+}
+
+export type TmdbMovieDetails = {
+  posterUrl: string | null;
+  backdropUrl: string | null;
+  overview: string | null;
+  runtime: number | null;
+  genres: string[];
+};
+
+const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
+
+export async function fetchTmdbMovieDetails(
+  tmdbId: number,
+): Promise<TmdbMovieDetails | null> {
+  const payload = await fetchTmdbJson<TmdbMovieDetailsResponse>(
+    `/movie/${tmdbId}`,
+    {},
+  );
+
+  if (!payload) return null;
+
+  return {
+    posterUrl: payload.poster_path
+      ? `${TMDB_IMAGE_BASE}/w500${payload.poster_path}`
+      : null,
+    backdropUrl: payload.backdrop_path
+      ? `${TMDB_IMAGE_BASE}/w1280${payload.backdrop_path}`
+      : null,
+    overview: payload.overview ?? null,
+    runtime: payload.runtime ?? null,
+    genres:
+      payload.genres
+        ?.map((g) => g.name)
+        .filter((name): name is string => Boolean(name)) ?? [],
+  };
 }
 
 export async function fetchTmdbCast(tmdbId: number | null | undefined): Promise<string[]> {
