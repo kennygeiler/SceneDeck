@@ -74,6 +74,7 @@ export const films = pgTable("films", {
   overview: text("overview"),
   runtime: integer("runtime"),
   genres: text("genres").array(),
+  sourceUrl: text("source_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
@@ -128,6 +129,9 @@ export const shotMetadata = pgTable("shot_metadata", {
   isCompound: boolean("is_compound").default(false),
   compoundParts: jsonb("compound_parts").$type<CompoundPart[]>(),
   classificationSource: text("classification_source").default("manual"),
+  confidence: real("confidence"),
+  reviewStatus: text("review_status").default("unreviewed"),
+  validationFlags: text("validation_flags").array(),
 });
 
 export const shotSemantic = pgTable("shot_semantic", {
@@ -208,3 +212,21 @@ export type NewShotEmbedding = typeof shotEmbeddings.$inferInsert;
 
 export type ShotObject = typeof shotObjects.$inferSelect;
 export type NewShotObject = typeof shotObjects.$inferInsert;
+
+export const pipelineJobs = pgTable("pipeline_jobs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  filmId: uuid("film_id").references(() => films.id, { onDelete: "cascade" }),
+  shotId: uuid("shot_id").references(() => shots.id, { onDelete: "cascade" }),
+  stage: text("stage").notNull(), // detect, extract, classify, embed
+  status: text("status").notNull().default("queued"), // queued, running, completed, failed, needs_review
+  workerId: text("worker_id"),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  error: text("error"),
+  attempts: integer("attempts").default(0),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export type PipelineJob = typeof pipelineJobs.$inferSelect;
+export type NewPipelineJob = typeof pipelineJobs.$inferInsert;

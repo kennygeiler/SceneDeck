@@ -24,25 +24,25 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://scenedeck-demo.vercel.app"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://metrovision.vercel.app"),
   title: {
-    default: "SceneDeck — The Intelligence Layer for Cinema",
-    template: "%s | SceneDeck",
+    default: "MetroVision — The Motion Intelligence Archive",
+    template: "%s | MetroVision",
   },
   description:
     "A searchable database of film scenes tagged with camera motion metadata",
   openGraph: {
-    title: "SceneDeck — The Intelligence Layer for Cinema",
+    title: "MetroVision — The Motion Intelligence Archive",
     description:
       "A searchable database of film scenes tagged with camera motion metadata",
     url: "/",
-    siteName: "SceneDeck",
+    siteName: "MetroVision",
     type: "website",
     locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
-    title: "SceneDeck — The Intelligence Layer for Cinema",
+    title: "MetroVision — The Motion Intelligence Archive",
     description:
       "A searchable database of film scenes tagged with camera motion metadata",
   },

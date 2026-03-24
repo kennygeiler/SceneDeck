@@ -80,13 +80,15 @@ export function HomeHero() {
         </div>
 
         <h1
-          className="mt-6 max-w-5xl text-5xl font-bold tracking-[var(--letter-spacing-tight)] text-[var(--color-text-primary)] sm:text-6xl lg:text-8xl"
+          className="mt-6 max-w-5xl text-5xl font-bold tracking-[var(--letter-spacing-tight)] sm:text-6xl lg:text-8xl"
           style={{ fontFamily: "var(--font-heading)" }}
         >
-          The intelligence layer for cinema.
+          <span className="text-[var(--color-text-primary)]">The </span>
+          <span className="laser-text">motion intelligence archive</span>
+          <span className="text-[var(--color-text-primary)]">.</span>
         </h1>
         <p className="mt-4 max-w-3xl text-lg leading-8 text-[var(--color-text-secondary)] sm:text-xl">
-          SceneDeck turns film scenes into a searchable, verification-aware
+          MetroVision turns film scenes into a searchable, verification-aware
           archive of camera movement, shot scale, angle, and speed, all surfaced
           through a playback-synced visual overlay.
         </p>

@@ -89,6 +89,18 @@
   }
 }
 
+@keyframes laser-gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 @keyframes scenedeck-shimmer {
   0% {
     transform: translateX(-100%);
@@ -100,6 +112,24 @@
 }
 
 @layer utilities {
+  .laser-text {
+    background: linear-gradient(
+      90deg,
+      oklch(0.70 0.14 200) 0%,
+      oklch(0.72 0.16 240) 15%,
+      oklch(0.68 0.18 300) 30%,
+      oklch(0.70 0.14 200) 45%,
+      oklch(0.75 0.12 155) 60%,
+      oklch(0.70 0.16 80) 75%,
+      oklch(0.70 0.14 200) 100%
+    );
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: laser-gradient 6s ease-in-out infinite;
+  }
+
   .scene-skeleton {
     position: relative;
     overflow: hidden;

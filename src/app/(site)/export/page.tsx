@@ -6,7 +6,7 @@ import { getShotsForExport } from "@/db/queries";
 export const metadata: Metadata = {
   title: "Export",
   description:
-    "Export SceneDeck shot metadata as JSON or CSV with dataset preview and filter controls.",
+    "Export MetroVision shot metadata as JSON or CSV with dataset preview and filter controls.",
 };
 
 export default async function ExportPage() {
@@ -26,7 +26,7 @@ export default async function ExportPage() {
             className="mt-4 text-4xl font-bold tracking-[var(--letter-spacing-tight)] sm:text-5xl"
             style={{ fontFamily: "var(--font-heading)" }}
           >
-            Ship SceneDeck metadata into analysis workflows
+            Ship MetroVision metadata into analysis workflows
           </h1>
           <p className="mt-4 text-base leading-8 text-[var(--color-text-secondary)]">
             Export the live shot archive as structured JSON or flat CSV,

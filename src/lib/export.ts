@@ -94,7 +94,7 @@ export function triggerExportDownload(
 export function getExportFilename(format: ExportFormat) {
   const dateStamp = new Date().toISOString().slice(0, 10);
 
-  return `scenedeck-shots-${dateStamp}.${format}`;
+  return `metrovision-shots-${dateStamp}.${format}`;
 }
 
 export function toPrettyJson(records: ExportShotRecord[]) {

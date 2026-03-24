@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -10,6 +11,16 @@ import { getFilmById, getFilmCoverageStats } from "@/db/queries";
 type Props = {
   params: Promise<{ id: string }>;
 };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params;
+  const film = await getFilmById(id);
+  if (!film) return { title: "Film Not Found" };
+  return {
+    title: `${film.title} — ${film.director}`,
+    description: `Camera movement analysis of ${film.title} (${film.year}) by ${film.director}. ${film.shotCount} shots across ${film.sceneCount} scenes.`,
+  };
+}
 
 export default async function FilmDetailPage({ params }: Props) {
   const { id } = await params;

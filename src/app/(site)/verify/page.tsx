@@ -7,7 +7,7 @@ import { getMovementDisplayName } from "@/lib/shot-display";
 
 export const metadata: Metadata = {
   title: "Verify Queue",
-  description: "Review SceneDeck shots, rate classifier accuracy, and correct metadata.",
+  description: "Review MetroVision shots, rate classifier accuracy, and correct metadata.",
 };
 
 function formatAverageRating(value: number | null) {

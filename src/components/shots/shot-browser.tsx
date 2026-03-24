@@ -538,7 +538,7 @@ export function ShotBrowser({
               className="mt-3 text-2xl font-semibold text-[var(--color-text-primary)]"
               style={{ fontFamily: "var(--font-heading)" }}
             >
-              SceneDeck is connected, but no shots have been published yet.
+              MetroVision is connected, but no shots have been published yet.
             </h2>
             <p className="mt-4 max-w-2xl text-base leading-8 text-[var(--color-text-secondary)]">
               Seed the database or ingest clips through the pipeline, then the

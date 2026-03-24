@@ -66,7 +66,7 @@ export default function NotFound() {
           </h1>
           <p className="mt-5 max-w-xl text-base leading-8 text-[var(--color-text-secondary)] sm:text-lg">
             The shot you requested is not in the current archive, or this route
-            does not exist in the SceneDeck surface.
+            does not exist in the MetroVision surface.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-3">

@@ -13,7 +13,7 @@ import type { ShotSizeSlug } from "@/lib/taxonomy";
 
 export const metadata: Metadata = {
   title: "Browse",
-  description: "Browse the SceneDeck archive — films, scenes, and shots with camera movement analysis.",
+  description: "Browse the MetroVision archive — films, scenes, and shots with camera movement analysis.",
 };
 
 type BrowsePageProps = {

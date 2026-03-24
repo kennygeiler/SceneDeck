@@ -14,6 +14,8 @@ import { db, schema } from "@/db";
 /** Convert private blob URLs to proxied URLs that browsers can access. */
 function proxyBlobUrl(url: string | null): string | null {
   if (!url) return null;
+  // S3 proxy URLs are already in the right format
+  if (url.startsWith("/api/s3")) return url;
   if (!url.includes("private.blob.vercel-storage.com")) return url;
   return `/api/blob/${encodeURIComponent(url)}`;
 }
@@ -33,6 +35,8 @@ import type {
   VerificationFieldRatingsMap,
   VerificationRecord,
   VerificationStats,
+  VisualizationData,
+  VizShot,
 } from "@/lib/types";
 import type {
   DirectionSlug,
@@ -831,7 +835,11 @@ export async function getFilmById(
     .where(eq(schema.scenes.filmId, id))
     .orderBy(schema.scenes.sceneNumber);
 
-  const allShots = await getAllShots({ filmTitle: filmRow.title });
+  // Query shots by filmId directly instead of filtering by title (avoids N+1)
+  const shotRows = await selectJoinedShots()
+    .where(eq(schema.shots.filmId, id))
+    .orderBy(schema.shots.startTc);
+  const allShots = await attachObjectsToShots(shotRows.map(mapShotRow));
 
   const sceneMap = new Map<string, ShotWithDetails[]>();
   const ungrouped: ShotWithDetails[] = [];
@@ -960,4 +968,100 @@ export async function getFilmCoverageStats(
     sceneCount: Number(sceneCountRow?.count ?? 0),
     totalDuration: Number(aggRow?.totalDuration ?? 0),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Visualization Data
+// ---------------------------------------------------------------------------
+
+export async function getVisualizationData(): Promise<VisualizationData> {
+  // Single joined query for all shot data needed by the viz dashboard
+  const rows = await db
+    .select({
+      shotId: schema.shots.id,
+      filmId: schema.films.id,
+      filmTitle: schema.films.title,
+      director: schema.films.director,
+      sceneTitle: schema.scenes.title,
+      sceneNumber: schema.scenes.sceneNumber,
+      movementType: schema.shotMetadata.movementType,
+      direction: schema.shotMetadata.direction,
+      speed: schema.shotMetadata.speed,
+      shotSize: schema.shotMetadata.shotSize,
+      angleVertical: schema.shotMetadata.angleVertical,
+      duration: schema.shots.duration,
+      startTc: schema.shots.startTc,
+      description: schema.shotSemantic.description,
+    })
+    .from(schema.shots)
+    .innerJoin(schema.films, eq(schema.shots.filmId, schema.films.id))
+    .leftJoin(schema.scenes, eq(schema.shots.sceneId, schema.scenes.id))
+    .leftJoin(schema.shotMetadata, eq(schema.shots.id, schema.shotMetadata.shotId))
+    .leftJoin(schema.shotSemantic, eq(schema.shots.id, schema.shotSemantic.shotId))
+    .orderBy(schema.films.title, schema.shots.startTc);
+
+  // Count objects per shot
+  const objectCounts = await db
+    .select({
+      shotId: schema.shotObjects.shotId,
+      count: sql<number>`count(*)`.as("count"),
+    })
+    .from(schema.shotObjects)
+    .groupBy(schema.shotObjects.shotId);
+
+  const objectCountMap = new Map(objectCounts.map((r) => [r.shotId, Number(r.count)]));
+
+  // Compute shot indices per film
+  const filmShotIndices = new Map<string, number>();
+  const shots: VizShot[] = rows.map((row) => {
+    const idx = filmShotIndices.get(row.filmId) ?? 0;
+    filmShotIndices.set(row.filmId, idx + 1);
+    return {
+      id: row.shotId,
+      filmId: row.filmId,
+      filmTitle: row.filmTitle,
+      director: row.director,
+      sceneTitle: row.sceneTitle ?? null,
+      sceneNumber: row.sceneNumber ?? null,
+      shotIndex: idx,
+      movementType: row.movementType ?? "static",
+      direction: row.direction ?? "none",
+      speed: row.speed ?? "moderate",
+      shotSize: row.shotSize ?? "medium",
+      angleVertical: row.angleVertical ?? "eye_level",
+      duration: row.duration ?? 0,
+      objectCount: objectCountMap.get(row.shotId) ?? 0,
+      description: row.description ?? null,
+    };
+  });
+
+  // Film summaries
+  const filmMap = new Map<string, { id: string; title: string; director: string; shotCount: number; scenes: Set<string> }>();
+  for (const shot of shots) {
+    const existing = filmMap.get(shot.filmId);
+    if (existing) {
+      existing.shotCount++;
+      if (shot.sceneTitle) existing.scenes.add(shot.sceneTitle);
+    } else {
+      filmMap.set(shot.filmId, {
+        id: shot.filmId,
+        title: shot.filmTitle,
+        director: shot.director,
+        shotCount: 1,
+        scenes: new Set(shot.sceneTitle ? [shot.sceneTitle] : []),
+      });
+    }
+  }
+
+  const films = Array.from(filmMap.values()).map((f) => ({
+    id: f.id,
+    title: f.title,
+    director: f.director,
+    shotCount: f.shotCount,
+    sceneCount: f.scenes.size,
+  }));
+
+  const directors = Array.from(new Set(shots.map((s) => s.director))).sort();
+
+  return { shots, films, directors };
 }

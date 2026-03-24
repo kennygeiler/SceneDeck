@@ -10,6 +10,10 @@ import { cn } from "@/lib/utils";
 
 const navigation = [
   { href: "/browse", label: "Browse" },
+  { href: "/ingest", label: "Ingest" },
+  { href: "/visualize", label: "Visualize" },
+  { href: "/agent", label: "Agent" },
+  { href: "/admin", label: "Admin" },
   { href: "/verify", label: "Verify" },
   { href: "/export", label: "Export" },
 ] as const;
@@ -52,9 +56,9 @@ export function SiteHeader() {
                   className="text-base font-bold tracking-[var(--letter-spacing-snug)] text-[var(--color-text-primary)] sm:text-lg"
                   style={{ fontFamily: "var(--font-heading)" }}
                 >
-                  SceneDeck
+                  MetroVision
                 </p>
-                <p className="hidden font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)] sm:block">
+                <p className="hidden font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] sm:block laser-text">
                   Motion intelligence archive
                 </p>
               </div>

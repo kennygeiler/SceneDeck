@@ -70,7 +70,7 @@ export default function GlobalError({ error, reset }: ErrorPageProps) {
                   Something went wrong
                 </h1>
                 <p className="mt-4 max-w-xl text-base leading-8 text-[var(--color-text-secondary)]">
-                  SceneDeck hit an unexpected rendering failure. Retry the request,
+                  MetroVision hit an unexpected rendering failure. Retry the request,
                   or return to the live archive while the current route resets.
                 </p>
               </div>

@@ -23,7 +23,7 @@ const workflowSteps = [
     step: "02",
     title: "Analyze",
     description:
-      "Classify movement, direction, speed, angle, and shot scale using the shared SceneDeck taxonomy.",
+      "Classify movement, direction, speed, angle, and shot scale using the shared MetroVision taxonomy.",
   },
   {
     step: "03",

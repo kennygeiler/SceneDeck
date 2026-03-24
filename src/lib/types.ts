@@ -202,3 +202,35 @@ export type FilmCoverageStats = {
   sceneCount: number;
   totalDuration: number;
 };
+
+export type VizShot = {
+  id: string;
+  filmId: string;
+  filmTitle: string;
+  director: string;
+  sceneTitle: string | null;
+  sceneNumber: number | null;
+  shotIndex: number;
+  movementType: string;
+  direction: string;
+  speed: string;
+  shotSize: string;
+  angleVertical: string;
+  duration: number;
+  objectCount: number;
+  description: string | null;
+};
+
+export type VizFilm = {
+  id: string;
+  title: string;
+  director: string;
+  shotCount: number;
+  sceneCount: number;
+};
+
+export type VisualizationData = {
+  shots: VizShot[];
+  films: VizFilm[];
+  directors: string[];
+};

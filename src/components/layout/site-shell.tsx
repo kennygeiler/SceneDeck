@@ -33,7 +33,7 @@ export function SiteShell({ children }: SiteShellProps) {
       <footer className="relative border-t border-[var(--color-border-subtle)] px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 text-sm text-[var(--color-text-secondary)] sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p>SceneDeck. Structured intelligence for cinema shots.</p>
+            <p>MetroVision. Structured intelligence for cinema shots.</p>
             <p className="mt-1 font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
               Browse, verify, and inspect playback-aware metadata overlays.
             </p>

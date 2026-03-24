@@ -62,7 +62,7 @@ export async function generateMetadata({
     title: `${shot.film.title} • ${getMovementDisplayName(shot.metadata.movementType)}`,
     description:
       shot.semantic?.description ??
-      `${shot.film.title} (${shot.film.year ?? "Unknown year"}) with ${getMovementDisplayName(shot.metadata.movementType)} movement rendered in the SceneDeck overlay.`,
+      `${shot.film.title} (${shot.film.year ?? "Unknown year"}) with ${getMovementDisplayName(shot.metadata.movementType)} movement rendered in the MetroVision overlay.`,
   };
 }
 

@@ -322,7 +322,7 @@ export function MetadataOverlay({ shot }: MetadataOverlayProps) {
             </p>
           </div>
           <div className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-            SceneDeck analysis overlay
+            MetroVision analysis overlay
           </div>
         </div>
       </motion.div>
