@@ -5,11 +5,9 @@
  * Usage: pnpm embeddings:scenes
  */
 
-import { sql } from "drizzle-orm";
-
 import { db, schema } from "@/db";
 import { loadLocalEnv } from "@/db/load-env";
-import { generateTextEmbedding, toVectorLiteral } from "@/db/embeddings";
+import { generateTextEmbedding } from "@/db/embeddings";
 
 loadLocalEnv();
 
@@ -35,7 +33,7 @@ async function generateSceneEmbeddings() {
   `);
 
   let count = 0;
-  for (const row of scenes.rows as any[]) {
+  for (const row of scenes.rows as Record<string, unknown>[]) {
     const descriptions = (row.shot_descriptions ?? []).slice(0, 10);
     const movements = [...new Set(row.movement_types ?? [])];
 
@@ -95,7 +93,7 @@ async function generateFilmEmbeddings() {
   `);
 
   let count = 0;
-  for (const row of films.rows as any[]) {
+  for (const row of films.rows as Record<string, unknown>[]) {
     const movements = (row.movement_types ?? []).filter(Boolean);
     const sizes = (row.shot_sizes ?? []).filter(Boolean);
 

@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!response.ok) {
-      const errText = await response.text();
+      await response.text();
       return Response.json(
         { error: `Gemini API error: ${response.status}` },
         { status: 502 },
@@ -77,7 +77,8 @@ export async function POST(request: NextRequest) {
     const result = await response.json();
     const text =
       result.candidates?.[0]?.content?.parts
-        ?.map((p: any) => p.text)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ?.map((p: Record<string, unknown>) => p.text)
         .join("") ?? "No response generated.";
 
     return Response.json({

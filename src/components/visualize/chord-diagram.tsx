@@ -142,6 +142,7 @@ export function ChordDiagram({ shots, onSelectMovement }: Props) {
       .selectAll("path")
       .data(chord)
       .join("path")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .attr("d", ribbon as any)
       .attr("fill", (d) => colorFor(types[d.source.index]))
       .attr("stroke", "none")
@@ -166,6 +167,7 @@ export function ChordDiagram({ shots, onSelectMovement }: Props) {
 
     groups
       .append("path")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .attr("d", arc as any)
       .attr("fill", (d) => colorFor(types[d.index]))
       .attr("stroke", "#0d0d12")
@@ -188,15 +190,18 @@ export function ChordDiagram({ shots, onSelectMovement }: Props) {
     // ---- Labels ----
     groups
       .append("text")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .each((d: any) => {
         d.angle = (d.startAngle + d.endAngle) / 2;
       })
       .attr("dy", "0.35em")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .attr("transform", (d: any) => {
         const angle = (d.angle * 180) / Math.PI - 90;
         const flip = d.angle > Math.PI;
         return `rotate(${angle}) translate(${outerRadius + 10}) ${flip ? "rotate(180)" : ""}`;
       })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .attr("text-anchor", (d: any) => (d.angle > Math.PI ? "end" : "start"))
       .attr("fill", "#8e8e99")
       .attr("font-size", 9)
