@@ -5,6 +5,8 @@
  * Usage: pnpm embeddings:scenes
  */
 
+import { sql } from "drizzle-orm";
+
 import { db, schema } from "@/db";
 import { loadLocalEnv } from "@/db/load-env";
 import { generateTextEmbedding } from "@/db/embeddings";
@@ -34,8 +36,8 @@ async function generateSceneEmbeddings() {
 
   let count = 0;
   for (const row of scenes.rows as Record<string, unknown>[]) {
-    const descriptions = (row.shot_descriptions ?? []).slice(0, 10);
-    const movements = [...new Set(row.movement_types ?? [])];
+    const descriptions = ((row.shot_descriptions as string[]) ?? []).slice(0, 10);
+    const movements = [...new Set(((row.movement_types as string[]) ?? []))];
 
     const searchText = [
       row.film_title,
@@ -56,7 +58,7 @@ async function generateSceneEmbeddings() {
     await db
       .insert(schema.sceneEmbeddings)
       .values({
-        sceneId: row.scene_id,
+        sceneId: row.scene_id as string,
         embedding,
         searchText,
       })
@@ -94,8 +96,8 @@ async function generateFilmEmbeddings() {
 
   let count = 0;
   for (const row of films.rows as Record<string, unknown>[]) {
-    const movements = (row.movement_types ?? []).filter(Boolean);
-    const sizes = (row.shot_sizes ?? []).filter(Boolean);
+    const movements = ((row.movement_types as string[]) ?? []).filter(Boolean);
+    const sizes = ((row.shot_sizes as string[]) ?? []).filter(Boolean);
 
     const searchText = [
       row.title,
@@ -115,7 +117,7 @@ async function generateFilmEmbeddings() {
     await db
       .insert(schema.filmEmbeddings)
       .values({
-        filmId: row.film_id,
+        filmId: row.film_id as string,
         embedding,
         searchText,
       })

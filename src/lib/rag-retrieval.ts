@@ -6,7 +6,7 @@
 
 import { sql } from "drizzle-orm";
 
-import { db, schema } from "@/db";
+import { db } from "@/db";
 import {
   generateTextEmbedding,
   toVectorLiteral,
