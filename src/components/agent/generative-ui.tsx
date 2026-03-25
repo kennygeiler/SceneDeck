@@ -222,7 +222,7 @@ export function GenerativeUIBlock({ data }: { data: unknown }) {
           <p className="mb-2 font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
             Pacing Heatmap — {data.filmTitle as string}
           </p>
-          <PacingHeatmap shots={data.data as VizShot[]} />
+          <PacingHeatmap shots={data.data as VizShot[]} films={[]} />
         </div>
       );
 
