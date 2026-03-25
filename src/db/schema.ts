@@ -251,3 +251,46 @@ export const batchJobs = pgTable("batch_jobs", {
 
 export type BatchJob = typeof batchJobs.$inferSelect;
 export type NewBatchJob = typeof batchJobs.$inferInsert;
+
+// ---------------------------------------------------------------------------
+// M5: RAG Intelligence Layer — Multi-granularity Embeddings + Corpus
+// ---------------------------------------------------------------------------
+
+export const sceneEmbeddings = pgTable("scene_embeddings", {
+  sceneId: uuid("scene_id")
+    .references(() => scenes.id, { onDelete: "cascade" })
+    .notNull()
+    .primaryKey(),
+  embedding: vector("embedding", { dimensions: 768 }).notNull(),
+  searchText: text("search_text"),
+});
+
+export const filmEmbeddings = pgTable("film_embeddings", {
+  filmId: uuid("film_id")
+    .references(() => films.id, { onDelete: "cascade" })
+    .notNull()
+    .primaryKey(),
+  embedding: vector("embedding", { dimensions: 768 }).notNull(),
+  searchText: text("search_text"),
+});
+
+export const corpusChunks = pgTable("corpus_chunks", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sourceTitle: text("source_title").notNull(),
+  sourceType: text("source_type").notNull(), // textbook, paper, article, analysis
+  chunkIndex: integer("chunk_index").notNull(),
+  content: text("content").notNull(),
+  contextStatement: text("context_statement"), // LLM-generated context prepended before embedding
+  embedding: vector("embedding", { dimensions: 1536 }).notNull(), // text-embedding-3-large for corpus
+  searchText: text("search_text"), // tsvector source for BM25
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export type SceneEmbedding = typeof sceneEmbeddings.$inferSelect;
+export type NewSceneEmbedding = typeof sceneEmbeddings.$inferInsert;
+
+export type FilmEmbedding = typeof filmEmbeddings.$inferSelect;
+export type NewFilmEmbedding = typeof filmEmbeddings.$inferInsert;
+
+export type CorpusChunk = typeof corpusChunks.$inferSelect;
+export type NewCorpusChunk = typeof corpusChunks.$inferInsert;
