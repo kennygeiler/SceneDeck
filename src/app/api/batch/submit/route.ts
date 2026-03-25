@@ -77,7 +77,13 @@ export async function POST(request: Request) {
         filmId = inserted.id;
       }
 
-      // Enqueue a "detect" job with the source URL in metadata
+      // Enqueue a batch_job for the Python batch worker (SKIP LOCKED)
+      await db.insert(schema.batchJobs).values({
+        filmId,
+        status: "pending",
+      });
+
+      // Also enqueue a pipeline_job for backward compat with TS worker
       await enqueueJob(filmId, "detect", undefined, {
         sourceUrl: film.sourceUrl,
         batchId,

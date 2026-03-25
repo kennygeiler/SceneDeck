@@ -12,7 +12,9 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:embeddings": "tsx src/db/generate-embeddings.ts",
     "db:studio": "drizzle-kit studio",
-    "worker": "tsx src/scripts/run-worker.ts"
+    "worker": "tsx src/scripts/run-worker.ts",
+    "batch-worker": "python3 -m pipeline.batch_worker",
+    "batch-prototype": "python3 pipeline/batch_api_prototype.py"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1015.0",

@@ -230,3 +230,24 @@ export const pipelineJobs = pgTable("pipeline_jobs", {
 
 export type PipelineJob = typeof pipelineJobs.$inferSelect;
 export type NewPipelineJob = typeof pipelineJobs.$inferInsert;
+
+// ---------------------------------------------------------------------------
+// Batch Jobs (M2: Gemini Batch API queue via Postgres SKIP LOCKED)
+// ---------------------------------------------------------------------------
+
+export const batchJobs = pgTable("batch_jobs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  filmId: uuid("film_id").references(() => films.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("pending"), // pending, submitted, processing, completed, failed
+  jsonlPath: text("jsonl_path"),
+  batchApiName: text("batch_api_name"), // Gemini Batch API operation name
+  shotCount: integer("shot_count"),
+  resultCount: integer("result_count"),
+  error: text("error"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export type BatchJob = typeof batchJobs.$inferSelect;
+export type NewBatchJob = typeof batchJobs.$inferInsert;
