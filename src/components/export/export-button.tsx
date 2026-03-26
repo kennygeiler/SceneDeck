@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 type ExportButtonProps = {
   filters?: {
-    movementType?: string;
+    framing?: string;
     director?: string;
     filmTitle?: string;
     shotSize?: string;

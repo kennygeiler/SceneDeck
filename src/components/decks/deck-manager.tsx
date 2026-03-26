@@ -15,10 +15,10 @@ import {
   removeShotFromDeck,
 } from "@/lib/reference-deck";
 import {
-  getMovementDisplayName,
+  getFramingDisplayName,
   getShotSizeDisplayName,
 } from "@/lib/shot-display";
-import type { MovementTypeSlug, ShotSizeSlug } from "@/lib/taxonomy";
+import type { FramingSlug, ShotSizeSlug } from "@/lib/taxonomy";
 
 function downloadFile(content: string, filename: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
@@ -204,8 +204,8 @@ export function DeckManager() {
                         </p>
                         <div className="mt-1 flex flex-wrap gap-1.5">
                           <span className="rounded-full bg-[var(--color-surface-tertiary)] px-2 py-0.5 font-mono text-[10px] uppercase text-[var(--color-text-secondary)]">
-                            {getMovementDisplayName(
-                              item.movementType as MovementTypeSlug,
+                            {getFramingDisplayName(
+                              item.framing as FramingSlug,
                             )}
                           </span>
                           <span className="rounded-full bg-[var(--color-surface-tertiary)] px-2 py-0.5 font-mono text-[10px] uppercase text-[var(--color-text-secondary)]">

@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { getShotsForReview, getVerificationStats } from "@/db/queries";
-import { getMovementDisplayName } from "@/lib/shot-display";
+import { getFramingDisplayName } from "@/lib/shot-display";
 
 export const metadata: Metadata = {
   title: "Verify Queue",
@@ -174,7 +174,7 @@ export default async function VerifyPage() {
                         "color-mix(in oklch, var(--color-overlay-arrow) 82%, transparent)",
                     }}
                   >
-                    {getMovementDisplayName(shot.metadata.movementType)}
+                    {getFramingDisplayName(shot.metadata.framing)}
                   </span>
                   <span
                     className="rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)]"

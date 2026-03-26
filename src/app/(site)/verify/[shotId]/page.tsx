@@ -6,7 +6,7 @@ import { VerificationHistory } from "@/components/verify/verification-history";
 import { VerificationPanel } from "@/components/verify/verification-panel";
 import { ShotPlayer } from "@/components/video/shot-player";
 import { getShotById, getVerificationsForShot } from "@/db/queries";
-import { getMovementDisplayName } from "@/lib/shot-display";
+import { getFramingDisplayName } from "@/lib/shot-display";
 
 type VerifyShotPageProps = {
   params: Promise<{
@@ -28,7 +28,7 @@ export async function generateMetadata({
 
   return {
     title: `Verify ${shot.film.title}`,
-    description: `Review ${getMovementDisplayName(shot.metadata.movementType)} metadata accuracy for ${shot.film.title}.`,
+    description: `Review ${getFramingDisplayName(shot.metadata.framing)} metadata accuracy for ${shot.film.title}.`,
   };
 }
 

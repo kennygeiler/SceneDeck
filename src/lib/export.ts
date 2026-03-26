@@ -15,17 +15,18 @@ export const EXPORT_SHOT_COLUMNS = [
   "duration",
   "videoUrl",
   "thumbnailUrl",
-  "movementType",
-  "direction",
-  "speed",
+  "framing",
+  "depth",
+  "blocking",
+  "symmetry",
+  "dominantLines",
+  "lightingDirection",
+  "lightingQuality",
+  "colorTemperature",
   "shotSize",
   "angleVertical",
   "angleHorizontal",
-  "angleSpecial",
   "durationCategory",
-  "isCompound",
-  "compoundParts",
-  "compoundNotation",
   "classificationSource",
   "description",
   "subjects",
@@ -42,7 +43,7 @@ export function isExportFormat(value: string | null | undefined): value is Expor
 export function buildExportUrl(
   format: ExportFormat,
   filters?: {
-    movementType?: string;
+    framing?: string;
     director?: string;
     filmTitle?: string;
     shotSize?: string;
@@ -52,8 +53,8 @@ export function buildExportUrl(
 
   params.set("format", format);
 
-  if (filters?.movementType) {
-    params.set("movementType", filters.movementType);
+  if (filters?.framing) {
+    params.set("framing", filters.framing);
   }
 
   if (filters?.director) {
@@ -74,7 +75,7 @@ export function buildExportUrl(
 export function triggerExportDownload(
   format: ExportFormat,
   filters?: {
-    movementType?: string;
+    framing?: string;
     director?: string;
     filmTitle?: string;
     shotSize?: string;

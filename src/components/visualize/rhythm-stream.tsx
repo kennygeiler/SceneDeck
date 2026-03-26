@@ -15,9 +15,9 @@ type VizShot = {
   sceneTitle: string | null;
   sceneNumber: number | null;
   shotIndex: number;
-  movementType: string;
-  direction: string;
-  speed: string;
+  framing: string;
+  depth: string;
+  blocking: string;
   shotSize: string;
   angleVertical: string;
   duration: number;
@@ -103,7 +103,7 @@ export function RhythmStream({ shots, films }: RhythmStreamProps) {
 
   const movementKeys = useMemo(() => {
     const set = new Set<string>();
-    filmShots.forEach((s) => set.add(s.movementType));
+    filmShots.forEach((s) => set.add(s.framing));
     return Array.from(set).sort();
   }, [filmShots]);
 
@@ -136,7 +136,7 @@ export function RhythmStream({ shots, films }: RhythmStreamProps) {
     const tableData = filmShots.map((s, i) => {
       const row: Record<string, number> = { index: i };
       movementKeys.forEach((k) => {
-        row[k] = s.movementType === k ? s.duration : 0;
+        row[k] = s.framing === k ? s.duration : 0;
       });
       return row;
     });
@@ -224,7 +224,7 @@ export function RhythmStream({ shots, films }: RhythmStreamProps) {
         if (!tooltip) return;
         tooltip.style.opacity = "1";
         tooltip.innerHTML = `
-          <div style="font-weight:600;color:${TEXT}">${d.movementType.replace(/_/g, " ")}</div>
+          <div style="font-weight:600;color:${TEXT}">${d.framing.replace(/_/g, " ")}</div>
           <div style="color:${SECONDARY}">Shot ${d.shotIndex}${d.sceneNumber != null ? ` · Scene ${d.sceneNumber}` : ""}</div>
           <div style="color:${SECONDARY}">Duration: ${d.duration.toFixed(1)}s · ${d.shotSize}</div>
           ${d.description ? `<div style="color:${TERTIARY};margin-top:2px;font-size:9px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.description}</div>` : ""}

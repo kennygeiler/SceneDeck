@@ -84,7 +84,7 @@ export function DirectorRadar({ shots, directors }: Props) {
     const counts = d3.rollup(
       shots,
       (v) => v.length,
-      (d) => d.movementType
+      (d) => d.framing
     );
     return [...counts.entries()]
       .sort((a, b) => b[1] - a[1])
@@ -105,7 +105,7 @@ export function DirectorRadar({ shots, directors }: Props) {
       const counts = d3.rollup(
         dirShots,
         (v) => v.length,
-        (d) => d.movementType
+        (d) => d.framing
       );
       const values = axes.map((axis) => ((counts.get(axis) ?? 0) / total) * 100);
       return { director: dir, values };

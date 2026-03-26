@@ -15,9 +15,9 @@ type VizShot = {
   sceneTitle: string | null;
   sceneNumber: number | null;
   shotIndex: number;
-  movementType: string;
-  direction: string;
-  speed: string;
+  framing: string;
+  depth: string;
+  blocking: string;
   shotSize: string;
   angleVertical: string;
   duration: number;
@@ -85,7 +85,7 @@ const CYAN = "#5cb8d6";
 type HNode = {
   name: string;
   kind: "root" | "film" | "scene" | "shot";
-  movementType?: string;
+  framing?: string;
   shot?: VizShot;
   children?: HNode[];
   value?: number;
@@ -141,7 +141,7 @@ export function HierarchySunburst({ shots, films }: HierarchySunburstProps) {
       sceneNode.children!.push({
         name: `Shot ${s.shotIndex}`,
         kind: "shot",
-        movementType: s.movementType,
+        framing: s.framing,
         shot: s,
         value: Math.max(s.duration, 0.1),
       });
@@ -203,7 +203,7 @@ export function HierarchySunburst({ shots, films }: HierarchySunburstProps) {
       if (kind === "root") return BG;
       if (kind === "film") return "#2a2a34";
       if (kind === "scene") return "#1e1e28";
-      if (kind === "shot") return colorFor(d.data.movementType ?? "static");
+      if (kind === "shot") return colorFor(d.data.framing ?? "static");
       return TERTIARY;
     };
 
@@ -239,7 +239,7 @@ export function HierarchySunburst({ shots, films }: HierarchySunburstProps) {
         let text = d.data.name;
         if (d.data.kind === "shot" && d.data.shot) {
           const s = d.data.shot;
-          text = `${s.movementType.replace(/_/g, " ")} · ${s.duration.toFixed(1)}s\n${s.shotSize} · Shot ${s.shotIndex}`;
+          text = `${s.framing.replace(/_/g, " ")} · ${s.duration.toFixed(1)}s\n${s.shotSize} · Shot ${s.shotIndex}`;
         } else if (d.data.kind === "film") {
           text = `${d.data.name} (${d.children?.length ?? 0} scenes)`;
         }

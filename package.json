@@ -9,7 +9,6 @@
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
-    "db:seed": "tsx src/db/seed.ts",
     "db:embeddings": "tsx src/db/generate-embeddings.ts",
     "db:studio": "drizzle-kit studio",
     "batch-worker": "python3 -m pipeline.batch_worker",

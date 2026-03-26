@@ -24,13 +24,12 @@ export async function GET(request: Request) {
         duration: schema.shots.duration,
         thumbnailUrl: schema.shots.thumbnailUrl,
         // metadata
-        movementType: schema.shotMetadata.movementType,
+        framing: schema.shotMetadata.framing,
         shotSize: schema.shotMetadata.shotSize,
-        direction: schema.shotMetadata.direction,
-        speed: schema.shotMetadata.speed,
+        depth: schema.shotMetadata.depth,
+        blocking: schema.shotMetadata.blocking,
         confidence: schema.shotMetadata.confidence,
         reviewStatus: schema.shotMetadata.reviewStatus,
-        validationFlags: schema.shotMetadata.validationFlags,
         classificationSource: schema.shotMetadata.classificationSource,
         // semantic
         description: schema.shotSemantic.description,
@@ -94,9 +93,9 @@ export async function POST(request: Request) {
       };
 
       const allowedMetadataFields = [
-        "movementType",
-        "direction",
-        "speed",
+        "framing",
+        "depth",
+        "blocking",
         "shotSize",
         "angleVertical",
         "angleHorizontal",

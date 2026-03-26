@@ -90,7 +90,7 @@ export function ChordDiagram({ shots, onSelectMovement }: Props) {
     for (const filmShots of byFilm.values()) {
       const sorted = [...filmShots].sort((a, b) => a.shotIndex - b.shotIndex);
       for (let i = 0; i < sorted.length - 1; i++) {
-        pairs.push([sorted[i].movementType, sorted[i + 1].movementType]);
+        pairs.push([sorted[i].framing, sorted[i + 1].framing]);
       }
     }
 

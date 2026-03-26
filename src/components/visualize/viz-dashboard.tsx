@@ -22,7 +22,7 @@ export function VizDashboard({ data }: VizDashboardProps) {
   // Cross-filter shots based on global selections
   const filteredShots = useMemo(() => {
     let shots = data.shots;
-    if (selectedMovement) shots = shots.filter((s) => s.movementType === selectedMovement);
+    if (selectedMovement) shots = shots.filter((s) => s.framing === selectedMovement);
     if (selectedDirector) shots = shots.filter((s) => s.director === selectedDirector);
     if (selectedFilm) shots = shots.filter((s) => s.filmId === selectedFilm);
     return shots;

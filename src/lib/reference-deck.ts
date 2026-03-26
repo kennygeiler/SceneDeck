@@ -9,8 +9,8 @@ export type ReferenceDeckItem = {
   shotId: string;
   filmTitle: string;
   director: string;
-  movementType: string;
-  shotSize: string;
+  framing: string;
+  shotSize: string | null;
   thumbnailUrl: string | null;
   description: string | null;
   addedAt: string;
@@ -71,7 +71,7 @@ export function addShotToDeck(deckId: string, shot: ShotWithDetails) {
     shotId: shot.id,
     filmTitle: shot.film.title,
     director: shot.film.director,
-    movementType: shot.metadata.movementType,
+    framing: shot.metadata.framing,
     shotSize: shot.metadata.shotSize,
     thumbnailUrl: shot.thumbnailUrl,
     description: shot.semantic?.description ?? null,
@@ -99,7 +99,7 @@ export function exportDeckAsCsv(deck: ReferenceDeck): string {
     "Shot ID",
     "Film",
     "Director",
-    "Movement Type",
+    "Framing",
     "Shot Size",
     "Description",
     "Thumbnail URL",
@@ -110,7 +110,7 @@ export function exportDeckAsCsv(deck: ReferenceDeck): string {
       item.shotId,
       `"${item.filmTitle.replace(/"/g, '""')}"`,
       `"${item.director.replace(/"/g, '""')}"`,
-      item.movementType,
+      item.framing,
       item.shotSize,
       `"${(item.description ?? "").replace(/"/g, '""')}"`,
       item.thumbnailUrl ?? "",

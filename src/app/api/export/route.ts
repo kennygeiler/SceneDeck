@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const formatParam = request.nextUrl.searchParams.get("format");
     const format = isExportFormat(formatParam) ? formatParam : "json";
     const filters = {
-      movementType: getParamValue(request.nextUrl.searchParams, "movementType"),
+      framing: getParamValue(request.nextUrl.searchParams, "framing"),
       director: getParamValue(request.nextUrl.searchParams, "director"),
       filmTitle: getParamValue(request.nextUrl.searchParams, "filmTitle"),
       shotSize: getParamValue(request.nextUrl.searchParams, "shotSize"),

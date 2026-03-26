@@ -2,10 +2,10 @@ import OpenAI from "openai";
 
 import type { ShotWithDetails } from "@/lib/types";
 import {
-  getDirectionDisplayName,
-  getMovementDisplayName,
+  getDepthDisplayName,
+  getFramingDisplayName,
   getShotSizeDisplayName,
-  getSpeedDisplayName,
+  getBlockingDisplayName,
 } from "@/lib/shot-display";
 
 export const SHOT_EMBEDDING_MODEL = "text-embedding-3-small";
@@ -25,9 +25,9 @@ export function buildShotSearchText(shot: ShotWithDetails) {
   return [
     shot.film.title,
     shot.film.director,
-    getMovementDisplayName(shot.metadata.movementType),
-    getDirectionDisplayName(shot.metadata.direction),
-    getSpeedDisplayName(shot.metadata.speed),
+    getFramingDisplayName(shot.metadata.framing),
+    getDepthDisplayName(shot.metadata.depth),
+    getBlockingDisplayName(shot.metadata.blocking),
     getShotSizeDisplayName(shot.metadata.shotSize),
     shot.semantic?.description ?? "",
     shot.semantic?.mood ?? "",

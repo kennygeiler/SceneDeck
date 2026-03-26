@@ -327,7 +327,7 @@ async function handleCompareDirectors(args: Record<string, unknown>) {
       filmCount: number;
       shotCount: number;
       films: string[];
-      movementDistribution: Record<string, number>;
+      framingDistribution: Record<string, number>;
       shotSizeDistribution: Record<string, number>;
       averageDuration: number;
     }
@@ -343,7 +343,7 @@ async function handleCompareDirectors(args: Record<string, unknown>) {
         filmCount: 0,
         shotCount: 0,
         films: [],
-        movementDistribution: {},
+        framingDistribution: {},
         shotSizeDistribution: {},
         averageDuration: 0,
       };

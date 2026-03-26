@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
         id: s.id,
         filmTitle: s.film.title,
         director: s.film.director,
-        movementType: s.metadata.movementType,
+        framing: s.metadata.framing,
         shotSize: s.metadata.shotSize,
         duration: s.duration,
         description: s.semantic?.description ?? null,

@@ -30,56 +30,57 @@ const formatFallbackLabel = (value: string) =>
 
 function getDisplayName<T extends Record<string, { displayName: string }>>(
   dictionary: T,
-  slug: string,
+  slug: string | null | undefined,
 ) {
+  if (!slug) return "—";
   return dictionary[slug as keyof T]?.displayName ?? formatFallbackLabel(slug);
 }
 
-export function getFramingDisplayName(slug: FramingSlug) {
+export function getFramingDisplayName(slug: FramingSlug | null | undefined) {
   return getDisplayName(FRAMINGS, slug);
 }
 
-export function getDepthDisplayName(slug: DepthTypeSlug) {
+export function getDepthDisplayName(slug: DepthTypeSlug | null | undefined) {
   return getDisplayName(DEPTH_TYPES, slug);
 }
 
-export function getBlockingDisplayName(slug: BlockingTypeSlug) {
+export function getBlockingDisplayName(slug: BlockingTypeSlug | null | undefined) {
   return getDisplayName(BLOCKING_TYPES, slug);
 }
 
-export function getSymmetryDisplayName(slug: SymmetryTypeSlug) {
+export function getSymmetryDisplayName(slug: SymmetryTypeSlug | null | undefined) {
   return getDisplayName(SYMMETRY_TYPES, slug);
 }
 
-export function getDominantLineDisplayName(slug: DominantLineSlug) {
+export function getDominantLineDisplayName(slug: DominantLineSlug | null | undefined) {
   return getDisplayName(DOMINANT_LINES, slug);
 }
 
-export function getLightingDirectionDisplayName(slug: LightingDirectionSlug) {
+export function getLightingDirectionDisplayName(slug: LightingDirectionSlug | null | undefined) {
   return getDisplayName(LIGHTING_DIRECTIONS, slug);
 }
 
-export function getLightingQualityDisplayName(slug: LightingQualitySlug) {
+export function getLightingQualityDisplayName(slug: LightingQualitySlug | null | undefined) {
   return getDisplayName(LIGHTING_QUALITIES, slug);
 }
 
-export function getColorTemperatureDisplayName(slug: ColorTemperatureSlug) {
+export function getColorTemperatureDisplayName(slug: ColorTemperatureSlug | null | undefined) {
   return getDisplayName(COLOR_TEMPERATURES, slug);
 }
 
-export function getShotSizeDisplayName(slug: ShotSizeSlug) {
+export function getShotSizeDisplayName(slug: ShotSizeSlug | null | undefined) {
   return getDisplayName(SHOT_SIZES, slug);
 }
 
-export function getVerticalAngleDisplayName(slug: VerticalAngleSlug) {
+export function getVerticalAngleDisplayName(slug: VerticalAngleSlug | null | undefined) {
   return getDisplayName(VERTICAL_ANGLES, slug);
 }
 
-export function getHorizontalAngleDisplayName(slug: HorizontalAngleSlug) {
+export function getHorizontalAngleDisplayName(slug: HorizontalAngleSlug | null | undefined) {
   return getDisplayName(HORIZONTAL_ANGLES, slug);
 }
 
-export function getDurationCategoryDisplayName(slug: DurationCategorySlug) {
+export function getDurationCategoryDisplayName(slug: DurationCategorySlug | null | undefined) {
   return getDisplayName(DURATION_CATEGORIES, slug);
 }
 

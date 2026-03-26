@@ -15,9 +15,9 @@ type VizShot = {
   sceneTitle: string | null;
   sceneNumber: number | null;
   shotIndex: number;
-  movementType: string;
-  direction: string;
-  speed: string;
+  framing: string;
+  depth: string;
+  blocking: string;
   shotSize: string;
   angleVertical: string;
   duration: number;
@@ -176,7 +176,7 @@ export function PacingHeatmap({ shots, films }: PacingHeatmapProps) {
           tooltip.style.opacity = "1";
           tooltip.innerHTML = `
             <div style="font-weight:600;color:${TEXT}">${d.filmTitle}</div>
-            <div style="color:${SECONDARY}">Shot ${d.shotIndex} · ${d.movementType.replace(/_/g, " ")}</div>
+            <div style="color:${SECONDARY}">Shot ${d.shotIndex} · ${d.framing.replace(/_/g, " ")}</div>
             <div style="color:${SECONDARY}">Duration: ${d.duration.toFixed(1)}s · ${d.shotSize}</div>
             ${d.sceneNumber != null ? `<div style="color:${TERTIARY}">Scene ${d.sceneNumber}</div>` : ""}
           `;

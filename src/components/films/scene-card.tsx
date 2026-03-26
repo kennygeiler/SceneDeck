@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { FilmTimeline } from "@/components/films/film-timeline";
-import { getMovementDisplayName } from "@/lib/shot-display";
+import { getFramingDisplayName } from "@/lib/shot-display";
 import type { SceneWithShots } from "@/lib/types";
 
 type SceneCardProps = {
@@ -138,7 +138,7 @@ export function SceneCard({ scene }: SceneCardProps) {
                   "color-mix(in oklch, var(--color-border-subtle) 88%, transparent)",
               }}
             >
-              Shot {idx + 1} &middot; {getMovementDisplayName(shot.metadata.movementType)}
+              Shot {idx + 1} &middot; {getFramingDisplayName(shot.metadata.framing)}
             </Link>
           ))}
         </div>
@@ -151,7 +151,7 @@ function getDominantMovement(scene: SceneWithShots): string | null {
   if (scene.shots.length === 0) return null;
   const freq = new Map<string, number>();
   for (const shot of scene.shots) {
-    const key = shot.metadata.movementType;
+    const key = shot.metadata.framing;
     freq.set(key, (freq.get(key) ?? 0) + 1);
   }
   let max = 0;
@@ -162,5 +162,5 @@ function getDominantMovement(scene: SceneWithShots): string | null {
       dominant = key;
     }
   }
-  return dominant ? getMovementDisplayName(dominant as Parameters<typeof getMovementDisplayName>[0]) : null;
+  return dominant ? getFramingDisplayName(dominant as Parameters<typeof getFramingDisplayName>[0]) : null;
 }

@@ -6,17 +6,7 @@
  * AC-09: Components receive complete data only (no partial rendering).
  */
 
-import dynamic from "next/dynamic";
-import type { VizShot } from "@/lib/types";
-
-// Lazy-load D3 components to avoid SSR issues
-const PacingHeatmap = dynamic(
-  () =>
-    import("@/components/visualize/pacing-heatmap").then(
-      (mod) => mod.PacingHeatmap,
-    ),
-  { ssr: false },
-);
+// Note: D3 viz components will be reconnected after composition taxonomy stabilizes
 
 
 // ---------------------------------------------------------------------------
@@ -45,10 +35,10 @@ type ShotlistRow = {
   shotNumber: number;
   sceneNumber: number;
   sceneTitle: string | null;
-  movementType: string;
-  direction: string;
+  framing: string;
+  depth: string;
   shotSize: string;
-  speed: string;
+  blocking: string;
   duration: number;
   description: string;
 };
@@ -80,13 +70,13 @@ function ShotlistTable({
                 #
               </th>
               <th className="px-3 py-2 text-left font-mono uppercase tracking-wider text-[var(--color-text-tertiary)]">
-                Movement
+                Framing
               </th>
               <th className="px-3 py-2 text-left font-mono uppercase tracking-wider text-[var(--color-text-tertiary)]">
                 Size
               </th>
               <th className="px-3 py-2 text-left font-mono uppercase tracking-wider text-[var(--color-text-tertiary)]">
-                Dir
+                Depth
               </th>
               <th className="px-3 py-2 text-right font-mono uppercase tracking-wider text-[var(--color-text-tertiary)]">
                 Dur
@@ -103,13 +93,13 @@ function ShotlistTable({
                   {row.shotNumber}
                 </td>
                 <td className="px-3 py-1.5 text-[var(--color-text-primary)]">
-                  {row.movementType.replace(/_/g, " ")}
+                  {row.framing.replace(/_/g, " ")}
                 </td>
                 <td className="px-3 py-1.5 text-[var(--color-text-secondary)]">
                   {row.shotSize.replace(/_/g, " ")}
                 </td>
                 <td className="px-3 py-1.5 text-[var(--color-text-secondary)]">
-                  {row.direction}
+                  {row.depth.replace(/_/g, " ")}
                 </td>
                 <td className="px-3 py-1.5 text-right font-mono text-[var(--color-text-secondary)]">
                   {row.duration.toFixed(1)}s
@@ -139,7 +129,7 @@ type ComparisonFilm = {
   shotCount: number;
   sceneCount: number;
   averageShotLength: number;
-  movementTypeFrequency: Record<string, number>;
+  framingFrequency: Record<string, number>;
   shotSizeDistribution: Record<string, number>;
 };
 
@@ -211,11 +201,13 @@ export function GenerativeUIBlock({ data }: { data: unknown }) {
   switch (data.vizType) {
     case "pacing_heatmap":
       return (
-        <div className="my-3 h-64 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-secondary)] p-4">
+        <div className="my-3 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-secondary)] p-4">
           <p className="mb-2 font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-            Pacing Heatmap — {data.filmTitle as string}
+            Pacing Analysis — {data.filmTitle as string}
           </p>
-          <PacingHeatmap shots={data.data as VizShot[]} films={[]} />
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            {(data.data as Array<Record<string, unknown>>).length} shots analyzed
+          </p>
         </div>
       );
 

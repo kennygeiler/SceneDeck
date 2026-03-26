@@ -204,7 +204,7 @@ export function CompositionScatter({ shots, onSelectShot }: Props) {
       .attr("cx", (d) => x(Math.max(xMin, d.duration)))
       .attr("cy", (d) => y(d.shotSize) ?? innerH / 2)
       .attr("r", 0)
-      .attr("fill", (d) => colorFor(d.movementType))
+      .attr("fill", (d) => colorFor(d.framing))
       .attr("fill-opacity", 0.7)
       .attr("stroke", "#0d0d12")
       .attr("stroke-width", 1)
@@ -233,7 +233,7 @@ export function CompositionScatter({ shots, onSelectShot }: Props) {
           .style("top", `${event.offsetY - 10}px`).html(`
             <div style="font-weight:600;color:#f5f5f7;margin-bottom:2px">${d.filmTitle}</div>
             <div style="color:#8e8e99;font-size:10px;margin-bottom:4px">${d.director}</div>
-            <div><span style="color:#55555e">movement</span> <span style="color:${colorFor(d.movementType)}">${d.movementType.replace(/_/g, " ")}</span></div>
+            <div><span style="color:#55555e">movement</span> <span style="color:${colorFor(d.framing)}">${d.framing.replace(/_/g, " ")}</span></div>
             <div><span style="color:#55555e">size</span> ${shotSizeLabel(d.shotSize)}</div>
             <div><span style="color:#55555e">duration</span> ${d.duration.toFixed(2)}s</div>
             <div><span style="color:#55555e">objects</span> ${d.objectCount}</div>

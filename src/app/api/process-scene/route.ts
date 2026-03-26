@@ -9,7 +9,7 @@ import { NextResponse } from "next/server";
 
 import { db, schema } from "@/db";
 import { buildShotSearchText, generateTextEmbedding } from "@/db/embeddings";
-import type { CompoundPart } from "@/db/schema";
+
 import {
   detectObjectsMultiFrame,
   replaceShotObjects,
@@ -54,16 +54,20 @@ type NormalizedSplit = {
 };
 
 type ClassifiedShot = {
-  movement_type: string;
-  direction: string;
-  speed: string;
+  framing: string;
+  depth: string;
+  blocking: string;
+  symmetry: string;
+  dominant_lines: string;
+  lighting_direction: string;
+  lighting_quality: string;
+  color_temperature: string;
+  foreground_elements: string[];
+  background_elements: string[];
   shot_size: string;
   angle_vertical: string;
   angle_horizontal: string;
-  angle_special: string | null;
   duration_cat: string;
-  is_compound: boolean;
-  compound_parts: Array<{ type: string; direction: string }>;
   description: string;
   mood: string;
   lighting: string;
@@ -334,18 +338,22 @@ function buildSearchText(film: {
       metadata: {
         id: null,
         shotId: null,
-        movementType: shot.classification.movement_type as ShotWithDetails["metadata"]["movementType"],
-        direction: shot.classification.direction as ShotWithDetails["metadata"]["direction"],
-        speed: shot.classification.speed as ShotWithDetails["metadata"]["speed"],
-        shotSize: shot.classification.shot_size as ShotWithDetails["metadata"]["shotSize"],
-        angleVertical: shot.classification.angle_vertical as ShotWithDetails["metadata"]["angleVertical"],
-        angleHorizontal: shot.classification.angle_horizontal as ShotWithDetails["metadata"]["angleHorizontal"],
-        angleSpecial: shot.classification.angle_special,
-        durationCategory: shot.classification.duration_cat as ShotWithDetails["metadata"]["durationCategory"],
-        isCompound: shot.classification.is_compound,
-        compoundParts: shot.classification.compound_parts as CompoundPart[],
+        framing: shot.classification.framing,
+        depth: shot.classification.depth ?? null,
+        blocking: shot.classification.blocking ?? null,
+        symmetry: shot.classification.symmetry ?? null,
+        dominantLines: shot.classification.dominant_lines ?? null,
+        lightingDirection: shot.classification.lighting_direction ?? null,
+        lightingQuality: shot.classification.lighting_quality ?? null,
+        colorTemperature: shot.classification.color_temperature ?? null,
+        foregroundElements: shot.classification.foreground_elements ?? [],
+        backgroundElements: shot.classification.background_elements ?? [],
+        shotSize: shot.classification.shot_size ?? null,
+        angleVertical: shot.classification.angle_vertical ?? null,
+        angleHorizontal: shot.classification.angle_horizontal ?? null,
+        durationCategory: shot.classification.duration_cat ?? null,
         classificationSource: "gemini",
-      },
+      } as ShotWithDetails["metadata"],
       semantic: {
         id: null,
         shotId: null,
@@ -500,16 +508,13 @@ export async function POST(request: Request) {
 
       await db.insert(schema.shotMetadata).values({
         shotId: insertedShot.id,
-        movementType: shot.classification.movement_type as typeof schema.shotMetadata.$inferInsert.movementType,
-        direction: shot.classification.direction as typeof schema.shotMetadata.$inferInsert.direction,
-        speed: shot.classification.speed as typeof schema.shotMetadata.$inferInsert.speed,
+        framing: shot.classification.framing as typeof schema.shotMetadata.$inferInsert.framing,
+        depth: (shot.classification.depth ?? null) as typeof schema.shotMetadata.$inferInsert.depth,
+        blocking: (shot.classification.blocking ?? null) as typeof schema.shotMetadata.$inferInsert.blocking,
         shotSize: shot.classification.shot_size as typeof schema.shotMetadata.$inferInsert.shotSize,
         angleVertical: shot.classification.angle_vertical as typeof schema.shotMetadata.$inferInsert.angleVertical,
         angleHorizontal: shot.classification.angle_horizontal as typeof schema.shotMetadata.$inferInsert.angleHorizontal,
-        angleSpecial: shot.classification.angle_special,
         durationCat: shot.classification.duration_cat as typeof schema.shotMetadata.$inferInsert.durationCat,
-        isCompound: shot.classification.is_compound,
-        compoundParts: shot.classification.compound_parts as CompoundPart[],
         classificationSource: "gemini",
       });
 

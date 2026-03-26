@@ -47,7 +47,7 @@ export type ProgressCallback = (event: ProgressEvent) => void;
 export type ProgressEvent =
   | { type: "step"; step: string; status: "active" | "complete"; message?: string; duration?: number }
   | { type: "init"; totalShots: number; concurrency: number }
-  | { type: "shot"; step: string; index: number; total: number; worker: number; status: "start" | "complete"; movementType?: string; sceneTitle?: string; duration?: number }
+  | { type: "shot"; step: string; index: number; total: number; worker: number; status: "start" | "complete"; framing?: string; sceneTitle?: string; duration?: number }
   | { type: "complete"; filmId: string; filmTitle: string; shotCount: number; sceneCount: number }
   | { type: "error"; message: string };
 
