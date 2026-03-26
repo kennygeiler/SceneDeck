@@ -4,13 +4,17 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 
 import {
-  MOVEMENT_TYPES,
-  DIRECTIONS,
-  SPEEDS,
+  FRAMINGS,
+  DEPTH_TYPES,
+  BLOCKING_TYPES,
+  SYMMETRY_TYPES,
+  DOMINANT_LINES,
+  LIGHTING_DIRECTIONS,
+  LIGHTING_QUALITIES,
+  COLOR_TEMPERATURES,
   SHOT_SIZES,
   VERTICAL_ANGLES,
   HORIZONTAL_ANGLES,
-  SPECIAL_ANGLES,
   DURATION_CATEGORIES,
 } from "@/lib/taxonomy";
 import { validateApiKey } from "@/lib/api-auth";
@@ -22,15 +26,35 @@ export async function GET(request: NextRequest) {
   }
 
   return Response.json({
-    movementTypes: Object.entries(MOVEMENT_TYPES).map(([key, val]) => ({
+    framings: Object.entries(FRAMINGS).map(([key, val]) => ({
       slug: key,
       displayName: val.displayName,
     })),
-    directions: Object.entries(DIRECTIONS).map(([key, val]) => ({
+    depthTypes: Object.entries(DEPTH_TYPES).map(([key, val]) => ({
       slug: key,
       displayName: val.displayName,
     })),
-    speeds: Object.entries(SPEEDS).map(([key, val]) => ({
+    blockingTypes: Object.entries(BLOCKING_TYPES).map(([key, val]) => ({
+      slug: key,
+      displayName: val.displayName,
+    })),
+    symmetryTypes: Object.entries(SYMMETRY_TYPES).map(([key, val]) => ({
+      slug: key,
+      displayName: val.displayName,
+    })),
+    dominantLines: Object.entries(DOMINANT_LINES).map(([key, val]) => ({
+      slug: key,
+      displayName: val.displayName,
+    })),
+    lightingDirections: Object.entries(LIGHTING_DIRECTIONS).map(([key, val]) => ({
+      slug: key,
+      displayName: val.displayName,
+    })),
+    lightingQualities: Object.entries(LIGHTING_QUALITIES).map(([key, val]) => ({
+      slug: key,
+      displayName: val.displayName,
+    })),
+    colorTemperatures: Object.entries(COLOR_TEMPERATURES).map(([key, val]) => ({
       slug: key,
       displayName: val.displayName,
     })),
@@ -43,10 +67,6 @@ export async function GET(request: NextRequest) {
       displayName: val.displayName,
     })),
     horizontalAngles: Object.entries(HORIZONTAL_ANGLES).map(([key, val]) => ({
-      slug: key,
-      displayName: val.displayName,
-    })),
-    specialAngles: Object.entries(SPECIAL_ANGLES).map(([key, val]) => ({
       slug: key,
       displayName: val.displayName,
     })),

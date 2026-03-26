@@ -1,10 +1,15 @@
 import type {
-  DirectionSlug,
+  BlockingTypeSlug,
+  ColorTemperatureSlug,
+  DepthTypeSlug,
+  DominantLineSlug,
   DurationCategorySlug,
+  FramingSlug,
   HorizontalAngleSlug,
-  MovementTypeSlug,
+  LightingDirectionSlug,
+  LightingQualitySlug,
   ShotSizeSlug,
-  SpeedSlug,
+  SymmetryTypeSlug,
   VerticalAngleSlug,
 } from "@/lib/taxonomy";
 
@@ -14,21 +19,19 @@ export type MockFilm = {
   year: number;
 };
 
-export type MockShotCompoundPart = {
-  type: MovementTypeSlug;
-  direction: DirectionSlug;
-};
-
 export type MockShotMetadata = {
-  movementType: MovementTypeSlug;
-  direction: DirectionSlug;
-  speed: SpeedSlug;
+  framing: FramingSlug;
+  depth: DepthTypeSlug;
+  blocking: BlockingTypeSlug;
+  symmetry: SymmetryTypeSlug;
+  dominantLines: DominantLineSlug;
+  lightingDirection: LightingDirectionSlug;
+  lightingQuality: LightingQualitySlug;
+  colorTemperature: ColorTemperatureSlug;
   shotSize: ShotSizeSlug;
   angleVertical: VerticalAngleSlug;
   angleHorizontal: HorizontalAngleSlug;
   durationCategory: DurationCategorySlug;
-  isCompound: boolean;
-  compoundParts?: MockShotCompoundPart[];
 };
 
 export type MockShot = {
@@ -49,14 +52,18 @@ export const mockShots: MockShot[] = [
       year: 1968,
     },
     metadata: {
-      movementType: "dolly",
-      direction: "in",
-      speed: "slow",
+      framing: "centered",
+      depth: "deep_staging",
+      blocking: "single",
+      symmetry: "symmetric",
+      dominantLines: "converging",
+      lightingDirection: "natural",
+      lightingQuality: "soft",
+      colorTemperature: "cool",
       shotSize: "wide",
       angleVertical: "eye_level",
       angleHorizontal: "frontal",
       durationCategory: "long_take",
-      isCompound: false,
     },
     duration: 12.5,
     videoUrl: null,
@@ -70,14 +77,18 @@ export const mockShots: MockShot[] = [
       year: 2014,
     },
     metadata: {
-      movementType: "whip_pan",
-      direction: "right",
-      speed: "snap",
+      framing: "rule_of_thirds_left",
+      depth: "shallow",
+      blocking: "single",
+      symmetry: "asymmetric",
+      dominantLines: "diagonal",
+      lightingDirection: "side",
+      lightingQuality: "hard",
+      colorTemperature: "warm",
       shotSize: "close",
       angleVertical: "eye_level",
       angleHorizontal: "three_quarter",
       durationCategory: "flash",
-      isCompound: false,
     },
     duration: 0.4,
     videoUrl: null,
@@ -91,18 +102,18 @@ export const mockShots: MockShot[] = [
       year: 1980,
     },
     metadata: {
-      movementType: "steadicam",
-      direction: "forward",
-      speed: "moderate",
+      framing: "centered",
+      depth: "deep_staging",
+      blocking: "single",
+      symmetry: "symmetric",
+      dominantLines: "converging",
+      lightingDirection: "natural",
+      lightingQuality: "soft",
+      colorTemperature: "neutral",
       shotSize: "medium",
       angleVertical: "low_angle",
       angleHorizontal: "rear",
       durationCategory: "long_take",
-      isCompound: true,
-      compoundParts: [
-        { type: "steadicam", direction: "forward" },
-        { type: "tilt", direction: "down" },
-      ],
     },
     duration: 35,
     videoUrl: null,

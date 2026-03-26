@@ -39,19 +39,24 @@ import type {
   VizShot,
 } from "@/lib/types";
 import type {
-  DirectionSlug,
+  BlockingTypeSlug,
+  ColorTemperatureSlug,
+  DepthTypeSlug,
+  DominantLineSlug,
   DurationCategorySlug,
+  FramingSlug,
   HorizontalAngleSlug,
-  MovementTypeSlug,
+  LightingDirectionSlug,
+  LightingQualitySlug,
   ShotSizeSlug,
-  SpeedSlug,
+  SymmetryTypeSlug,
   VerticalAngleSlug,
 } from "@/lib/taxonomy";
 
 const REVIEW_PASSING_RATING = 4;
 
 export type ShotQueryFilters = {
-  movementType?: string;
+  framing?: string;
   director?: string;
   filmTitle?: string;
   shotSize?: string;
@@ -75,16 +80,20 @@ const shotSelection = {
   filmCreatedAt: schema.films.createdAt,
   metadataId: schema.shotMetadata.id,
   metadataShotId: schema.shotMetadata.shotId,
-  metadataMovementType: schema.shotMetadata.movementType,
-  metadataDirection: schema.shotMetadata.direction,
-  metadataSpeed: schema.shotMetadata.speed,
+  metadataFraming: schema.shotMetadata.framing,
+  metadataDepth: schema.shotMetadata.depth,
+  metadataBlocking: schema.shotMetadata.blocking,
+  metadataSymmetry: schema.shotMetadata.symmetry,
+  metadataDominantLines: schema.shotMetadata.dominantLines,
+  metadataLightingDirection: schema.shotMetadata.lightingDirection,
+  metadataLightingQuality: schema.shotMetadata.lightingQuality,
+  metadataColorTemperature: schema.shotMetadata.colorTemperature,
+  metadataForegroundElements: schema.shotMetadata.foregroundElements,
+  metadataBackgroundElements: schema.shotMetadata.backgroundElements,
   metadataShotSize: schema.shotMetadata.shotSize,
   metadataAngleVertical: schema.shotMetadata.angleVertical,
   metadataAngleHorizontal: schema.shotMetadata.angleHorizontal,
-  metadataAngleSpecial: schema.shotMetadata.angleSpecial,
   metadataDurationCat: schema.shotMetadata.durationCat,
-  metadataIsCompound: schema.shotMetadata.isCompound,
-  metadataCompoundParts: schema.shotMetadata.compoundParts,
   metadataClassificationSource: schema.shotMetadata.classificationSource,
   semanticId: schema.shotSemantic.id,
   semanticShotId: schema.shotSemantic.shotId,
@@ -100,7 +109,7 @@ type ShotRow = Awaited<
 >[number];
 
 export type ExportQueryFilters = {
-  movementType?: string;
+  framing?: string;
   director?: string;
   filmTitle?: string;
   shotSize?: string;
@@ -127,40 +136,6 @@ function toRoundedAverage(values: number[]) {
   return Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10;
 }
 
-function stringifyCompoundParts(
-  compoundParts:
-    | Array<{
-        type: string;
-        direction: string;
-      }>
-    | null
-    | undefined,
-) {
-  if (!compoundParts || compoundParts.length === 0) {
-    return null;
-  }
-
-  return JSON.stringify(compoundParts);
-}
-
-function toCompoundNotation(
-  compoundParts:
-    | Array<{
-        type: string;
-        direction: string;
-      }>
-    | null
-    | undefined,
-) {
-  if (!compoundParts || compoundParts.length === 0) {
-    return null;
-  }
-
-  return compoundParts
-    .map((part) => `${part.type}:${part.direction}`)
-    .join(" + ");
-}
-
 function mapShotRow(row: ShotRow): ShotWithDetails {
   return {
     id: row.shotId,
@@ -176,16 +151,20 @@ function mapShotRow(row: ShotRow): ShotWithDetails {
     metadata: {
       id: row.metadataId ?? null,
       shotId: row.metadataShotId ?? null,
-      movementType: (row.metadataMovementType ?? "static") as MovementTypeSlug,
-      direction: (row.metadataDirection ?? "none") as DirectionSlug,
-      speed: (row.metadataSpeed ?? "moderate") as SpeedSlug,
+      framing: (row.metadataFraming ?? "centered") as FramingSlug,
+      depth: (row.metadataDepth ?? "medium") as DepthTypeSlug,
+      blocking: (row.metadataBlocking ?? "single") as BlockingTypeSlug,
+      symmetry: (row.metadataSymmetry ?? "asymmetric") as SymmetryTypeSlug,
+      dominantLines: (row.metadataDominantLines ?? "none") as DominantLineSlug,
+      lightingDirection: (row.metadataLightingDirection ?? "natural") as LightingDirectionSlug,
+      lightingQuality: (row.metadataLightingQuality ?? "soft") as LightingQualitySlug,
+      colorTemperature: (row.metadataColorTemperature ?? "neutral") as ColorTemperatureSlug,
+      foregroundElements: row.metadataForegroundElements ?? [],
+      backgroundElements: row.metadataBackgroundElements ?? [],
       shotSize: (row.metadataShotSize ?? "medium") as ShotSizeSlug,
       angleVertical: (row.metadataAngleVertical ?? "eye_level") as VerticalAngleSlug,
       angleHorizontal: (row.metadataAngleHorizontal ?? "frontal") as HorizontalAngleSlug,
-      angleSpecial: row.metadataAngleSpecial ?? null,
       durationCategory: (row.metadataDurationCat ?? "standard") as DurationCategorySlug,
-      isCompound: row.metadataIsCompound ?? false,
-      compoundParts: row.metadataCompoundParts ?? undefined,
       classificationSource: row.metadataClassificationSource ?? null,
     },
     semantic: row.semanticId
@@ -273,17 +252,18 @@ function mapExportShotRow(row: ShotRow): ExportShotRecord {
     duration: row.shotDuration ?? 0,
     videoUrl: proxyBlobUrl(row.shotVideoUrl ?? null),
     thumbnailUrl: proxyBlobUrl(row.shotThumbnailUrl ?? null),
-    movementType: (row.metadataMovementType ?? "static") as MovementTypeSlug,
-    direction: (row.metadataDirection ?? "none") as DirectionSlug,
-    speed: (row.metadataSpeed ?? "moderate") as SpeedSlug,
+    framing: (row.metadataFraming ?? "centered") as FramingSlug,
+    depth: (row.metadataDepth ?? "medium") as DepthTypeSlug,
+    blocking: (row.metadataBlocking ?? "single") as BlockingTypeSlug,
+    symmetry: (row.metadataSymmetry ?? "asymmetric") as SymmetryTypeSlug,
+    dominantLines: (row.metadataDominantLines ?? "none") as DominantLineSlug,
+    lightingDirection: (row.metadataLightingDirection ?? "natural") as LightingDirectionSlug,
+    lightingQuality: (row.metadataLightingQuality ?? "soft") as LightingQualitySlug,
+    colorTemperature: (row.metadataColorTemperature ?? "neutral") as ColorTemperatureSlug,
     shotSize: (row.metadataShotSize ?? "medium") as ShotSizeSlug,
     angleVertical: (row.metadataAngleVertical ?? "eye_level") as VerticalAngleSlug,
     angleHorizontal: (row.metadataAngleHorizontal ?? "frontal") as HorizontalAngleSlug,
-    angleSpecial: row.metadataAngleSpecial ?? null,
     durationCategory: (row.metadataDurationCat ?? "standard") as DurationCategorySlug,
-    isCompound: row.metadataIsCompound ?? false,
-    compoundParts: stringifyCompoundParts(row.metadataCompoundParts),
-    compoundNotation: toCompoundNotation(row.metadataCompoundParts),
     classificationSource: row.metadataClassificationSource ?? null,
     description: row.semanticDescription ?? null,
     subjects: (row.semanticSubjects ?? []).join(" | "),
@@ -359,7 +339,7 @@ function getRelevanceScore(shot: ShotWithDetails, query: string) {
 
   const title = shot.film.title.toLowerCase();
   const director = shot.film.director.toLowerCase();
-  const movementType = shot.metadata.movementType.toLowerCase();
+  const framing = shot.metadata.framing.toLowerCase();
   const description = shot.semantic?.description?.toLowerCase() ?? "";
 
   let score = 0;
@@ -376,9 +356,9 @@ function getRelevanceScore(shot: ShotWithDetails, query: string) {
     score += 4;
   }
 
-  if (movementType === normalizedQuery) {
+  if (framing === normalizedQuery) {
     score += 6;
-  } else if (movementType.includes(normalizedQuery)) {
+  } else if (framing.includes(normalizedQuery)) {
     score += 3;
   }
 
@@ -399,8 +379,8 @@ export function filterShotsCollection(
 
   return shots.filter((shot) => {
     if (
-      filters.movementType &&
-      shot.metadata.movementType !== filters.movementType
+      filters.framing &&
+      shot.metadata.framing !== filters.framing
     ) {
       return false;
     }
@@ -424,11 +404,11 @@ export function filterShotsCollection(
 export async function getAllShots(filters?: ShotQueryFilters) {
   const conditions: SQL[] = [];
 
-  if (filters?.movementType) {
+  if (filters?.framing) {
     conditions.push(
       eq(
-        schema.shotMetadata.movementType,
-        filters.movementType as MovementTypeSlug,
+        schema.shotMetadata.framing,
+        filters.framing as FramingSlug,
       ),
     );
   }
@@ -478,18 +458,18 @@ export async function getObjectsForShot(shotId: string) {
 }
 
 export async function getShotsForExport(filters?: {
-  movementType?: string;
+  framing?: string;
   director?: string;
   filmTitle?: string;
   shotSize?: string;
 }) {
   const conditions: SQL[] = [];
 
-  if (filters?.movementType) {
+  if (filters?.framing) {
     conditions.push(
       eq(
-        schema.shotMetadata.movementType,
-        filters.movementType as MovementTypeSlug,
+        schema.shotMetadata.framing,
+        filters.framing as FramingSlug,
       ),
     );
   }
@@ -526,7 +506,7 @@ async function searchShotsWithIlike(query: string): Promise<ShotWithDetails[]> {
       or(
         ilike(schema.films.title, searchTerm),
         ilike(schema.films.director, searchTerm),
-        ilike(schema.shotMetadata.movementType, searchTerm),
+        ilike(schema.shotMetadata.framing, searchTerm),
         ilike(schema.shotSemantic.description, searchTerm),
       ),
     )
@@ -926,15 +906,15 @@ export async function getFilmCoverageStats(
     .where(eq(schema.shots.filmId, filmId))
     .groupBy(schema.shotMetadata.shotSize);
 
-  const movementRows = await db
+  const framingRows = await db
     .select({
-      movementType: schema.shotMetadata.movementType,
+      framing: schema.shotMetadata.framing,
       count: sql<number>`count(*)`.as("count"),
     })
     .from(schema.shotMetadata)
     .innerJoin(schema.shots, eq(schema.shotMetadata.shotId, schema.shots.id))
     .where(eq(schema.shots.filmId, filmId))
-    .groupBy(schema.shotMetadata.movementType);
+    .groupBy(schema.shotMetadata.framing);
 
   const [aggRow] = await db
     .select({
@@ -960,8 +940,8 @@ export async function getFilmCoverageStats(
     shotSizeDistribution: Object.fromEntries(
       shotSizeRows.map((r) => [r.shotSize ?? "unknown", Number(r.count)]),
     ),
-    movementTypeFrequency: Object.fromEntries(
-      movementRows.map((r) => [r.movementType, Number(r.count)]),
+    framingFrequency: Object.fromEntries(
+      framingRows.map((r) => [r.framing ?? "unknown", Number(r.count)]),
     ),
     averageShotLength: Number(aggRow?.avgDuration ?? 0),
     shotCount: Number(aggRow?.shotCount ?? 0),
@@ -984,9 +964,9 @@ export async function getVisualizationData(): Promise<VisualizationData> {
       director: schema.films.director,
       sceneTitle: schema.scenes.title,
       sceneNumber: schema.scenes.sceneNumber,
-      movementType: schema.shotMetadata.movementType,
-      direction: schema.shotMetadata.direction,
-      speed: schema.shotMetadata.speed,
+      framing: schema.shotMetadata.framing,
+      depth: schema.shotMetadata.depth,
+      blocking: schema.shotMetadata.blocking,
       shotSize: schema.shotMetadata.shotSize,
       angleVertical: schema.shotMetadata.angleVertical,
       duration: schema.shots.duration,
@@ -1024,9 +1004,9 @@ export async function getVisualizationData(): Promise<VisualizationData> {
       sceneTitle: row.sceneTitle ?? null,
       sceneNumber: row.sceneNumber ?? null,
       shotIndex: idx,
-      movementType: row.movementType ?? "static",
-      direction: row.direction ?? "none",
-      speed: row.speed ?? "moderate",
+      framing: row.framing ?? "centered",
+      depth: row.depth ?? "medium",
+      blocking: row.blocking ?? "single",
       shotSize: row.shotSize ?? "medium",
       angleVertical: row.angleVertical ?? "eye_level",
       duration: row.duration ?? 0,

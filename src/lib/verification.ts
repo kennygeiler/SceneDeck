@@ -1,9 +1,9 @@
 import {
-  DIRECTIONS,
+  BLOCKING_TYPES,
+  DEPTH_TYPES,
+  FRAMINGS,
   HORIZONTAL_ANGLES,
-  MOVEMENT_TYPES,
   SHOT_SIZES,
-  SPEEDS,
   VERTICAL_ANGLES,
 } from "@/lib/taxonomy";
 import type {
@@ -12,18 +12,18 @@ import type {
   VerificationFieldRatingsMap,
 } from "@/lib/types";
 import {
-  getDirectionDisplayName,
+  getBlockingDisplayName,
+  getDepthDisplayName,
+  getFramingDisplayName,
   getHorizontalAngleDisplayName,
-  getMovementDisplayName,
   getShotSizeDisplayName,
-  getSpeedDisplayName,
   getVerticalAngleDisplayName,
 } from "@/lib/shot-display";
 
 export const VERIFICATION_FIELD_LABELS: Record<VerificationFieldKey, string> = {
-  movementType: "Movement type",
-  direction: "Direction",
-  speed: "Speed",
+  framing: "Framing",
+  depth: "Depth",
+  blocking: "Blocking",
   shotSize: "Shot size",
   angleVertical: "Vertical angle",
   angleHorizontal: "Horizontal angle",
@@ -45,9 +45,9 @@ export const VERIFICATION_FIELD_OPTIONS: Record<
   VerificationFieldKey,
   CorrectionOption[]
 > = {
-  movementType: toOptions(MOVEMENT_TYPES),
-  direction: toOptions(DIRECTIONS),
-  speed: toOptions(SPEEDS),
+  framing: toOptions(FRAMINGS),
+  depth: toOptions(DEPTH_TYPES),
+  blocking: toOptions(BLOCKING_TYPES),
   shotSize: toOptions(SHOT_SIZES),
   angleVertical: toOptions(VERTICAL_ANGLES),
   angleHorizontal: toOptions(HORIZONTAL_ANGLES),
@@ -73,12 +73,12 @@ export function getVerificationFieldDisplayValue(
   field: VerificationFieldKey,
 ) {
   switch (field) {
-    case "movementType":
-      return getMovementDisplayName(shot.metadata.movementType);
-    case "direction":
-      return getDirectionDisplayName(shot.metadata.direction);
-    case "speed":
-      return getSpeedDisplayName(shot.metadata.speed);
+    case "framing":
+      return getFramingDisplayName(shot.metadata.framing);
+    case "depth":
+      return getDepthDisplayName(shot.metadata.depth);
+    case "blocking":
+      return getBlockingDisplayName(shot.metadata.blocking);
     case "shotSize":
       return getShotSizeDisplayName(shot.metadata.shotSize);
     case "angleVertical":

@@ -8,13 +8,12 @@ import { DetectObjectsButton } from "@/components/shots/detect-objects-button";
 import { ShotPlayer } from "@/components/video/shot-player";
 import {
   formatShotDuration,
-  getCompoundNotation,
-  getDirectionDisplayName,
+  getBlockingDisplayName,
+  getDepthDisplayName,
   getDurationCategoryDisplayName,
+  getFramingDisplayName,
   getHorizontalAngleDisplayName,
-  getMovementDisplayName,
   getShotSizeDisplayName,
-  getSpeedDisplayName,
   getVerticalAngleDisplayName,
 } from "@/lib/shot-display";
 
@@ -60,10 +59,10 @@ export async function generateMetadata({
   }
 
   return {
-    title: `${shot.film.title} • ${getMovementDisplayName(shot.metadata.movementType)}`,
+    title: `${shot.film.title} • ${getFramingDisplayName(shot.metadata.framing)}`,
     description:
       shot.semantic?.description ??
-      `${shot.film.title} (${shot.film.year ?? "Unknown year"}) with ${getMovementDisplayName(shot.metadata.movementType)} movement rendered in the MetroVision overlay.`,
+      `${shot.film.title} (${shot.film.year ?? "Unknown year"}) — ${getFramingDisplayName(shot.metadata.framing)} framing analyzed in the MetroVision overlay.`,
   };
 }
 
@@ -77,16 +76,16 @@ export default async function ShotDetailPage({ params }: ShotDetailPageProps) {
 
   const metadataFields = [
     {
-      label: "Movement type",
-      value: getMovementDisplayName(shot.metadata.movementType),
+      label: "Framing",
+      value: getFramingDisplayName(shot.metadata.framing),
     },
     {
-      label: "Direction",
-      value: getDirectionDisplayName(shot.metadata.direction),
+      label: "Depth",
+      value: getDepthDisplayName(shot.metadata.depth),
     },
     {
-      label: "Speed",
-      value: getSpeedDisplayName(shot.metadata.speed),
+      label: "Blocking",
+      value: getBlockingDisplayName(shot.metadata.blocking),
     },
     {
       label: "Shot size",
@@ -107,13 +106,6 @@ export default async function ShotDetailPage({ params }: ShotDetailPageProps) {
     {
       label: "Duration",
       value: formatShotDuration(shot.duration),
-    },
-    {
-      label: "Compound movement",
-      value:
-        shot.metadata.isCompound && shot.metadata.compoundParts
-          ? getCompoundNotation(shot.metadata.compoundParts)
-          : "No",
     },
   ] as const;
   const sceneContext =

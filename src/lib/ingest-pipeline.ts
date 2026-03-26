@@ -17,16 +17,20 @@ export type DetectedSplit = {
 };
 
 export type ClassifiedShot = {
-  movement_type: string;
-  direction: string;
-  speed: string;
+  framing: string;
+  depth: string;
+  blocking: string;
+  symmetry: string;
+  dominant_lines: string;
+  lighting_direction: string;
+  lighting_quality: string;
+  color_temperature: string;
+  foreground_elements: string[];
+  background_elements: string[];
   shot_size: string;
   angle_vertical: string;
   angle_horizontal: string;
-  angle_special: string | null;
   duration_cat: string;
-  is_compound: boolean;
-  compound_parts: Array<{ type: string; direction: string }>;
   description: string;
   mood: string;
   lighting: string;
@@ -256,9 +260,11 @@ export async function extractAndUpload(
 
 function fallbackClassification(): ClassifiedShot {
   return {
-    movement_type: "static", direction: "none", speed: "moderate", shot_size: "medium",
-    angle_vertical: "eye_level", angle_horizontal: "frontal", angle_special: null,
-    duration_cat: "standard", is_compound: false, compound_parts: [],
+    framing: "centered", depth: "medium", blocking: "single", symmetry: "balanced",
+    dominant_lines: "none", lighting_direction: "natural", lighting_quality: "soft",
+    color_temperature: "neutral", foreground_elements: [], background_elements: [],
+    shot_size: "medium", angle_vertical: "eye_level", angle_horizontal: "frontal",
+    duration_cat: "standard",
     description: "Classification unavailable — fallback applied", mood: "neutral",
     lighting: "unknown", subjects: [], scene_title: "Unclassified",
     scene_description: "", location: "unknown", interior_exterior: "interior", time_of_day: "day",
@@ -307,12 +313,30 @@ async function _classifyShotInner(
     const clipBuffer = await readFile(clipFile);
     const base64Video = clipBuffer.toString("base64");
 
-    const prompt = `Cinematography analysis: "${filmTitle}" (${year}, ${director}).
+    const prompt = `Shot composition analysis: "${filmTitle}" (${year}, ${director}).
 ${castList.length > 0 ? `Cast: ${castList.slice(0, 8).join(", ")}` : ""}
 TC: ${formatTimecode(split.start)}-${formatTimecode(split.end)} (${(split.end - split.start).toFixed(1)}s)
 
-Return JSON: {"movement_type","direction","speed","shot_size","angle_vertical","angle_horizontal","angle_special","duration_cat","is_compound","compound_parts","description","mood","lighting","subjects","scene_title","scene_description","location","interior_exterior","time_of_day"}
-Valid values - movement_type: static/pan/tilt/dolly/truck/pedestal/crane/boom/zoom/dolly_zoom/handheld/steadicam/drone/aerial/arc/whip_pan/whip_tilt/rack_focus/follow/reveal/reframe. direction: left/right/up/down/in/out/clockwise/counter_clockwise/forward/backward/lateral_left/lateral_right/diagonal/circular/none. speed: freeze/imperceptible/slow/moderate/fast/very_fast/snap. shot_size: extreme_wide/wide/full/medium_wide/medium/medium_close/close/extreme_close/insert/two_shot/three_shot/group/ots/pov/reaction. Only valid JSON.`;
+Analyze the COMPOSITION of this shot — what is in the frame, how it is arranged, and how it is lit. Use the keyframe (freeze the midpoint in your mind).
+
+Return JSON: {"framing","depth","blocking","symmetry","dominant_lines","lighting_direction","lighting_quality","color_temperature","foreground_elements","background_elements","shot_size","angle_vertical","angle_horizontal","duration_cat","description","mood","lighting","subjects","scene_title","scene_description","location","interior_exterior","time_of_day"}
+
+Valid values:
+framing: rule_of_thirds_left/rule_of_thirds_right/centered/off_center/split/frame_within_frame/negative_space_dominant/filled/leading_lines/golden_ratio
+depth: shallow/medium/deep_staging/flat/layered/rack_focus
+blocking: single/two_figure/two_figure_separation/group/crowd/empty/silhouette/reflection
+symmetry: symmetric/asymmetric/balanced/unbalanced
+dominant_lines: vertical/horizontal/diagonal/curved/converging/radiating/none
+lighting_direction: front/side/back/top/bottom/natural/mixed
+lighting_quality: hard/soft/diffused/high_contrast/low_contrast/chiaroscuro
+color_temperature: warm/cool/neutral/mixed/desaturated/saturated
+shot_size: extreme_wide/wide/full/medium_wide/medium/medium_close/close/extreme_close/insert/two_shot/three_shot/group/ots/pov/reaction
+angle_vertical: eye_level/high_angle/low_angle/birds_eye/worms_eye/overhead
+angle_horizontal: frontal/profile/three_quarter/rear/ots
+duration_cat: flash/brief/standard/extended/long_take/oner
+foreground_elements: array of strings (objects/people in foreground)
+background_elements: array of strings (objects/environment in background)
+Only valid JSON.`;
 
     await acquireToken();
     const response = await fetch(

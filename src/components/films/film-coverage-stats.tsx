@@ -1,21 +1,21 @@
 "use client";
 
-import { getMovementDisplayName, getShotSizeDisplayName } from "@/lib/shot-display";
-import { getMovementTypeColor } from "@/lib/timeline-colors";
+import { getFramingDisplayName, getShotSizeDisplayName } from "@/lib/shot-display";
+import { getFramingColor } from "@/lib/timeline-colors";
 import type { FilmCoverageStats as FilmCoverageStatsType } from "@/lib/types";
-import type { MovementTypeSlug, ShotSizeSlug } from "@/lib/taxonomy";
+import type { FramingSlug, ShotSizeSlug } from "@/lib/taxonomy";
 
 type Props = {
   stats: FilmCoverageStatsType;
 };
 
 export function FilmCoverageStats({ stats }: Props) {
-  const movementEntries = Object.entries(stats.movementTypeFrequency)
+  const framingEntries = Object.entries(stats.framingFrequency)
     .sort(([, a], [, b]) => b - a);
   const shotSizeEntries = Object.entries(stats.shotSizeDistribution)
     .sort(([, a], [, b]) => b - a);
 
-  const maxMovement = Math.max(...movementEntries.map(([, v]) => v), 1);
+  const maxFraming = Math.max(...framingEntries.map(([, v]) => v), 1);
   const maxShotSize = Math.max(...shotSizeEntries.map(([, v]) => v), 1);
 
   return (
@@ -33,14 +33,14 @@ export function FilmCoverageStats({ stats }: Props) {
         <h3
           className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-accent)]"
         >
-          Movement Types
+          Framing Types
         </h3>
         <div className="mt-4 space-y-3">
-          {movementEntries.map(([slug, count]) => (
+          {framingEntries.map(([slug, count]) => (
             <div key={slug}>
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-sm text-[var(--color-text-secondary)]">
-                  {getMovementDisplayName(slug as MovementTypeSlug)}
+                  {getFramingDisplayName(slug as FramingSlug)}
                 </span>
                 <span className="font-mono text-xs text-[var(--color-text-tertiary)]">
                   {count}
@@ -56,8 +56,8 @@ export function FilmCoverageStats({ stats }: Props) {
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{
-                    width: `${(count / maxMovement) * 100}%`,
-                    backgroundColor: getMovementTypeColor(slug as MovementTypeSlug),
+                    width: `${(count / maxFraming) * 100}%`,
+                    backgroundColor: getFramingColor(slug as FramingSlug),
                   }}
                 />
               </div>
@@ -154,10 +154,10 @@ export function FilmCoverageStats({ stats }: Props) {
           </div>
           <div>
             <p className="text-3xl font-bold text-[var(--color-text-primary)]">
-              {movementEntries.length}
+              {framingEntries.length}
             </p>
             <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-              Movement types used
+              Framing types used
             </p>
           </div>
         </div>

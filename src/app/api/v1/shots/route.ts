@@ -17,12 +17,12 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(100, Math.max(1, Number(request.nextUrl.searchParams.get("limit") ?? 20)));
 
     const filters: Record<string, string> = {};
-    const movementType = request.nextUrl.searchParams.get("movementType");
+    const framing = request.nextUrl.searchParams.get("framing");
     const director = request.nextUrl.searchParams.get("director");
     const filmTitle = request.nextUrl.searchParams.get("filmTitle");
     const shotSize = request.nextUrl.searchParams.get("shotSize");
 
-    if (movementType) filters.movementType = movementType;
+    if (framing) filters.framing = framing;
     if (director) filters.director = director;
     if (filmTitle) filters.filmTitle = filmTitle;
     if (shotSize) filters.shotSize = shotSize;
@@ -37,16 +37,15 @@ export async function GET(request: NextRequest) {
       filmTitle: s.film.title,
       director: s.film.director,
       year: s.film.year,
-      movementType: s.metadata.movementType,
-      direction: s.metadata.direction,
-      speed: s.metadata.speed,
+      framing: s.metadata.framing,
+      depth: s.metadata.depth,
+      blocking: s.metadata.blocking,
       shotSize: s.metadata.shotSize,
       angleVertical: s.metadata.angleVertical,
       angleHorizontal: s.metadata.angleHorizontal,
       duration: s.duration,
       startTc: s.startTc,
       endTc: s.endTc,
-      isCompound: s.metadata.isCompound,
       description: s.semantic?.description ?? null,
       mood: s.semantic?.mood ?? null,
       thumbnailUrl: s.thumbnailUrl,

@@ -2,9 +2,9 @@ import Image from "next/image";
 import Link from "next/link";
 
 import {
-  getDirectionDisplayName,
+  getDepthDisplayName,
   formatShotDuration,
-  getMovementDisplayName,
+  getFramingDisplayName,
   getShotSizeDisplayName,
 } from "@/lib/shot-display";
 import type { ShotWithDetails } from "@/lib/types";
@@ -56,7 +56,7 @@ export function ShotCard({ shot }: ShotCardProps) {
                 "color-mix(in oklch, var(--color-overlay-arrow) 82%, transparent)",
             }}
           >
-            {getMovementDisplayName(shot.metadata.movementType)}
+            {getFramingDisplayName(shot.metadata.framing)}
           </span>
           <span
             className="rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-primary)]"
@@ -92,10 +92,7 @@ export function ShotCard({ shot }: ShotCardProps) {
       <div className="flex items-center justify-between gap-3 px-4 py-4">
         <div>
           <p className="text-sm text-[var(--color-text-secondary)]">
-            {shot.metadata.isCompound ? "Compound movement" : "Single vector"}
-          </p>
-          <p className="mt-1 font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-            {getDirectionDisplayName(shot.metadata.direction)}
+            {getDepthDisplayName(shot.metadata.depth)}
           </p>
           {shot.objects.length > 0 ? (
             <div className="mt-3 flex flex-wrap items-center gap-2">

@@ -6,7 +6,6 @@ import { eq } from "drizzle-orm";
 
 import { db, schema } from "@/db";
 import { generateTextEmbedding } from "@/db/embeddings";
-import type { CompoundPart } from "@/db/schema";
 import {
   type ClassifiedShot,
   type ExtractedAssets,
@@ -99,7 +98,7 @@ export async function POST(request: Request) {
         const classifications = await processInParallel(splits, classifyConcurrency, async (split, worker) => {
           emit({ type: "shot", step: "classify", index: split.index, total: splits.length, worker, status: "start" });
           const result = await classifyShot(videoPath, split, body.filmTitle, body.director, body.year, castList);
-          emit({ type: "shot", step: "classify", index: split.index, total: splits.length, worker, status: "complete", movementType: result.movement_type, sceneTitle: result.scene_title });
+          emit({ type: "shot", step: "classify", index: split.index, total: splits.length, worker, status: "complete", framing: result.framing, sceneTitle: result.scene_title });
           return result;
         });
         emit({ type: "step", step: "classify", status: "complete", message: `${splits.length} shots classified`, duration: (Date.now() - t3) / 1000 });
@@ -170,7 +169,7 @@ export async function POST(request: Request) {
 
         // Embeddings in parallel (high concurrency for API calls)
         const searchTexts = splits.map((split, i) =>
-          [body.filmTitle, body.director, classifications[i].movement_type, classifications[i].description, classifications[i].mood].filter(Boolean).join(" "),
+          [body.filmTitle, body.director, classifications[i].framing, classifications[i].description, classifications[i].mood].filter(Boolean).join(" "),
         );
         const embeddings = await processInParallel(searchTexts, Math.min(concurrency * 2, 10), async (text) => {
           try { return await generateTextEmbedding(text); } catch { return null; }
@@ -198,16 +197,18 @@ export async function POST(request: Request) {
           await Promise.all([
             db.insert(schema.shotMetadata).values({
               shotId: insertedShot.id,
-              movementType: classification.movement_type as typeof schema.shotMetadata.$inferInsert.movementType,
-              direction: classification.direction as typeof schema.shotMetadata.$inferInsert.direction,
-              speed: classification.speed as typeof schema.shotMetadata.$inferInsert.speed,
-              shotSize: classification.shot_size as typeof schema.shotMetadata.$inferInsert.shotSize,
-              angleVertical: classification.angle_vertical as typeof schema.shotMetadata.$inferInsert.angleVertical,
-              angleHorizontal: classification.angle_horizontal as typeof schema.shotMetadata.$inferInsert.angleHorizontal,
-              angleSpecial: classification.angle_special,
-              durationCat: classification.duration_cat as typeof schema.shotMetadata.$inferInsert.durationCat,
-              isCompound: classification.is_compound,
-              compoundParts: classification.compound_parts as CompoundPart[],
+              framing: classification.framing as typeof schema.shotMetadata.$inferInsert.framing,
+              depth: (classification as Record<string, string>).depth as typeof schema.shotMetadata.$inferInsert.depth,
+              blocking: (classification as Record<string, string>).blocking as typeof schema.shotMetadata.$inferInsert.blocking,
+              symmetry: (classification as Record<string, string>).symmetry as typeof schema.shotMetadata.$inferInsert.symmetry,
+              dominantLines: (classification as Record<string, string>).dominant_lines as typeof schema.shotMetadata.$inferInsert.dominantLines,
+              lightingDirection: (classification as Record<string, string>).lighting_direction as typeof schema.shotMetadata.$inferInsert.lightingDirection,
+              lightingQuality: (classification as Record<string, string>).lighting_quality as typeof schema.shotMetadata.$inferInsert.lightingQuality,
+              colorTemperature: (classification as Record<string, string>).color_temperature as typeof schema.shotMetadata.$inferInsert.colorTemperature,
+              shotSize: (classification as Record<string, string>).shot_size as typeof schema.shotMetadata.$inferInsert.shotSize,
+              angleVertical: (classification as Record<string, string>).angle_vertical as typeof schema.shotMetadata.$inferInsert.angleVertical,
+              angleHorizontal: (classification as Record<string, string>).angle_horizontal as typeof schema.shotMetadata.$inferInsert.angleHorizontal,
+              durationCat: (classification as Record<string, string>).duration_cat as typeof schema.shotMetadata.$inferInsert.durationCat,
               classificationSource: "gemini",
             }),
             db.insert(schema.shotSemantic).values({

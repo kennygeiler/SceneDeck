@@ -6,21 +6,21 @@ import { ArrowRight, Clapperboard, Radar, Workflow } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
 import {
-  DIRECTIONS,
-  MOVEMENT_TYPES,
+  BLOCKING_TYPES,
+  DEPTH_TYPES,
+  FRAMINGS,
   SHOT_SIZES,
-  SPEEDS,
 } from "@/lib/taxonomy";
 import { cn } from "@/lib/utils";
 
-const featuredMovements = Object.values(MOVEMENT_TYPES).slice(0, 6);
-const featuredDirections = Object.values(DIRECTIONS).slice(0, 4);
+const featuredFramings = Object.values(FRAMINGS).slice(0, 6);
+const featuredDepths = Object.values(DEPTH_TYPES).slice(0, 4);
 const featuredSizes = Object.values(SHOT_SIZES).slice(4, 8);
 
 const stats = [
-  { value: Object.keys(MOVEMENT_TYPES).length, label: "movement types" },
-  { value: Object.keys(DIRECTIONS).length, label: "direction vectors" },
-  { value: Object.keys(SPEEDS).length, label: "speed classes" },
+  { value: Object.keys(FRAMINGS).length, label: "framing types" },
+  { value: Object.keys(DEPTH_TYPES).length, label: "depth types" },
+  { value: Object.keys(BLOCKING_TYPES).length, label: "blocking types" },
 ] as const;
 
 const heroSignals = [
@@ -76,7 +76,7 @@ export function HomeHero() {
             className="size-2 rounded-full shadow-[var(--shadow-glow)]"
             style={{ backgroundColor: "var(--color-status-verified)" }}
           />
-          Production surface for camera-motion intelligence
+          Production surface for shot composition intelligence
         </div>
 
         <h1
@@ -89,8 +89,8 @@ export function HomeHero() {
         </h1>
         <p className="mt-4 max-w-3xl text-lg leading-8 text-[var(--color-text-secondary)] sm:text-xl">
           MetroVision turns film scenes into a searchable, verification-aware
-          archive of camera movement, shot scale, angle, and speed, all surfaced
-          through a playback-synced visual overlay.
+          archive of shot composition — framing, depth, blocking, lighting, and
+          scale — all surfaced through a playback-synced visual overlay.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -272,7 +272,7 @@ export function HomeHero() {
                   Overlay signal
                 </p>
                 <p className="mt-2 text-base text-[var(--color-text-secondary)]">
-                  Vector, trajectory, and speed channels are readable at a glance.
+                  Framing, depth, and blocking channels are readable at a glance.
                 </p>
               </div>
               <div className="hidden gap-2 sm:flex">
@@ -294,15 +294,15 @@ export function HomeHero() {
             <div className="relative mt-6 grid gap-4">
               <div className="rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] p-4">
                 <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-overlay-arrow)]">
-                  Motion
+                  Framing
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {featuredMovements.map((movement) => (
+                  {featuredFramings.map((framingOption) => (
                     <span
-                      key={movement.slug}
+                      key={framingOption.slug}
                       className="rounded-full border border-[var(--color-border-default)] px-3 py-1 font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-secondary)]"
                     >
-                      {movement.displayName}
+                      {framingOption.displayName}
                     </span>
                   ))}
                 </div>
@@ -311,15 +311,15 @@ export function HomeHero() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] p-4">
                   <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-overlay-trajectory)]">
-                    Direction
+                    Depth
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {featuredDirections.map((direction) => (
+                    {featuredDepths.map((depth) => (
                       <span
-                        key={direction.slug}
+                        key={depth.slug}
                         className="rounded-full border border-[var(--color-border-default)] px-3 py-1 font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-secondary)]"
                       >
-                        {direction.displayName}
+                        {depth.displayName}
                       </span>
                     ))}
                   </div>

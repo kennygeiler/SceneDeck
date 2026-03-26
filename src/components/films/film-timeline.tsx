@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 
-import { getMovementDisplayName, getShotSizeDisplayName, formatShotDuration } from "@/lib/shot-display";
-import { getMovementTypeColor } from "@/lib/timeline-colors";
+import { getFramingDisplayName, getShotSizeDisplayName, formatShotDuration } from "@/lib/shot-display";
+import { getFramingColor } from "@/lib/timeline-colors";
 import type { ShotWithDetails, SceneWithShots } from "@/lib/types";
 
 type FilmTimelineProps = {
@@ -56,7 +56,7 @@ export function FilmTimeline({ shots, scenes, compact = false }: FilmTimelinePro
                 style={{
                   width: `${widthPct}%`,
                   minWidth: "2px",
-                  backgroundColor: getMovementTypeColor(shot.metadata.movementType),
+                  backgroundColor: getFramingColor(shot.metadata.framing),
                 }}
                 onMouseEnter={() => setHoveredShot(shot)}
                 onMouseLeave={() => setHoveredShot(null)}
@@ -88,7 +88,7 @@ export function FilmTimeline({ shots, scenes, compact = false }: FilmTimelinePro
             }}
           >
             <p className="text-sm font-semibold text-[var(--color-text-primary)]">
-              {getMovementDisplayName(hoveredShot.metadata.movementType)}
+              {getFramingDisplayName(hoveredShot.metadata.framing)}
             </p>
             <div className="mt-1 flex gap-3 font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
               <span>{getShotSizeDisplayName(hoveredShot.metadata.shotSize)}</span>
@@ -101,15 +101,15 @@ export function FilmTimeline({ shots, scenes, compact = false }: FilmTimelinePro
       {/* Legend (non-compact only) */}
       {!compact ? (
         <div className="mt-3 flex flex-wrap gap-3">
-          {Array.from(new Set(shots.map((s) => s.metadata.movementType))).map(
+          {Array.from(new Set(shots.map((s) => s.metadata.framing))).map(
             (type) => (
               <div key={type} className="flex items-center gap-1.5">
                 <div
                   className="h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: getMovementTypeColor(type) }}
+                  style={{ backgroundColor: getFramingColor(type) }}
                 />
                 <span className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                  {getMovementDisplayName(type)}
+                  {getFramingDisplayName(type)}
                 </span>
               </div>
             ),

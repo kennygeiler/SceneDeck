@@ -14,13 +14,14 @@ import { ExportButton } from "@/components/export/export-button";
 import { ShotCard } from "@/components/shots/shot-card";
 import { buttonVariants } from "@/components/ui/button";
 import {
+  getFramingDisplayName,
   getShotSizeDisplayName,
 } from "@/lib/shot-display";
 import type { ShotWithDetails } from "@/lib/types";
 import {
-  MOVEMENT_TYPES,
+  FRAMINGS,
   SHOT_SIZES,
-  type MovementTypeSlug,
+  type FramingSlug,
   type ShotSizeSlug,
 } from "@/lib/taxonomy";
 import { cn } from "@/lib/utils";
@@ -36,7 +37,7 @@ type ShotBrowserProps = {
 function filterShots(
   shots: ShotWithDetails[],
   filters: {
-    movementType: string;
+    framing: string;
     filmTitle: string;
     director: string;
     shotSize: string;
@@ -44,8 +45,8 @@ function filterShots(
 ) {
   return shots.filter((shot) => {
     if (
-      filters.movementType !== "all" &&
-      shot.metadata.movementType !== filters.movementType
+      filters.framing !== "all" &&
+      shot.metadata.framing !== filters.framing
     ) {
       return false;
     }
@@ -77,7 +78,7 @@ export function ShotBrowser({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const movementType = searchParams.get("movementType") ?? "all";
+  const framing = searchParams.get("framing") ?? "all";
   const filmTitle = searchParams.get("filmTitle") ?? "all";
   const director = searchParams.get("director") ?? "all";
   const shotSize = searchParams.get("shotSize") ?? "all";
@@ -167,7 +168,7 @@ export function ShotBrowser({
   }, [deferredSearchInput, pathname, query, router, searchParams]);
 
   function updateFilter(
-    key: "movementType" | "filmTitle" | "director" | "shotSize",
+    key: "framing" | "filmTitle" | "director" | "shotSize",
     value: string,
   ) {
     const params = new URLSearchParams(searchParams.toString());
@@ -193,7 +194,7 @@ export function ShotBrowser({
 
   const displayedShots = query
     ? filterShots(searchResults ?? shots, {
-        movementType,
+        framing,
         filmTitle,
         director,
         shotSize,
@@ -201,7 +202,7 @@ export function ShotBrowser({
     : shots;
   const hasActiveFilters =
     Boolean(query) ||
-    movementType !== "all" ||
+    framing !== "all" ||
     filmTitle !== "all" ||
     director !== "all" ||
     shotSize !== "all";
@@ -264,7 +265,7 @@ export function ShotBrowser({
           <div className="flex flex-wrap items-center gap-2">
             <ExportButton
               filters={{
-                movementType: movementType !== "all" ? movementType : undefined,
+                framing: framing !== "all" ? framing : undefined,
                 filmTitle: filmTitle !== "all" ? filmTitle : undefined,
                 director: director !== "all" ? director : undefined,
                 shotSize: shotSize !== "all" ? shotSize : undefined,
@@ -297,7 +298,7 @@ export function ShotBrowser({
               htmlFor="browse-search"
               className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]"
             >
-              Search title, director, movement
+              Search title, director, framing
             </label>
             <div className="mt-3 flex items-center gap-3 rounded-full border px-4"
               style={{
@@ -345,7 +346,7 @@ export function ShotBrowser({
               Active query state
             </p>
             <div className="mt-3 space-y-2 text-sm text-[var(--color-text-secondary)]">
-              <p>Movement: {movementType === "all" ? "All" : MOVEMENT_TYPES[movementType as MovementTypeSlug]?.displayName ?? movementType}</p>
+              <p>Framing: {framing === "all" ? "All" : FRAMINGS[framing as FramingSlug]?.displayName ?? framing}</p>
               <p>Film: {filmTitle === "all" ? "All" : filmTitle}</p>
               <p>Director: {director === "all" ? "All" : director}</p>
               <p>Shot size: {shotSize === "all" ? "All" : getShotSizeDisplayName(shotSize as ShotSizeSlug)}</p>
@@ -356,15 +357,15 @@ export function ShotBrowser({
         <div className="mt-5 space-y-4">
           <div>
             <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-              Movement type
+              Framing
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => updateFilter("movementType", "all")}
+                onClick={() => updateFilter("framing", "all")}
                 className={cn(
                   buttonVariants({
-                    variant: movementType === "all" ? "default" : "outline",
+                    variant: framing === "all" ? "default" : "outline",
                     size: "sm",
                   }),
                   "rounded-full px-3",
@@ -372,14 +373,14 @@ export function ShotBrowser({
               >
                 All
               </button>
-              {Object.values(MOVEMENT_TYPES).map((movement) => {
-                const isActive = movementType === movement.slug;
+              {Object.values(FRAMINGS).map((framingOption) => {
+                const isActive = framing === framingOption.slug;
 
                 return (
                   <button
-                    key={movement.slug}
+                    key={framingOption.slug}
                     type="button"
-                    onClick={() => updateFilter("movementType", movement.slug)}
+                    onClick={() => updateFilter("framing", framingOption.slug)}
                     className={cn(
                       buttonVariants({
                         variant: isActive ? "default" : "outline",
@@ -390,7 +391,7 @@ export function ShotBrowser({
                         "border-[var(--color-border-default)] bg-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]",
                     )}
                   >
-                    {movement.displayName}
+                    {framingOption.displayName}
                   </button>
                 );
               })}
@@ -570,7 +571,7 @@ export function ShotBrowser({
           </motion.section>
         ) : (
           <motion.section
-            key={`${query}-${movementType}-${filmTitle}-${director}-${shotSize}`}
+            key={`${query}-${framing}-${filmTitle}-${director}-${shotSize}`}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
@@ -592,7 +593,7 @@ export function ShotBrowser({
               The live archive has no result set for the current query.
             </h2>
             <p className="mt-4 text-base leading-8 text-[var(--color-text-secondary)]">
-              Adjust the search string, switch movement filters, or clear the
+              Adjust the search string, switch framing filters, or clear the
               current URL params to return to the full archive.
             </p>
             <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
@@ -601,9 +602,9 @@ export function ShotBrowser({
                   q={query}
                 </span>
               ) : null}
-              {movementType !== "all" ? (
+              {framing !== "all" ? (
                 <span className="rounded-full border px-3 py-1 font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-secondary)]">
-                  {MOVEMENT_TYPES[movementType as MovementTypeSlug]?.displayName ?? movementType}
+                  {FRAMINGS[framing as FramingSlug]?.displayName ?? framing}
                 </span>
               ) : null}
               {filmTitle !== "all" ? (

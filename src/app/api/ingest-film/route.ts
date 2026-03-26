@@ -5,7 +5,6 @@ import { NextResponse } from "next/server";
 
 import { db, schema } from "@/db";
 import { generateTextEmbedding } from "@/db/embeddings";
-import type { CompoundPart } from "@/db/schema";
 import {
   type ClassifiedShot,
   detectShots,
@@ -127,7 +126,7 @@ export async function POST(request: Request) {
 
     // Write shots
     const searchTexts = splits.map((split, i) =>
-      [body.filmTitle, body.director, classifications[i].movement_type, classifications[i].description, classifications[i].mood].filter(Boolean).join(" "),
+      [body.filmTitle, body.director, classifications[i].framing, classifications[i].description, classifications[i].mood].filter(Boolean).join(" "),
     );
     const embeddings = await processInParallel(searchTexts, concurrency, async (text) => {
       try { return await generateTextEmbedding(text); } catch { return null; }
@@ -151,16 +150,18 @@ export async function POST(request: Request) {
 
       await db.insert(schema.shotMetadata).values({
         shotId: insertedShot.id,
-        movementType: classification.movement_type as typeof schema.shotMetadata.$inferInsert.movementType,
-        direction: classification.direction as typeof schema.shotMetadata.$inferInsert.direction,
-        speed: classification.speed as typeof schema.shotMetadata.$inferInsert.speed,
-        shotSize: classification.shot_size as typeof schema.shotMetadata.$inferInsert.shotSize,
-        angleVertical: classification.angle_vertical as typeof schema.shotMetadata.$inferInsert.angleVertical,
-        angleHorizontal: classification.angle_horizontal as typeof schema.shotMetadata.$inferInsert.angleHorizontal,
-        angleSpecial: classification.angle_special,
-        durationCat: classification.duration_cat as typeof schema.shotMetadata.$inferInsert.durationCat,
-        isCompound: classification.is_compound,
-        compoundParts: classification.compound_parts as CompoundPart[],
+        framing: classification.framing as typeof schema.shotMetadata.$inferInsert.framing,
+        depth: (classification as Record<string, string>).depth as typeof schema.shotMetadata.$inferInsert.depth,
+        blocking: (classification as Record<string, string>).blocking as typeof schema.shotMetadata.$inferInsert.blocking,
+        symmetry: (classification as Record<string, string>).symmetry as typeof schema.shotMetadata.$inferInsert.symmetry,
+        dominantLines: (classification as Record<string, string>).dominant_lines as typeof schema.shotMetadata.$inferInsert.dominantLines,
+        lightingDirection: (classification as Record<string, string>).lighting_direction as typeof schema.shotMetadata.$inferInsert.lightingDirection,
+        lightingQuality: (classification as Record<string, string>).lighting_quality as typeof schema.shotMetadata.$inferInsert.lightingQuality,
+        colorTemperature: (classification as Record<string, string>).color_temperature as typeof schema.shotMetadata.$inferInsert.colorTemperature,
+        shotSize: (classification as Record<string, string>).shot_size as typeof schema.shotMetadata.$inferInsert.shotSize,
+        angleVertical: (classification as Record<string, string>).angle_vertical as typeof schema.shotMetadata.$inferInsert.angleVertical,
+        angleHorizontal: (classification as Record<string, string>).angle_horizontal as typeof schema.shotMetadata.$inferInsert.angleHorizontal,
+        durationCat: (classification as Record<string, string>).duration_cat as typeof schema.shotMetadata.$inferInsert.durationCat,
         classificationSource: "gemini",
       });
 

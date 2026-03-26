@@ -19,9 +19,9 @@ export const TOOL_DECLARATIONS = [
       type: "object",
       properties: {
         query: { type: "string", description: "Free-text search query" },
-        movementType: {
+        framing: {
           type: "string",
-          description: "Filter by movement type slug (e.g. static, pan, tilt, dolly, steadicam, handheld, crane, zoom, whip_pan, arc, follow, truck, drone)",
+          description: "Filter by framing slug (e.g. centered, rule_of_thirds_left, rule_of_thirds_right, split, frame_within_frame, negative_space_dominant, leading_lines, golden_ratio)",
         },
         shotSize: {
           type: "string",
@@ -41,7 +41,7 @@ export const TOOL_DECLARATIONS = [
   {
     name: "get_film_analysis",
     description:
-      "Get detailed analysis of a specific film including scene breakdowns, shot size distributions, movement type frequencies, and average shot length.",
+      "Get detailed analysis of a specific film including scene breakdowns, shot size distributions, framing frequencies, and average shot length.",
     parameters: {
       type: "object",
       properties: {
@@ -56,7 +56,7 @@ export const TOOL_DECLARATIONS = [
   {
     name: "compare_directors",
     description:
-      "Compare the visual styles of two or more directors by analyzing their shot distributions, movement preferences, and pacing across all films in the archive.",
+      "Compare the visual styles of two or more directors by analyzing their shot distributions, framing preferences, and pacing across all films in the archive.",
     parameters: {
       type: "object",
       properties: {
@@ -94,7 +94,7 @@ export const TOOL_DECLARATIONS = [
       properties: {
         technique: {
           type: "string",
-          description: "The technique to search for (e.g. 'dolly_zoom', 'steadicam', 'extreme_close', 'whip_pan', 'crane')",
+          description: "The technique to search for (e.g. 'centered', 'rule_of_thirds_left', 'frame_within_frame', 'extreme_close', 'deep_staging', 'chiaroscuro')",
         },
         limit: {
           type: "number",
@@ -212,7 +212,7 @@ export async function executeToolCall(
 
 async function handleSearchShots(args: Record<string, unknown>) {
   const filters: Record<string, string> = {};
-  if (args.movementType) filters.movementType = String(args.movementType);
+  if (args.framing) filters.framing = String(args.framing);
   if (args.shotSize) filters.shotSize = String(args.shotSize);
   if (args.director) filters.director = String(args.director);
   if (args.filmTitle) filters.filmTitle = String(args.filmTitle);
@@ -229,7 +229,7 @@ async function handleSearchShots(args: Record<string, unknown>) {
       const haystack = [
         s.film.title,
         s.film.director,
-        s.metadata.movementType,
+        s.metadata.framing,
         s.metadata.shotSize,
         s.semantic?.description,
         s.semantic?.mood,
@@ -246,13 +246,12 @@ async function handleSearchShots(args: Record<string, unknown>) {
     shotId: s.id,
     filmTitle: s.film.title,
     director: s.film.director,
-    movementType: s.metadata.movementType,
+    framing: s.metadata.framing,
+    depth: s.metadata.depth,
+    blocking: s.metadata.blocking,
     shotSize: s.metadata.shotSize,
-    duration: s.duration,
-    direction: s.metadata.direction,
-    speed: s.metadata.speed,
     angleVertical: s.metadata.angleVertical,
-    isCompound: s.metadata.isCompound,
+    duration: s.duration,
     description: s.semantic?.description ?? null,
     mood: s.semantic?.mood ?? null,
     subjects: s.semantic?.subjects ?? [],
@@ -306,7 +305,7 @@ async function buildFilmAnalysis(filmId: string, filmTitle: string) {
     totalDuration: stats.totalDuration,
     averageShotLength: Math.round(stats.averageShotLength * 100) / 100,
     shotSizeDistribution: stats.shotSizeDistribution,
-    movementTypeFrequency: stats.movementTypeFrequency,
+    framingFrequency: stats.framingFrequency,
     scenes: film.scenes.map((scene) => ({
       sceneNumber: scene.sceneNumber,
       title: scene.title,
@@ -352,22 +351,22 @@ async function handleCompareDirectors(args: Record<string, unknown>) {
     }
 
     const filmSet = new Set(directorShots.map((s) => s.filmTitle));
-    const movementCounts: Record<string, number> = {};
+    const framingCounts: Record<string, number> = {};
     const sizeCounts: Record<string, number> = {};
     let totalDuration = 0;
 
     for (const shot of directorShots) {
-      movementCounts[shot.movementType] =
-        (movementCounts[shot.movementType] ?? 0) + 1;
+      framingCounts[shot.framing] =
+        (framingCounts[shot.framing] ?? 0) + 1;
       sizeCounts[shot.shotSize] = (sizeCounts[shot.shotSize] ?? 0) + 1;
       totalDuration += shot.duration;
     }
 
     // Convert to percentages
     const total = directorShots.length;
-    const movementDist: Record<string, number> = {};
-    for (const [key, count] of Object.entries(movementCounts)) {
-      movementDist[key] = Math.round((count / total) * 1000) / 10;
+    const framingDist: Record<string, number> = {};
+    for (const [key, count] of Object.entries(framingCounts)) {
+      framingDist[key] = Math.round((count / total) * 1000) / 10;
     }
     const sizeDist: Record<string, number> = {};
     for (const [key, count] of Object.entries(sizeCounts)) {
@@ -378,7 +377,7 @@ async function handleCompareDirectors(args: Record<string, unknown>) {
       filmCount: filmSet.size,
       shotCount: total,
       films: Array.from(filmSet),
-      movementDistribution: movementDist,
+      framingDistribution: framingDist,
       shotSizeDistribution: sizeDist,
       averageDuration: Math.round((totalDuration / total) * 100) / 100,
     };
@@ -430,7 +429,7 @@ async function handleCompareFilms(args: Record<string, unknown>) {
       totalDuration: stats.totalDuration,
       averageShotLength: Math.round(stats.averageShotLength * 100) / 100,
       shotSizeDistribution: stats.shotSizeDistribution,
-      movementTypeFrequency: stats.movementTypeFrequency,
+      framingFrequency: stats.framingFrequency,
     };
   }
 
@@ -444,22 +443,22 @@ async function handleGetTechniqueExamples(args: Record<string, unknown>) {
   const technique = String(args.technique ?? "");
   const limit = Math.min(Number(args.limit ?? 10), 20);
 
-  // Try as movement type first
-  const byMovement = await getAllShots({ movementType: technique });
-  if (byMovement.length > 0) {
+  // Try as framing first
+  const byFraming = await getAllShots({ framing: technique });
+  if (byFraming.length > 0) {
     return {
       technique,
-      matchedBy: "movementType",
-      totalFound: byMovement.length,
-      examples: byMovement.slice(0, limit).map((s) => ({
+      matchedBy: "framing",
+      totalFound: byFraming.length,
+      examples: byFraming.slice(0, limit).map((s) => ({
         shotId: s.id,
         filmTitle: s.film.title,
         director: s.film.director,
-        movementType: s.metadata.movementType,
+        framing: s.metadata.framing,
         shotSize: s.metadata.shotSize,
         duration: s.duration,
-        direction: s.metadata.direction,
-        speed: s.metadata.speed,
+        depth: s.metadata.depth,
+        blocking: s.metadata.blocking,
         description: s.semantic?.description ?? null,
         mood: s.semantic?.mood ?? null,
         thumbnailUrl: s.thumbnailUrl,
@@ -478,11 +477,11 @@ async function handleGetTechniqueExamples(args: Record<string, unknown>) {
         shotId: s.id,
         filmTitle: s.film.title,
         director: s.film.director,
-        movementType: s.metadata.movementType,
+        framing: s.metadata.framing,
         shotSize: s.metadata.shotSize,
         duration: s.duration,
-        direction: s.metadata.direction,
-        speed: s.metadata.speed,
+        depth: s.metadata.depth,
+        blocking: s.metadata.blocking,
         description: s.semantic?.description ?? null,
         mood: s.semantic?.mood ?? null,
         thumbnailUrl: s.thumbnailUrl,
@@ -495,7 +494,7 @@ async function handleGetTechniqueExamples(args: Record<string, unknown>) {
   const techLower = technique.toLowerCase().replace(/_/g, " ");
   const matched = allShots.filter((s) => {
     const text = [
-      s.metadata.movementType,
+      s.metadata.framing,
       s.metadata.shotSize,
       s.semantic?.description,
       s.semantic?.techniqueNotes,
@@ -514,7 +513,7 @@ async function handleGetTechniqueExamples(args: Record<string, unknown>) {
       shotId: s.id,
       filmTitle: s.film.title,
       director: s.film.director,
-      movementType: s.metadata.movementType,
+      framing: s.metadata.framing,
       shotSize: s.metadata.shotSize,
       duration: s.duration,
       description: s.semantic?.description ?? null,
@@ -532,12 +531,12 @@ async function handleGetArchiveSummary() {
   const totalShots = vizData.shots.length;
   const totalDuration = vizData.shots.reduce((sum, s) => sum + s.duration, 0);
 
-  // Movement type distribution
-  const movementCounts: Record<string, number> = {};
+  // Framing distribution
+  const framingCounts: Record<string, number> = {};
   const sizeCounts: Record<string, number> = {};
   for (const shot of vizData.shots) {
-    movementCounts[shot.movementType] =
-      (movementCounts[shot.movementType] ?? 0) + 1;
+    framingCounts[shot.framing] =
+      (framingCounts[shot.framing] ?? 0) + 1;
     sizeCounts[shot.shotSize] = (sizeCounts[shot.shotSize] ?? 0) + 1;
   }
 
@@ -558,7 +557,7 @@ async function handleGetArchiveSummary() {
       shotCount: f.shotCount,
       sceneCount: f.sceneCount,
     })),
-    movementTypeDistribution: movementCounts,
+    framingDistribution: framingCounts,
     shotSizeDistribution: sizeCounts,
   };
 }
@@ -591,9 +590,9 @@ async function handleRenderPacingHeatmap(args: Record<string, unknown>) {
       sceneTitle: s.title,
       sceneNumber: s.sceneNumber,
       shotIndex: 0,
-      movementType: shot.metadata.movementType,
-      direction: shot.metadata.direction,
-      speed: shot.metadata.speed,
+      framing: shot.metadata.framing,
+      depth: shot.metadata.depth,
+      blocking: shot.metadata.blocking,
       shotSize: shot.metadata.shotSize,
       angleVertical: shot.metadata.angleVertical,
       duration: shot.duration,
@@ -625,7 +624,7 @@ async function handleRenderDirectorRadar(args: Record<string, unknown>) {
 
     const counts: Record<string, number> = {};
     for (const shot of shots) {
-      counts[shot.movementType] = (counts[shot.movementType] ?? 0) + 1;
+      counts[shot.framing] = (counts[shot.framing] ?? 0) + 1;
     }
     // Normalize to percentages
     const total = shots.length;
@@ -666,10 +665,10 @@ async function handleRenderShotlist(args: Record<string, unknown>) {
       shotNumber: idx + 1,
       sceneNumber: scene.sceneNumber,
       sceneTitle: scene.title,
-      movementType: shot.metadata.movementType,
-      direction: shot.metadata.direction,
+      framing: shot.metadata.framing,
+      depth: shot.metadata.depth,
+      blocking: shot.metadata.blocking,
       shotSize: shot.metadata.shotSize,
-      speed: shot.metadata.speed,
       duration: shot.duration,
       description: shot.semantic?.description ?? "",
       thumbnailUrl: shot.thumbnailUrl,
@@ -696,7 +695,7 @@ async function handleRenderComparisonTable(args: Record<string, unknown>) {
     shotCount: number;
     sceneCount: number;
     averageShotLength: number;
-    movementTypeFrequency: Record<string, number>;
+    framingFrequency: Record<string, number>;
     shotSizeDistribution: Record<string, number>;
   }> = [];
 
@@ -715,7 +714,7 @@ async function handleRenderComparisonTable(args: Record<string, unknown>) {
       shotCount: stats.shotCount,
       sceneCount: stats.sceneCount,
       averageShotLength: Math.round(stats.averageShotLength * 100) / 100,
-      movementTypeFrequency: stats.movementTypeFrequency,
+      framingFrequency: stats.framingFrequency,
       shotSizeDistribution: stats.shotSizeDistribution,
     });
   }

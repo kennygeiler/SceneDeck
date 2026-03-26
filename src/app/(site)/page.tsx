@@ -7,8 +7,8 @@ import { HomeHero } from "@/components/home/home-hero";
 import { ShotCard } from "@/components/shots/shot-card";
 import {
   formatShotDuration,
-  getDirectionDisplayName,
-  getMovementDisplayName,
+  getDepthDisplayName,
+  getFramingDisplayName,
   getShotSizeDisplayName,
 } from "@/lib/shot-display";
 
@@ -23,7 +23,7 @@ const workflowSteps = [
     step: "02",
     title: "Analyze",
     description:
-      "Classify movement, direction, speed, angle, and shot scale using the shared MetroVision taxonomy.",
+      "Classify framing, depth, blocking, lighting, and shot scale using the shared MetroVision taxonomy.",
   },
   {
     step: "03",
@@ -125,7 +125,7 @@ export default async function Home() {
                           "color-mix(in oklch, var(--color-overlay-arrow) 76%, transparent)",
                       }}
                     >
-                      {getMovementDisplayName(spotlightShot.metadata.movementType)}
+                      {getFramingDisplayName(spotlightShot.metadata.framing)}
                     </span>
                     <span
                       className="rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-primary)]"
@@ -186,10 +186,10 @@ export default async function Home() {
                       }}
                     >
                       <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                        Direction
+                        Depth
                       </p>
                       <p className="mt-2 text-sm text-[var(--color-text-primary)]">
-                        {getDirectionDisplayName(spotlightShot.metadata.direction)}
+                        {getDepthDisplayName(spotlightShot.metadata.depth)}
                       </p>
                     </div>
                     <div

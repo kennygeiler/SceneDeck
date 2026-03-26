@@ -26,14 +26,14 @@ function getParamValue(value: string | string[] | undefined) {
 
 export default async function BrowsePage({ searchParams }: BrowsePageProps) {
   const resolvedSearchParams = await searchParams;
-  const movementType = getParamValue(resolvedSearchParams.movementType)?.trim();
+  const framing = getParamValue(resolvedSearchParams.framing)?.trim();
   const director = getParamValue(resolvedSearchParams.director)?.trim();
   const filmTitle = getParamValue(resolvedSearchParams.filmTitle)?.trim();
   const shotSize = getParamValue(resolvedSearchParams.shotSize)?.trim();
   const query = getParamValue(resolvedSearchParams.q)?.trim();
 
   const filters = {
-    movementType,
+    framing,
     director,
     filmTitle,
     shotSize,

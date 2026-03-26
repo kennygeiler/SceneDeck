@@ -11,10 +11,10 @@ import {
 } from "@/lib/export";
 import {
   formatShotDuration,
-  getMovementDisplayName,
+  getFramingDisplayName,
 } from "@/lib/shot-display";
 import type { ExportShotRecord } from "@/lib/types";
-import { MOVEMENT_TYPES, type MovementTypeSlug } from "@/lib/taxonomy";
+import { FRAMINGS, type FramingSlug } from "@/lib/taxonomy";
 import { cn } from "@/lib/utils";
 
 type ExportPanelProps = {
@@ -47,11 +47,11 @@ export function ExportPanel({
   availableDirectors,
 }: ExportPanelProps) {
   const [format, setFormat] = useState<ExportFormat>("json");
-  const [movementType, setMovementType] = useState("all");
+  const [framing, setFraming] = useState("all");
   const [director, setDirector] = useState("all");
 
   const filteredShots = shots.filter((shot) => {
-    if (movementType !== "all" && shot.movementType !== movementType) {
+    if (framing !== "all" && shot.framing !== framing) {
       return false;
     }
 
@@ -65,7 +65,7 @@ export function ExportPanel({
 
   function handleDownload() {
     triggerExportDownload(format, {
-      movementType: movementType !== "all" ? movementType : undefined,
+      framing: framing !== "all" ? framing : undefined,
       director: director !== "all" ? director : undefined,
     });
   }
@@ -170,11 +170,11 @@ export function ExportPanel({
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                Movement type
+                Framing
               </span>
               <select
-                value={movementType}
-                onChange={(event) => setMovementType(event.target.value)}
+                value={framing}
+                onChange={(event) => setFraming(event.target.value)}
                 className="mt-3 h-11 w-full rounded-[var(--radius-lg)] border px-4 text-sm outline-none"
                 style={{
                   backgroundColor:
@@ -184,10 +184,10 @@ export function ExportPanel({
                   color: "var(--color-text-primary)",
                 }}
               >
-                <option value="all">All movement types</option>
-                {Object.values(MOVEMENT_TYPES).map((movement) => (
-                  <option key={movement.slug} value={movement.slug}>
-                    {movement.displayName}
+                <option value="all">All framing types</option>
+                {Object.values(FRAMINGS).map((framingOption) => (
+                  <option key={framingOption.slug} value={framingOption.slug}>
+                    {framingOption.displayName}
                   </option>
                 ))}
               </select>
@@ -280,7 +280,7 @@ export function ExportPanel({
                     Film
                   </th>
                   <th className="px-4 py-3 font-mono text-[0.7rem] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                    Movement
+                    Framing
                   </th>
                   <th className="px-4 py-3 font-mono text-[0.7rem] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
                     Duration
@@ -304,8 +304,8 @@ export function ExportPanel({
                       </td>
                       <td className="px-4 py-4">
                         <p className="text-sm text-[var(--color-text-primary)]">
-                          {getMovementDisplayName(
-                            shot.movementType as MovementTypeSlug,
+                          {getFramingDisplayName(
+                            shot.framing as FramingSlug,
                           )}
                         </p>
                         <p className="mt-1 text-xs text-[var(--color-text-secondary)]">

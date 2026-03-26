@@ -4,30 +4,19 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 /**
- * Movement type hex colors — same palette used in the timeline.
+ * Framing type hex colors — same palette used in the timeline.
  */
-const MOVE_COLORS: Record<string, string> = {
-  static: "#4a4a5e",
-  pan: "#5cb8d6",
-  tilt: "#4dbaa8",
-  dolly: "#4dd68a",
-  truck: "#6dd64d",
-  pedestal: "#99cc44",
-  crane: "#d6b84d",
-  boom: "#d6994d",
-  zoom: "#aad64d",
-  dolly_zoom: "#d66a4d",
-  handheld: "#9966d6",
-  steadicam: "#4d6ad6",
-  drone: "#7744d6",
-  aerial: "#4d99d6",
-  arc: "#cc44d6",
-  whip_pan: "#d6445a",
-  whip_tilt: "#d64488",
-  rack_focus: "#44d6bb",
-  follow: "#44d699",
-  reveal: "#44d666",
-  reframe: "#6666aa",
+const FRAMING_COLORS: Record<string, string> = {
+  rule_of_thirds_left: "#5cb8d6",
+  rule_of_thirds_right: "#4dbaa8",
+  centered: "#4a4a5e",
+  off_center: "#4dd68a",
+  split: "#6dd64d",
+  frame_within_frame: "#99cc44",
+  negative_space_dominant: "#d6b84d",
+  filled: "#d6994d",
+  leading_lines: "#aad64d",
+  golden_ratio: "#d66a4d",
 };
 
 /* ------------------------------------------------------------------ */
@@ -36,13 +25,13 @@ const MOVE_COLORS: Record<string, string> = {
 
 interface ShotBadgeProps {
   shotId: string;
-  movementType: string;
+  framing: string;
   filmTitle: string;
 }
 
-export function ShotBadge({ shotId, movementType, filmTitle }: ShotBadgeProps) {
-  const color = MOVE_COLORS[movementType] ?? MOVE_COLORS.static;
-  const label = movementType.replace(/_/g, " ");
+export function ShotBadge({ shotId, framing, filmTitle }: ShotBadgeProps) {
+  const color = FRAMING_COLORS[framing] ?? FRAMING_COLORS.centered;
+  const label = framing.replace(/_/g, " ");
 
   return (
     <Link
@@ -191,7 +180,7 @@ export function parseAgentMessage(text: string): ReactNode[] {
         <ShotBadge
           key={`shot-${match.index}`}
           shotId={match[1]}
-          movementType={match[2]}
+          framing={match[2]}
           filmTitle={match[3]}
         />,
       );
