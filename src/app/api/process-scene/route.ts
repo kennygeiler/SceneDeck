@@ -16,7 +16,7 @@ import {
 } from "@/lib/object-detection";
 import { uploadToS3, getPresignedUrl } from "@/lib/s3";
 import { searchTmdbMovieId } from "@/lib/tmdb";
-import type { ShotWithDetails } from "@/lib/types";
+import type { ClassifiedShot, ShotWithDetails } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,26 +51,6 @@ type NormalizedSplit = {
   end: number;
   source: SplitSource;
   confidence: number | null;
-};
-
-type ClassifiedShot = {
-  framing: string;
-  depth: string;
-  blocking: string;
-  symmetry: string;
-  dominant_lines: string;
-  lighting_direction: string;
-  lighting_quality: string;
-  color_temperature: string;
-  foreground_elements: string[];
-  background_elements: string[];
-  shot_size: string;
-  angle_vertical: string;
-  angle_horizontal: string;
-  duration_cat: string;
-  description: string;
-  mood: string;
-  lighting: string;
 };
 
 type ProcessedShot = {

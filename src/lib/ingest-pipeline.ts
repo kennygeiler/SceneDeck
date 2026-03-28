@@ -16,31 +16,8 @@ export type DetectedSplit = {
   index: number;
 };
 
-export type ClassifiedShot = {
-  framing: string;
-  depth: string;
-  blocking: string;
-  symmetry: string;
-  dominant_lines: string;
-  lighting_direction: string;
-  lighting_quality: string;
-  color_temperature: string;
-  foreground_elements: string[];
-  background_elements: string[];
-  shot_size: string;
-  angle_vertical: string;
-  angle_horizontal: string;
-  duration_cat: string;
-  description: string;
-  mood: string;
-  lighting: string;
-  subjects: string[];
-  scene_title: string;
-  scene_description: string;
-  location: string;
-  interior_exterior: string;
-  time_of_day: string;
-};
+import type { ClassifiedShot } from "@/lib/types";
+export type { ClassifiedShot } from "@/lib/types";
 
 export type ProgressCallback = (event: ProgressEvent) => void;
 
