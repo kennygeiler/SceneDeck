@@ -750,6 +750,118 @@ export async function getVerificationStats(): Promise<VerificationStats> {
 }
 
 // ---------------------------------------------------------------------------
+// Accuracy Stats (M3 gate metric)
+// ---------------------------------------------------------------------------
+
+const ACCURACY_FIELDS = [
+  "framing",
+  "depth",
+  "blocking",
+  "shotSize",
+  "angleVertical",
+  "angleHorizontal",
+] as const;
+
+export async function getAccuracyStats(): Promise<
+  import("@/lib/types").AccuracyStats
+> {
+  // Fetch all verifications for human_corrected shots, joined with film title
+  const rows = await db
+    .select({
+      shotId: schema.verifications.shotId,
+      fieldRatings: schema.verifications.fieldRatings,
+      corrections: schema.verifications.corrections,
+      filmTitle: schema.films.title,
+    })
+    .from(schema.verifications)
+    .innerJoin(
+      schema.shotMetadata,
+      eq(schema.verifications.shotId, schema.shotMetadata.shotId),
+    )
+    .innerJoin(schema.shots, eq(schema.verifications.shotId, schema.shots.id))
+    .innerJoin(schema.films, eq(schema.shots.filmId, schema.films.id))
+    .where(
+      or(
+        eq(schema.shotMetadata.reviewStatus, "human_corrected"),
+        eq(schema.shotMetadata.reviewStatus, "human_verified"),
+      ),
+    );
+
+  if (rows.length === 0) {
+    return {
+      overallAccuracy: null,
+      perFieldAccuracy: Object.fromEntries(
+        ACCURACY_FIELDS.map((f) => [f, null]),
+      ),
+      perFilmAccuracy: {},
+      totalShotsReviewed: 0,
+      totalCorrections: 0,
+    };
+  }
+
+  // Per-field: count rated fields vs corrected fields
+  const fieldCorrect: Record<string, number> = {};
+  const fieldTotal: Record<string, number> = {};
+
+  // Per-film: count rated fields vs corrected fields
+  const filmCorrect: Record<string, number> = {};
+  const filmTotal: Record<string, number> = {};
+
+  let overallCorrect = 0;
+  let overallTotal = 0;
+  let totalCorrections = 0;
+  const reviewedShotIds = new Set<string>();
+
+  for (const row of rows) {
+    const ratings = (row.fieldRatings ?? {}) as Record<string, number | null>;
+    const corrections = (row.corrections ?? {}) as Record<string, string | null>;
+    const film = row.filmTitle;
+
+    reviewedShotIds.add(row.shotId);
+
+    for (const field of ACCURACY_FIELDS) {
+      if (ratings[field] == null) continue;
+
+      fieldTotal[field] = (fieldTotal[field] ?? 0) + 1;
+      filmTotal[film] = (filmTotal[film] ?? 0) + 1;
+      overallTotal++;
+
+      const wasCorrected =
+        corrections[field] != null && corrections[field]!.trim().length > 0;
+
+      if (wasCorrected) {
+        totalCorrections++;
+      } else {
+        fieldCorrect[field] = (fieldCorrect[field] ?? 0) + 1;
+        filmCorrect[film] = (filmCorrect[film] ?? 0) + 1;
+        overallCorrect++;
+      }
+    }
+  }
+
+  const toPercent = (correct: number, total: number) =>
+    total > 0 ? Math.round((correct / total) * 1000) / 10 : null;
+
+  return {
+    overallAccuracy: toPercent(overallCorrect, overallTotal),
+    perFieldAccuracy: Object.fromEntries(
+      ACCURACY_FIELDS.map((f) => [
+        f,
+        toPercent(fieldCorrect[f] ?? 0, fieldTotal[f] ?? 0),
+      ]),
+    ),
+    perFilmAccuracy: Object.fromEntries(
+      Object.keys(filmTotal).map((film) => [
+        film,
+        toPercent(filmCorrect[film] ?? 0, filmTotal[film] ?? 0),
+      ]),
+    ),
+    totalShotsReviewed: reviewedShotIds.size,
+    totalCorrections,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Film & Scene Queries
 // ---------------------------------------------------------------------------
 

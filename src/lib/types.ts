@@ -178,6 +178,14 @@ export type VerificationStats = {
   reviewQueueCount: number;
 };
 
+export type AccuracyStats = {
+  overallAccuracy: number | null;
+  perFieldAccuracy: Record<string, number | null>;
+  perFilmAccuracy: Record<string, number | null>;
+  totalShotsReviewed: number;
+  totalCorrections: number;
+};
+
 export type ShotReviewQueueItem = ShotWithDetails & {
   verificationCount: number;
   averageOverallRating: number | null;

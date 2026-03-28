@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 
-import { getShotsForReview, getVerificationStats } from "@/db/queries";
+import { getAccuracyStats, getShotsForReview, getVerificationStats } from "@/db/queries";
 import { getFramingDisplayName } from "@/lib/shot-display";
 
 export const metadata: Metadata = {
@@ -15,9 +15,10 @@ function formatAverageRating(value: number | null) {
 }
 
 export default async function VerifyPage() {
-  const [shotsForReview, stats] = await Promise.all([
+  const [shotsForReview, stats, accuracy] = await Promise.all([
     getShotsForReview(),
     getVerificationStats(),
+    getAccuracyStats(),
   ]);
 
   return (
@@ -107,6 +108,136 @@ export default async function VerifyPage() {
           </p>
         </div>
       </section>
+
+      {accuracy.totalShotsReviewed > 0 && (
+        <section className="space-y-4">
+          <div className="flex items-baseline justify-between">
+            <h2
+              className="text-xl font-semibold tracking-[var(--letter-spacing-snug)]"
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
+              Classification accuracy
+            </h2>
+            <p className="font-mono text-xs text-[var(--color-text-tertiary)]">
+              {accuracy.totalShotsReviewed} shots reviewed &middot;{" "}
+              {accuracy.totalCorrections} corrections
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div
+              className="rounded-[var(--radius-xl)] border p-5"
+              style={{
+                backgroundColor:
+                  "color-mix(in oklch, var(--color-surface-secondary) 78%, transparent)",
+                borderColor:
+                  "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
+              }}
+            >
+              <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+                Overall accuracy
+              </p>
+              <p
+                className="mt-3 text-3xl font-semibold"
+                style={{
+                  color:
+                    accuracy.overallAccuracy !== null &&
+                    accuracy.overallAccuracy >= 85
+                      ? "var(--color-status-verified)"
+                      : "var(--color-text-primary)",
+                }}
+              >
+                {accuracy.overallAccuracy !== null
+                  ? `${accuracy.overallAccuracy}%`
+                  : "N/A"}
+              </p>
+              <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
+                {accuracy.overallAccuracy !== null &&
+                accuracy.overallAccuracy >= 85
+                  ? "M3 gate: passing (>= 85%)"
+                  : "M3 gate: not yet passing (< 85%)"}
+              </p>
+            </div>
+
+            <div
+              className="rounded-[var(--radius-xl)] border p-5"
+              style={{
+                backgroundColor:
+                  "color-mix(in oklch, var(--color-surface-secondary) 78%, transparent)",
+                borderColor:
+                  "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
+              }}
+            >
+              <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+                Per-field accuracy
+              </p>
+              <div className="mt-3 space-y-2">
+                {Object.entries(accuracy.perFieldAccuracy).map(
+                  ([field, pct]) => (
+                    <div key={field} className="flex items-center justify-between text-sm">
+                      <span className="font-mono text-xs text-[var(--color-text-secondary)]">
+                        {field}
+                      </span>
+                      <span
+                        className="font-semibold"
+                        style={{
+                          color:
+                            pct !== null && pct >= 85
+                              ? "var(--color-status-verified)"
+                              : "var(--color-text-primary)",
+                        }}
+                      >
+                        {pct !== null ? `${pct}%` : "—"}
+                      </span>
+                    </div>
+                  ),
+                )}
+              </div>
+            </div>
+          </div>
+
+          {Object.keys(accuracy.perFilmAccuracy).length > 0 && (
+            <div
+              className="rounded-[var(--radius-xl)] border p-5"
+              style={{
+                backgroundColor:
+                  "color-mix(in oklch, var(--color-surface-secondary) 78%, transparent)",
+                borderColor:
+                  "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
+              }}
+            >
+              <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+                Per-film accuracy
+              </p>
+              <div className="mt-3 space-y-2">
+                {Object.entries(accuracy.perFilmAccuracy)
+                  .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0))
+                  .map(([film, pct]) => (
+                    <div
+                      key={film}
+                      className="flex items-center justify-between text-sm"
+                    >
+                      <span className="text-[var(--color-text-secondary)]">
+                        {film}
+                      </span>
+                      <span
+                        className="font-mono font-semibold"
+                        style={{
+                          color:
+                            pct !== null && pct >= 85
+                              ? "var(--color-status-verified)"
+                              : "var(--color-text-primary)",
+                        }}
+                      >
+                        {pct !== null ? `${pct}%` : "—"}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       {shotsForReview.length === 0 ? (
         <section
