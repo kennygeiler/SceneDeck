@@ -51,3 +51,7 @@ settings.local.json
 
 # pipeline output (video clips, thumbnails)
 pipeline/output/
+
+# video files
+*.mov
+*.mp4
