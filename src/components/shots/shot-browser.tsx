@@ -14,7 +14,6 @@ import { ExportButton } from "@/components/export/export-button";
 import { ShotCard } from "@/components/shots/shot-card";
 import { buttonVariants } from "@/components/ui/button";
 import {
-  getFramingDisplayName,
   getShotSizeDisplayName,
 } from "@/lib/shot-display";
 import type { ShotWithDetails } from "@/lib/types";

@@ -77,7 +77,6 @@ export async function POST(request: NextRequest) {
     const result = await response.json();
     const text =
       result.candidates?.[0]?.content?.parts
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ?.map((p: Record<string, unknown>) => p.text)
         .join("") ?? "No response generated.";
 

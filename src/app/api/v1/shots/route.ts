@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil(shots.length / limit),
       },
     });
-  } catch (error) {
+  } catch {
     return Response.json(
       { error: "Failed to fetch shots" },
       { status: 500 },

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, Suspense, lazy } from "react";
-import type { VisualizationData, VizShot } from "@/lib/types";
+import { useState, useMemo } from "react";
+import type { VisualizationData } from "@/lib/types";
 
 import { ChordDiagram } from "./chord-diagram";
 import { CompositionScatter } from "./composition-scatter";

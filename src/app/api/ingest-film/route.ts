@@ -6,7 +6,6 @@ import { NextResponse } from "next/server";
 import { db, schema } from "@/db";
 import { generateTextEmbedding } from "@/db/embeddings";
 import {
-  type ClassifiedShot,
   detectShots,
   extractAndUpload,
   classifyShot,
@@ -14,7 +13,6 @@ import {
   sanitize,
   roundTime,
 } from "@/lib/ingest-pipeline";
-import { buildS3Key } from "@/lib/s3";
 import { searchTmdbMovieId, fetchTmdbMovieDetails, fetchTmdbCast } from "@/lib/tmdb";
 
 export const runtime = "nodejs";

@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil(films.length / limit),
       },
     });
-  } catch (error) {
+  } catch {
     return Response.json(
       { error: "Failed to fetch films" },
       { status: 500 },

@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import { eq, and, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import { db, schema } from "@/db";

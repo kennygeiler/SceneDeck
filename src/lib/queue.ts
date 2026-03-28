@@ -3,7 +3,7 @@
 // Uses the pipeline_jobs table in Neon — no Redis needed at this scale.
 // ---------------------------------------------------------------------------
 
-import { eq, and, sql, count } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 
 import { db, schema } from "@/db";
 import type { PipelineJob } from "@/db/schema";

@@ -186,12 +186,6 @@ function useETAs(state: PipelineState, elapsed: number) {
     return sum + (step?.duration ?? est);
   }, 0);
 
-  // Pacing: compare elapsed to where we should be
-  // "where we should be" = proportion of completed work * total estimate
-  const completedSteps = steps.filter((s) => s.status === "complete");
-  const completedTime = completedSteps.reduce((s, st) => s + (st.duration ?? 0), 0);
-  const expectedElapsed = completedTime + (totalRemaining > 0 ? (elapsed - completedTime) : elapsed);
-
   let pacing: "green" | "yellow" | "red" = "green";
   if (totalEstimate > 0) {
     const ratio = elapsed / Math.max(totalEstimate, 1);

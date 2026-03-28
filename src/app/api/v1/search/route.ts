@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
       })),
       total: shots.length,
     });
-  } catch (error) {
+  } catch {
     return Response.json(
       { error: "Search failed" },
       { status: 500 },
