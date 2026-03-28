@@ -33,9 +33,16 @@ type ClassifiedShot = {
   location: string;
   interior_exterior: string;
   time_of_day: string;
+  confidence: number;
 };
 
 type DetectedSplit = { start: number; end: number; index: number };
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const CONFIDENCE_REVIEW_THRESHOLD = 0.7;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -217,6 +224,7 @@ function fallbackClassification(): ClassifiedShot {
     description: "Classification unavailable", mood: "neutral", lighting: "unknown",
     subjects: [], scene_title: "Unclassified", scene_description: "", location: "unknown",
     interior_exterior: "interior", time_of_day: "day",
+    confidence: 0.3,
   };
 }
 
@@ -257,7 +265,9 @@ Use standard cinematography taxonomy values. Return ONLY valid JSON.`;
       text = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
       const match = text.match(/\{[\s\S]*\}/);
       if (!match) return fallbackClassification();
-      return JSON.parse(match[0]) as ClassifiedShot;
+      const parsed = JSON.parse(match[0]) as ClassifiedShot;
+      if (parsed.confidence == null) parsed.confidence = 0.85;
+      return parsed;
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
@@ -421,7 +431,8 @@ export async function ingestFilmHandler(req: Request, res: Response) {
       const thumbnailUrl = `/api/s3?key=${encodeURIComponent(asset.thumbnailKey)}`;
 
       const [shot] = await db.insert(schema.shots).values({ filmId, sceneId, sourceFile: path.basename(videoPath), startTc: split.start, endTc: split.end, duration: roundTime(split.end - split.start), videoUrl, thumbnailUrl }).returning({ id: schema.shots.id });
-      await db.insert(schema.shotMetadata).values({ shotId: shot.id, movementType: cls.movement_type, direction: cls.direction, speed: cls.speed, shotSize: cls.shot_size, angleVertical: cls.angle_vertical, angleHorizontal: cls.angle_horizontal, angleSpecial: cls.angle_special, durationCat: cls.duration_cat, isCompound: cls.is_compound, compoundParts: cls.compound_parts, classificationSource: "gemini" });
+      const reviewStatus = cls.confidence < CONFIDENCE_REVIEW_THRESHOLD ? "needs_review" : "unreviewed";
+      await db.insert(schema.shotMetadata).values({ shotId: shot.id, movementType: cls.movement_type, direction: cls.direction, speed: cls.speed, shotSize: cls.shot_size, angleVertical: cls.angle_vertical, angleHorizontal: cls.angle_horizontal, angleSpecial: cls.angle_special, durationCat: cls.duration_cat, isCompound: cls.is_compound, compoundParts: cls.compound_parts, classificationSource: "gemini", confidence: cls.confidence, reviewStatus });
       await db.insert(schema.shotSemantic).values({ shotId: shot.id, description: cls.description || null, subjects: cls.subjects ?? [], mood: cls.mood || null, lighting: cls.lighting || null });
       if (embeddings[i]) await db.insert(schema.shotEmbeddings).values({ shotId: shot.id, embedding: embeddings[i]!, searchText: searchTexts[i] });
 

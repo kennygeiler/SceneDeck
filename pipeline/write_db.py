@@ -6,10 +6,10 @@ import psycopg2
 from psycopg2.extras import Json
 
 try:
-    from .config import DATABASE_URL, require_env
+    from .config import CONFIDENCE_REVIEW_THRESHOLD, DATABASE_URL, require_env
     from .taxonomy import validate_taxonomy_slug
 except ImportError:
-    from config import DATABASE_URL, require_env
+    from config import CONFIDENCE_REVIEW_THRESHOLD, DATABASE_URL, require_env
     from taxonomy import validate_taxonomy_slug
 
 
@@ -91,6 +91,13 @@ def write_to_db(film_data: dict[str, Any], shots_data: list[dict[str, Any]]) -> 
                 shot_id = cursor.fetchone()[0]
                 inserted_shots += 1
 
+                confidence = shot.get("confidence")
+                review_status = (
+                    "needs_review"
+                    if confidence is not None and confidence < CONFIDENCE_REVIEW_THRESHOLD
+                    else "unreviewed"
+                )
+
                 cursor.execute(
                     """
                     INSERT INTO shot_metadata (
@@ -105,9 +112,11 @@ def write_to_db(film_data: dict[str, Any], shots_data: list[dict[str, Any]]) -> 
                         duration_cat,
                         is_compound,
                         compound_parts,
-                        classification_source
+                        classification_source,
+                        confidence,
+                        review_status
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         shot_id,
@@ -122,6 +131,8 @@ def write_to_db(film_data: dict[str, Any], shots_data: list[dict[str, Any]]) -> 
                         shot["is_compound"],
                         Json(shot.get("compound_parts", [])),
                         shot.get("classification_source", "gemini"),
+                        confidence,
+                        review_status,
                     ),
                 )
                 inserted_metadata += 1

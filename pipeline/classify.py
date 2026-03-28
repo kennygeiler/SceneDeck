@@ -49,6 +49,7 @@ DEFAULT_CLASSIFICATION = {
     "description": "",
     "mood": "",
     "lighting": "",
+    "confidence": 0.3,
 }
 
 _MOVEMENT_TYPE_VALUES = tuple(MOVEMENT_TYPES.keys())
@@ -166,27 +167,29 @@ def _normalize_compound_parts(payload: dict[str, Any]) -> list[dict[str, str]]:
 
 def _normalize_response(payload: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(DEFAULT_CLASSIFICATION)
-    normalized["movement_type"] = _validate_value(
-        payload, "movement_type", _MOVEMENT_TYPE_VALUES, "static"
-    )
-    normalized["direction"] = _validate_value(
-        payload, "direction", _DIRECTION_VALUES, "none"
-    )
-    normalized["speed"] = _validate_value(payload, "speed", _SPEED_VALUES, "moderate")
-    normalized["shot_size"] = _validate_value(
-        payload, "shot_size", _SHOT_SIZE_VALUES, "medium"
-    )
-    normalized["angle_vertical"] = _validate_value(
-        payload, "angle_vertical", _VERTICAL_ANGLE_VALUES, "eye_level"
-    )
-    normalized["angle_horizontal"] = _validate_value(
-        payload, "angle_horizontal", _HORIZONTAL_ANGLE_VALUES, "frontal"
-    )
+
+    # Track how many taxonomy fields fell back to defaults
+    _taxonomy_fields: list[tuple[str, tuple[str, ...], str | None]] = [
+        ("movement_type", _MOVEMENT_TYPE_VALUES, "static"),
+        ("direction", _DIRECTION_VALUES, "none"),
+        ("speed", _SPEED_VALUES, "moderate"),
+        ("shot_size", _SHOT_SIZE_VALUES, "medium"),
+        ("angle_vertical", _VERTICAL_ANGLE_VALUES, "eye_level"),
+        ("angle_horizontal", _HORIZONTAL_ANGLE_VALUES, "frontal"),
+        ("duration_cat", _DURATION_VALUES, "standard"),
+    ]
+
+    defaulted = 0
+    for key, allowed, default in _taxonomy_fields:
+        value = payload.get(key)
+        if value in allowed:
+            normalized[key] = value
+        else:
+            normalized[key] = default
+            defaulted += 1
+
     normalized["angle_special"] = _validate_value(
         payload, "angle_special", _SPECIAL_ANGLE_VALUES, None
-    )
-    normalized["duration_cat"] = _validate_value(
-        payload, "duration_cat", _DURATION_VALUES, "standard"
     )
     normalized["description"] = str(payload.get("description") or "").strip()
     normalized["mood"] = str(payload.get("mood") or "").strip()
@@ -195,6 +198,10 @@ def _normalize_response(payload: dict[str, Any]) -> dict[str, Any]:
     compound_parts = _normalize_compound_parts(payload)
     normalized["compound_parts"] = compound_parts
     normalized["is_compound"] = bool(payload.get("is_compound")) and bool(compound_parts)
+
+    # Confidence: start at 1.0, penalize each field that fell back to default
+    confidence = max(1.0 - defaulted * 0.12, 0.1)
+    normalized["confidence"] = round(confidence, 3)
 
     return normalized
 
