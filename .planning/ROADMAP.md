@@ -11,7 +11,7 @@ This milestone delivers phased hardening and alignment work traced to `.planning
 - [x] **Phase 1: Documentation & constraint alignment** — Kiln/AGENTS accuracy; Drizzle policy; onboarding scripts; naming
 - [x] **Phase 2: Correctness & schema integrity** — API auth crypto import; worker vs app Drizzle schema drift
 - [x] **Phase 3: Security & exposure** — LLM route abuse; API key transport; `process-scene` exposure; image remote patterns
-- [ ] **Phase 4: Rate limits & heavy-work boundaries** — Worker/RAG/agent Gemini limiting; semantic search fallback; `process-scene` stance vs AC-01/AC-20
+- [x] **Phase 4: Rate limits & heavy-work boundaries** — Worker/RAG/agent Gemini limiting; semantic search fallback; `process-scene` stance vs AC-01/AC-20
 - [ ] **Phase 5: Fragile modules** — Taxonomy TS/Python parity; D3 and large client components
 - [ ] **Phase 6: Tests & observability** — Baseline automated tests, CI, structured logging
 
@@ -110,10 +110,10 @@ Plans:
 
 Plans:
 
-- [ ] 04-01: Add rate limiting to `worker/src/ingest.ts` Gemini paths consistent with `src/lib/rate-limiter.ts` / `pipeline` patterns
-- [ ] 04-02: Add `acquireToken` (or shared wrapper) to `src/app/api/rag/route.ts` and `src/app/api/agent/chat/route.ts`
-- [ ] 04-03: Instrument and document `searchShots` vector failure fallback in `src/db/queries.ts`
-- [ ] 04-04: Finalize `process-scene` stance: relocate, feature-flag off serverless, or operator-only; update docs
+- [x] 04-01: Add rate limiting to `worker/src/ingest.ts` Gemini paths consistent with `src/lib/rate-limiter.ts` / `pipeline` patterns
+- [x] 04-02: Add `acquireToken` (or shared wrapper) to `src/app/api/rag/route.ts` and `src/app/api/agent/chat/route.ts`
+- [x] 04-03: Instrument and document `searchShots` vector failure fallback in `src/db/queries.ts`
+- [x] 04-04: Finalize `process-scene` stance: relocate, feature-flag off serverless, or operator-only; update docs
 
 ---
 
@@ -172,6 +172,6 @@ Plans:
 | 1 | Documentation & constraint alignment | 4/4 | Complete | 2026-04-07 |
 | 2 | Correctness & schema integrity | 2/2 | Complete | 2026-04-07 |
 | 3 | Security & exposure | 4/4 | Complete | 2026-04-07 |
-| 4 | Rate limits & heavy-work boundaries | 0/4 | Not started | — |
+| 4 | Rate limits & heavy-work boundaries | 4/4 | Complete | 2026-04-07 |
 | 5 | Fragile modules | 0/2 | Not started | — |
 | 6 | Tests & observability | 0/3 | Not started | — |

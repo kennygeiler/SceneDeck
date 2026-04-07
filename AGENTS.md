@@ -116,6 +116,12 @@ pnpm-workspace.yaml                   -- Workspace config (worker not yet integr
 .kiln/docs/codebase-state.md          -- Living inventory (rakim)
 ```
 
+## Rate limits & ingest boundaries (AC-07, AC-20)
+
+- **Gemini (AC-07):** `acquireToken()` from `src/lib/rate-limiter.ts` (~130 RPM token bucket) runs before Gemini HTTP calls in `ingest-pipeline.ts`, `object-detection.ts` (enrichment), `api/agent/chat`, and `api/rag`. The TS ingest **worker** mirrors the same limits in `worker/src/rate-limiter.ts` for shot classification.
+- **Semantic search:** `src/db/queries.ts` `searchShots` uses pgvector when `shot_embeddings` has data; otherwise or on failure it falls back to ILIKE. Logs are prefixed **`[searchShots]`** — monitor in production; run `pnpm db:embeddings` to populate vectors after ingest.
+- **Canonical long-running ingest:** Use the **Express worker** (`worker/`, SSE) or **Python pipeline** (`pipeline/`) for film-scale jobs. **`/api/process-scene`** is **off on Vercel**; **`/api/ingest-film/stream`** still targets a full Node host with local `videoPath` and is not a substitute for the worker on small serverless timeouts.
+
 ## Production hardening (public deploys)
 
 Optional env vars (see `.planning/codebase/INTEGRATIONS.md`):

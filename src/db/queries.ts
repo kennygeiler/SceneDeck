@@ -604,11 +604,19 @@ export async function searchShots(query: string, options?: SearchShotsOptions) {
       options,
     );
 
-    if (semanticResults) {
+    if (semanticResults !== null) {
       return semanticResults;
     }
+
+    console.warn(
+      "[searchShots] No rows in shot_embeddings (empty index). Using ILIKE text fallback. " +
+        "Run `pnpm db:embeddings` after ingesting shots for vector similarity; see AGENTS.md (AC-07 / search).",
+    );
   } catch (error) {
-    console.error("Semantic search failed. Falling back to ILIKE.", error);
+    console.error(
+      "[searchShots] Vector semantic search failed; using ILIKE fallback. Operators: check pgvector extension, embedding dimensions, and OpenAI quota.",
+      error,
+    );
   }
 
   return searchShotsWithIlike(normalizedQuery);

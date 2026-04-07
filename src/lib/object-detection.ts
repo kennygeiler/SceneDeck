@@ -7,6 +7,7 @@ import Replicate from "replicate";
 import { eq } from "drizzle-orm";
 
 import { db, schema } from "@/db";
+import { acquireToken } from "@/lib/rate-limiter";
 import type {
   ShotObjectAttributes,
   ShotObjectKeyframe,
@@ -1033,6 +1034,7 @@ export async function enrichWithGemini(
   ]);
   const prompt = buildGeminiPrompt(filmContext, tracks, castList);
 
+  await acquireToken();
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_OBJECT_MODEL}:generateContent`,
     {

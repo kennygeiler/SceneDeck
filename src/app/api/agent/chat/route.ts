@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { AGENT_SYSTEM_PROMPT } from "@/lib/agent-system-prompt";
 import { TOOL_DECLARATIONS, executeToolCall } from "@/lib/agent-tools";
 import { rejectIfLlmRouteGated } from "@/lib/llm-route-gate";
+import { acquireToken } from "@/lib/rate-limiter";
 import { retrieve, formatRetrievalContext } from "@/lib/rag-retrieval";
 
 interface ChatMessage {
@@ -32,6 +33,7 @@ async function callGemini(contents: Array<Record<string, unknown>>) {
   const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) throw new Error("GOOGLE_API_KEY is not set");
 
+  await acquireToken();
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
   const body = {

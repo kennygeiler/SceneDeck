@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import type { Request, Response } from "express";
 
 import { db, schema } from "./db.js";
+import { acquireToken } from "./rate-limiter.js";
 import { uploadToS3, buildS3Key } from "./s3.js";
 
 // ---------------------------------------------------------------------------
@@ -248,6 +249,7 @@ Timecode: ${formatTimecode(split.start)} - ${formatTimecode(split.end)} (${(spli
 Return JSON: { "movement_type", "direction", "speed", "shot_size", "angle_vertical", "angle_horizontal", "angle_special", "duration_cat", "is_compound", "compound_parts", "description", "mood", "lighting", "subjects", "scene_title", "scene_description", "location", "interior_exterior", "time_of_day" }
 Use standard cinematography taxonomy values. Return ONLY valid JSON.`;
 
+      await acquireToken();
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

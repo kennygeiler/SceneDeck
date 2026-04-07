@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 
 import { rejectIfLlmRouteGated } from "@/lib/llm-route-gate";
+import { acquireToken } from "@/lib/rate-limiter";
 import { retrieve, formatRetrievalContext } from "@/lib/rag-retrieval";
 
 const SYSTEM_PROMPT = `You are MetroVision, an expert cinematography analysis assistant. You have access to a database of classified film shots and a knowledge corpus of cinematography textbooks, research papers, and critical analysis.
@@ -46,6 +47,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    await acquireToken();
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {

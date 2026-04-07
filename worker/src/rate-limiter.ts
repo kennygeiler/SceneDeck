@@ -1,11 +1,10 @@
 /**
  * Token-bucket rate limiter for Gemini API calls (AC-07).
- * Target: 130 RPM (Tier 1 safe margin).
- * Worker copy: `worker/src/rate-limiter.ts` — keep limits in sync.
+ * Keep MAX_TOKENS / REFILL_INTERVAL_MS in sync with ../../src/lib/rate-limiter.ts.
  */
 
 const MAX_TOKENS = 130;
-const REFILL_INTERVAL_MS = 60_000; // 1 minute
+const REFILL_INTERVAL_MS = 60_000;
 
 let tokens = MAX_TOKENS;
 let lastRefill = Date.now();
@@ -30,7 +29,6 @@ export async function acquireToken(): Promise<void> {
     return;
   }
 
-  // Wait until a token is available
   const waitMs = Math.ceil(REFILL_INTERVAL_MS / MAX_TOKENS);
   await new Promise((resolve) => setTimeout(resolve, waitMs));
   refill();

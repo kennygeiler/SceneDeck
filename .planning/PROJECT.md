@@ -16,10 +16,10 @@ Trustworthy shot metadata and search—taxonomy, ingest, and APIs stay aligned s
 - [x] **REQ-CORR-01** — `generateApiKey` / `src/lib/api-auth.ts` uses explicit `node:crypto` (`randomUUID`), not the global `crypto` binding. *(Phase 2, 02-01, 2026-04-07)*
 - [x] **REQ-SCHEMA-01** — App and worker cannot drift silently on shared tables (`pnpm check:schema-drift`); `shot_metadata` gap explicit via script warning + CONCERNS. *(Phase 2, 02-02, 2026-04-07)*
 - [x] **REQ-SEC-01** — LLM routes (`/api/agent/chat`, `/api/rag`) support optional `METROVISION_LLM_GATE_SECRET`; v1 API keys Bearer-first with legacy query opt-in; `process-scene` blocked on Vercel + optional secret; image remote patterns narrowed. *(Phase 3, 03-01–03-04, 2026-04-07)*
+- [x] **REQ-RL-01** — Gemini paths use shared `acquireToken` / worker mirror; `searchShots` logs vector fallback; AGENTS documents limits and canonical ingest (AC-07, AC-20). *(Phase 4, 04-01–04-04, 2026-04-07)*
 
 ### Active
 
-- [ ] **REQ-RL-01** — All Gemini (and comparable) outbound calls respect the same rate-limiting policy (AC-07).
 - [ ] **REQ-QA-01** — Automated tests and CI cover critical API, worker, and taxonomy parity paths.
 
 ### Out of Scope (for this roadmap)
@@ -45,4 +45,4 @@ Phased delivery is driven by `.planning/codebase/CONCERNS.md` (audit 2026-04-07)
 | Drizzle version | Document `^0.45.1` as standard (AC-14) | ✓ Good |
 
 ---
-*Last updated: 2026-04-07 after Phase 3 execution (REQ-SEC-01 validated)*
+*Last updated: 2026-04-07 after Phase 4 execution (REQ-RL-01 validated)*
