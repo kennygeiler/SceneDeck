@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node --experimental-specifier-resolution=node dist/server.js",
     "build": "tsc",
-    "dev": "tsx watch src/server.ts"
+    "dev": "tsx watch src/server.ts",
+    "db:clear": "pnpm -C .. run db:clear"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1015.0",
