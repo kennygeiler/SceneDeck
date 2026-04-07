@@ -118,9 +118,13 @@ worker/src/db.ts                      -- Drizzle client; schema from `src/db/sch
 # Python Pipeline
 pipeline/main.py                      -- CLI entry point
 pipeline/classify.py                  -- Gemini classification
-pipeline/shot_detect.py               -- PySceneDetect wrapper
+pipeline/shot_detect.py               -- PySceneDetect wrapper (+ env ensemble parity with TS)
+pipeline/transnet_cuts.py             -- Optional TransNet V2 → cuts JSON (`requirements-transnet.txt`)
 pipeline/extract_clips.py             -- FFmpeg frame/clip extraction
 pipeline/write_db.py                  -- Postgres writes
+eval/gold/template.json               -- Gold eval file shape (boundaries + optional shots/slots)
+scripts/eval-pipeline.ts              -- Boundary (F1) + optional slot accuracy vs gold JSON
+scripts/export-film-eval.ts           -- Export a film’s DB shots to predicted JSON for eval
 
 # Config
 package.json                          -- Root deps (`name`: metrovision)
@@ -147,6 +151,8 @@ vitest.config.ts                      -- Unit tests (`src/lib/__tests__/`)
 
 - **Ingest classification models:** `GEMINI_CLASSIFY_MODEL` (default `gemini-2.5-flash`) and optional `GEMINI_ADJUDICATE_MODEL` (second pass on JSON parse failure, e.g. `gemini-2.5-pro`). **Shot boundaries (Phase D):** `METROVISION_BOUNDARY_DETECTOR` — default `pyscenedetect_cli` (single PySceneDetect run, `content` or `adaptive` from request); set to `pyscenedetect_ensemble_pyscene` for dual PySceneDetect + NMS (matches Python `pipeline/shot_detect.py` when the same env is set). Optional **`METROVISION_EXTRA_BOUNDARY_CUTS_JSON`** (path to JSON array of cut times in seconds, e.g. offline TransNet). **`METROVISION_BOUNDARY_MERGE_GAP_SEC`** (default `0.35`) merges nearby cuts. **Long-shot triage:** `METROVISION_LONG_SHOT_REVIEW_SECONDS` (default `90`) sets `review_status` to `needs_review` for automated long takes and for `gemini_fallback` rows.
 - **Visual similarity (Phase D):** Table `shot_image_embeddings` (768-d CLIP via Replicate). **`pnpm db:embeddings:image`** requires **`REPLICATE_API_TOKEN`**, public **`NEXT_PUBLIC_SITE_URL`** (so `/api/s3` thumbnail URLs resolve), and optional **`REPLICATE_CLIP_EMBEDDING_MODEL`**. **`GET /api/shots/[id]/similar-visual`** returns nearest neighbors by cosine distance.
+- **TransNet cuts → ingest:** In `pipeline/.venv`, `pip install -r requirements-transnet.txt`, then `python -m pipeline.transnet_cuts /path/film.mp4 -o cuts.json`. **Worker / ingest JSON** accepts **`extraBoundaryCuts`: number[]** (merged with **`METROVISION_EXTRA_BOUNDARY_CUTS_JSON`**). Prefer **`METROVISION_BOUNDARY_DETECTOR=pyscenedetect_ensemble_pyscene`** so PyScene and TransNet cuts fuse via NMS.
+- **Eval (gold vs predicted):** Human writes **`eval/gold/<film>.json`** (`cutsSec`, optional `shots` with `framing` / `shotSize`). After a pipeline run, **`pnpm eval:export-film -- <filmId>`** emits **`eval/predicted/<id>.json`**. **`pnpm eval:pipeline -- eval/gold/foo.json eval/predicted/foo.json --tol 0.5 --slots`** prints precision/recall/F1 and optional slot accuracy. Human steps: label cuts in an editor (or tool), export predictions, re-run as ingest improves.
 - **Gemini (AC-07):** `acquireToken()` from `src/lib/rate-limiter.ts` (~130 RPM token bucket) runs before Gemini HTTP calls in `ingest-pipeline.ts` (used by Next ingest stream **and** the Express worker), `object-detection.ts` (enrichment). `api/agent/chat` and `api/rag` should align with the same limiter where they call Gemini.
 - **Semantic search:** `src/db/queries.ts` `searchShots` uses pgvector when `shot_embeddings` has data; otherwise or on failure it falls back to ILIKE. Logs are prefixed **`[searchShots]`** — monitor in production; run `pnpm db:embeddings` to populate vectors after ingest.
 - **Canonical long-running ingest:** Use the **Express worker** (`worker/`, SSE) or **Python pipeline** (`pipeline/`) for film-scale jobs. **`/api/process-scene`** is **off on Vercel**; **`/api/ingest-film/stream`** still targets a full Node host with local `videoPath` and is not a substitute for the worker on small serverless timeouts.

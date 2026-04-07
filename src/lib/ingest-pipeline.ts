@@ -6,10 +6,12 @@ import path from "node:path";
 import { uploadToS3, buildS3Key } from "./s3";
 import { acquireToken } from "./rate-limiter";
 import {
+  boundaryExtraTag,
   boundaryMergeEpsilonSec,
   boundaryModeFromEnv,
   clusterCutTimes,
   loadExtraBoundaryCuts,
+  mergeBoundaryCutSources,
   shouldRunPysceneEnsemble,
 } from "./boundary-ensemble";
 import {
@@ -196,6 +198,11 @@ export type DetectShotsContext = {
   boundaryLabel: string;
 };
 
+export type DetectShotsForIngestOptions = {
+  /** Hard-cut seconds from TransNet / human labeler, merged with file env (`METROVISION_EXTRA_BOUNDARY_CUTS_JSON`). */
+  inlineExtraBoundaryCuts?: number[] | null;
+};
+
 /** Phase D: dual PySceneDetect + NMS, optional `METROVISION_EXTRA_BOUNDARY_CUTS_JSON`. */
 export async function detectShotsEnsemble(
   videoPath: string,
@@ -234,8 +241,13 @@ export async function detectShotsEnsemble(
 export async function detectShotsForIngest(
   videoPath: string,
   requestedDetector: "content" | "adaptive",
+  options?: DetectShotsForIngestOptions,
 ): Promise<{ splits: DetectedSplit[]; ctx: DetectShotsContext }> {
-  const extra = loadExtraBoundaryCuts();
+  const fileCuts = loadExtraBoundaryCuts();
+  const inlineCuts = options?.inlineExtraBoundaryCuts ?? [];
+  const extra = mergeBoundaryCutSources(fileCuts, inlineCuts);
+  const tagSuffix = boundaryExtraTag(fileCuts.length, inlineCuts.length);
+
   if (shouldRunPysceneEnsemble()) {
     const splits = await detectShotsEnsemble(videoPath, extra);
     return {
@@ -244,10 +256,7 @@ export async function detectShotsForIngest(
         usedEnsemble: true,
         extraCutsMerged: extra.length,
         resolvedDetector: "ensemble",
-        boundaryLabel:
-          extra.length > 0
-            ? "pyscenedetect_ensemble_pyscene+extra"
-            : "pyscenedetect_ensemble_pyscene",
+        boundaryLabel: `pyscenedetect_ensemble_pyscene${tagSuffix}`,
       },
     };
   }
@@ -279,12 +288,11 @@ export async function detectShotsForIngest(
   }
 
   const mode = boundaryModeFromEnv();
-  const boundaryLabel =
-    extra.length > 0
-      ? `${mode}_${requestedDetector}+extra`
-      : mode === "pyscenedetect_cli"
-        ? `pyscenedetect_cli_${requestedDetector}`
-        : `${mode}_${requestedDetector}`;
+  const baseLabel =
+    mode === "pyscenedetect_cli"
+      ? `pyscenedetect_cli_${requestedDetector}`
+      : `${mode}_${requestedDetector}`;
+  const boundaryLabel = `${baseLabel}${tagSuffix}`;
 
   return {
     splits,

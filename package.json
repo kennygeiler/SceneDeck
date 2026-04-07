@@ -19,7 +19,9 @@
     "db:studio": "drizzle-kit studio",
     "batch-worker": "python3 -m pipeline.batch_worker",
     "corpus:ingest": "tsx src/db/ingest-corpus.ts",
-    "embeddings:scenes": "tsx src/db/generate-scene-embeddings.ts"
+    "embeddings:scenes": "tsx src/db/generate-scene-embeddings.ts",
+    "eval:export-film": "tsx scripts/export-film-eval.ts",
+    "eval:pipeline": "tsx scripts/eval-pipeline.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1015.0",

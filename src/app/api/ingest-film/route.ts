@@ -15,6 +15,7 @@ import {
 } from "@/lib/ingest-pipeline";
 import { searchTmdbMovieId, fetchTmdbMovieDetails, fetchTmdbCast } from "@/lib/tmdb";
 import { planContiguousScenesByNormalizedTitle } from "@/lib/scene-grouping";
+import { parseInlineBoundaryCuts } from "@/lib/boundary-ensemble";
 import {
   buildIngestProvenance,
   initialReviewStatusForShot,
@@ -31,6 +32,8 @@ type IngestRequest = {
   year: number;
   concurrency?: number;
   detector?: "content" | "adaptive";
+  /** TransNet / human hard cuts (seconds), merged with METROVISION_EXTRA_BOUNDARY_CUTS_JSON. */
+  extraBoundaryCuts?: number[];
 };
 
 export async function POST(request: Request) {
@@ -49,9 +52,11 @@ export async function POST(request: Request) {
     const filmSlug = `${sanitize(body.filmTitle)}-${body.year}`;
     const videoPath = path.resolve(body.videoPath);
 
+    const inlineCuts = parseInlineBoundaryCuts(body.extraBoundaryCuts);
     const { splits, ctx: detectCtx } = await detectShotsForIngest(
       videoPath,
       detector,
+      inlineCuts ? { inlineExtraBoundaryCuts: inlineCuts } : undefined,
     );
 
     // TMDB

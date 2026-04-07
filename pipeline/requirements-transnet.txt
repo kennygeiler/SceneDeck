@@ -1,0 +1,3 @@
+# Optional: TransNet V2 PyTorch (large; install in pipeline/.venv when needed).
+# python -m venv .venv && source .venv/bin/activate && pip install -r requirements-transnet.txt
+transnetv2-pytorch>=1.0.5

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1.0",
+  "filmTitle": "Annotator notes only — optional",
+  "notes": "Interior hard cuts in seconds (each shot transition). Omit 0 and total duration. For slots, shots[] should align to the same timebase as the source video used for cutsSec.",
+  "cutsSec": [12.4, 48.0],
+  "shots": [
+    {
+      "startSec": 0,
+      "endSec": 12.4,
+      "framing": "center",
+      "shotSize": "wide_shot"
+    },
+    {
+      "startSec": 12.4,
+      "endSec": 48.0,
+      "framing": "two_shot",
+      "shotSize": "medium_shot"
+    }
+  ]
+}

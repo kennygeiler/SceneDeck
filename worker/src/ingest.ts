@@ -16,7 +16,10 @@ import {
   roundTime,
   runCommand,
 } from "../../src/lib/ingest-pipeline.js";
-import { shouldRunPysceneEnsemble } from "../../src/lib/boundary-ensemble.js";
+import {
+  parseInlineBoundaryCuts,
+  shouldRunPysceneEnsemble,
+} from "../../src/lib/boundary-ensemble.js";
 import {
   searchTmdbMovieId,
   fetchTmdbMovieDetails,
@@ -104,9 +107,11 @@ export async function ingestFilmHandler(req: Request, res: Response) {
       message: `Detecting shots — ${detectLabel}`,
     });
     const t0 = Date.now();
+    const inlineCuts = parseInlineBoundaryCuts(body.extraBoundaryCuts);
     const { splits, ctx: detectCtx } = await detectShotsForIngest(
       videoPath,
       detector,
+      inlineCuts ? { inlineExtraBoundaryCuts: inlineCuts } : undefined,
     );
     console.log(`[worker] Detection complete: ${splits.length} shots`);
     emit({

@@ -18,7 +18,10 @@ import {
 } from "@/lib/ingest-pipeline";
 import { searchTmdbMovieId, fetchTmdbMovieDetails, fetchTmdbCast } from "@/lib/tmdb";
 import { planContiguousScenesByNormalizedTitle } from "@/lib/scene-grouping";
-import { shouldRunPysceneEnsemble } from "@/lib/boundary-ensemble";
+import {
+  parseInlineBoundaryCuts,
+  shouldRunPysceneEnsemble,
+} from "@/lib/boundary-ensemble";
 import {
   buildIngestProvenance,
   initialReviewStatusForShot,
@@ -74,9 +77,11 @@ export async function POST(request: Request) {
           message: `Analyzing shot boundaries — ${detectMessage}`,
         });
         const t0 = Date.now();
+        const inlineCuts = parseInlineBoundaryCuts(body.extraBoundaryCuts);
         const { splits, ctx: detectCtx } = await detectShotsForIngest(
           videoPath,
           detector,
+          inlineCuts ? { inlineExtraBoundaryCuts: inlineCuts } : undefined,
         );
         const detectDuration = (Date.now() - t0) / 1000;
         emit({ type: "step", step: "detect", status: "complete", message: `Found ${splits.length} shots`, duration: detectDuration });
