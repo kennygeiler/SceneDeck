@@ -181,7 +181,7 @@ export const shotEmbeddings = pgTable("shot_embeddings", {
   searchText: text("search_text"),
 });
 
-/** Phase D: CLIP-style thumbnail vectors for visual similarity (separate from text/RAG embeddings). */
+/** Phase D: thumbnail CLIP vectors (768-d default model) for visual similarity—not taxonomy truth. */
 export const shotImageEmbeddings = pgTable("shot_image_embeddings", {
   shotId: uuid("shot_id")
     .references(() => shots.id, { onDelete: "cascade" })
