@@ -17,7 +17,8 @@ Trustworthy shot metadata and search—taxonomy, ingest, and APIs stay aligned s
 ### Active
 
 - [x] **REQ-DOC-01** — Kiln/architecture docs and `AGENTS.md` match the live repo (no phantom routes or scripts). *(Phase 1, 2026-04-07)*
-- [ ] **REQ-SCHEMA-01** — App and worker database shapes cannot drift silently.
+- [ ] **REQ-CORR-01** — `generateApiKey` / `src/lib/api-auth.ts` uses explicit `node:crypto` (`randomUUID`), not the global `crypto` binding.
+- [ ] **REQ-SCHEMA-01** — App and worker database shapes cannot drift silently (automated check for shared tables; known `shot_metadata` gap documented).
 - [ ] **REQ-SEC-01** — Public LLM-heavy endpoints have an explicit abuse/cost posture; local-only routes are not deployable by mistake.
 - [ ] **REQ-RL-01** — All Gemini (and comparable) outbound calls respect the same rate-limiting policy (AC-07).
 - [ ] **REQ-QA-01** — Automated tests and CI cover critical API, worker, and taxonomy parity paths.
@@ -45,4 +46,4 @@ Phased delivery is driven by `.planning/codebase/CONCERNS.md` (audit 2026-04-07)
 | Drizzle version | Document `^0.45.1` as standard (AC-14) | ✓ Good |
 
 ---
-*Last updated: 2026-04-07 after Phase 1 execution*
+*Last updated: 2026-04-07 after Phase 2 planning (REQ-CORR-01 added)*

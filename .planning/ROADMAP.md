@@ -60,8 +60,8 @@ Plans:
 
 Plans:
 
-- [ ] 02-01: Fix `src/lib/api-auth.ts` imports and UUID generation per Node `crypto` best practice
-- [ ] 02-02: Implement schema sharing or automated drift check between `src/db/schema.ts` and `worker/src/schema.ts`
+- [ ] 02-01: Fix `src/lib/api-auth.ts` imports and UUID generation per Node `crypto` best practice _(planned — see `.planning/phases/02-correctness-schema-integrity/`)_
+- [ ] 02-02: Align worker `films.source_url`, add `check:schema-drift`, document `shot_metadata` gap _(planned — same dir)_
 
 ---
 

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 1 complete — run /gsd-plan-phase 2 or /gsd-execute-phase 2
-last_updated: "2026-04-07T20:00:00.000Z"
-last_activity: 2026-04-07 -- Phase 1 executed (4/4 plans)
+stopped_at: Phase 2 planned — run /gsd-execute-phase 2
+last_updated: "2026-04-07T21:15:00.000Z"
+last_activity: 2026-04-07 -- Phase 2 planning complete
 progress:
   total_phases: 6
   completed_phases: 1
-  total_plans: 4
+  total_plans: 6
   completed_plans: 4
   percent: 17
 ---
@@ -18,7 +18,7 @@ progress:
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-04-07)
+See: `.planning/PROJECT.md` (updated 2026-04-07 — REQ-CORR-01, REQ-SCHEMA-01)
 
 **Core value:** Trustworthy shot metadata and search—taxonomy, ingest, and APIs stay aligned.
 **Current focus:** Phase 2 — Correctness & schema integrity
@@ -26,9 +26,9 @@ See: `.planning/PROJECT.md` (updated 2026-04-07)
 ## Current Position
 
 Phase: 2 of 6 (Correctness & schema integrity)
-Plan: 0 of 2 in current phase
-Status: Ready to plan
-Last activity: 2026-04-07 -- Phase 1 complete
+Plan: 2 of 2 planned (0 executed in Phase 2)
+Status: Ready to execute
+Last activity: 2026-04-07 -- Phase 2 planning complete
 
 Progress: [██░░░░░░░░] ~17%
 
