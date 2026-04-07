@@ -70,6 +70,13 @@ export function ExportPanel({
     });
   }
 
+  function handleDownloadWithManifest() {
+    triggerExportDownload("json", {
+      framing: framing !== "all" ? framing : undefined,
+      director: director !== "all" ? director : undefined,
+    }, { includeManifest: true });
+  }
+
   return (
     <section className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
       <div
@@ -229,8 +236,26 @@ export function ExportPanel({
             <Download aria-hidden="true" className="h-4 w-4" />
             Download {format.toUpperCase()}
           </button>
+          <button
+            type="button"
+            onClick={handleDownloadWithManifest}
+            className={cn(
+              buttonVariants({ variant: "outline", size: "lg" }),
+              "rounded-full border-[var(--color-border-default)] px-5",
+            )}
+          >
+            <FileJson2 aria-hidden="true" className="h-4 w-4" />
+            JSON + manifest
+          </button>
           <p className="text-sm text-[var(--color-text-secondary)]">
-            Includes film, taxonomy, timing, and semantic metadata fields.
+            Rows are one detected shot; autoGroupedScene* is model navigation only (
+            <a
+              href="https://github.com/kennygeiler/SceneDeck/blob/main/.planning/research/pipeline-whitepaper.md"
+              className="text-[var(--color-text-accent)] underline-offset-2 hover:underline"
+            >
+              whitepaper
+            </a>
+            ). JSON + manifest adds pipeline version, taxonomy hash, and per-film ingest provenance.
           </p>
         </div>
       </div>

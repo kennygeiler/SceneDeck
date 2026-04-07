@@ -18,6 +18,8 @@
     "../src/lib/tmdb.ts",
     "../src/lib/openai-embedding.ts",
     "../src/lib/scene-grouping.ts",
+    "../src/lib/pipeline-provenance.ts",
+    "../src/lib/boundary-ensemble.ts",
     "../src/lib/taxonomy.ts",
     "../src/db/schema.ts"
   ]

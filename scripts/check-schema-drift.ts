@@ -28,6 +28,7 @@ const tables: [string, object][] = [
   ["shot_metadata", app.shotMetadata],
   ["shot_semantic", app.shotSemantic],
   ["shot_embeddings", app.shotEmbeddings],
+  ["shot_image_embeddings", app.shotImageEmbeddings],
 ];
 
 let ok = true;

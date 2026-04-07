@@ -137,6 +137,7 @@ export type ShotWithDetails = {
 
 export type ExportShotRecord = {
   shotId: string;
+  filmId: string;
   filmTitle: string;
   director: string;
   year: number | null;
@@ -159,6 +160,10 @@ export type ExportShotRecord = {
   angleHorizontal: HorizontalAngleSlug;
   durationCategory: DurationCategorySlug;
   classificationSource: string | null;
+  reviewStatus: string | null;
+  /** Auto-derived scene group from model (not screenplay truth). */
+  autoGroupedSceneTitle: string | null;
+  autoGroupedSceneNumber: number | null;
   description: string | null;
   subjects: string;
   mood: string | null;

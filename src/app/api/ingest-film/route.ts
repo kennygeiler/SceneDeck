@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { db, schema } from "@/db";
 import { generateTextEmbedding } from "@/db/embeddings";
 import {
-  detectShots,
+  detectShotsForIngest,
   extractAndUpload,
   classifyShot,
   processInParallel,
@@ -15,6 +15,10 @@ import {
 } from "@/lib/ingest-pipeline";
 import { searchTmdbMovieId, fetchTmdbMovieDetails, fetchTmdbCast } from "@/lib/tmdb";
 import { planContiguousScenesByNormalizedTitle } from "@/lib/scene-grouping";
+import {
+  buildIngestProvenance,
+  initialReviewStatusForShot,
+} from "@/lib/pipeline-provenance";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,8 +49,10 @@ export async function POST(request: Request) {
     const filmSlug = `${sanitize(body.filmTitle)}-${body.year}`;
     const videoPath = path.resolve(body.videoPath);
 
-    // Detect shots
-    const splits = await detectShots(videoPath, detector);
+    const { splits, ctx: detectCtx } = await detectShotsForIngest(
+      videoPath,
+      detector,
+    );
 
     // TMDB
     const tmdbId = await searchTmdbMovieId(body.filmTitle, body.year);
@@ -58,10 +64,10 @@ export async function POST(request: Request) {
       return extractAndUpload(videoPath, split, filmSlug);
     });
 
-    // Classify (parallel)
-    const classifications = await processInParallel(splits, concurrency, async (split) => {
+    const classifyResults = await processInParallel(splits, concurrency, async (split) => {
       return classifyShot(videoPath, split, body.filmTitle, body.director, body.year, castList);
     });
+    const classifications = classifyResults.map((r) => r.classification);
 
     // Upsert film
     const [existingFilm] = await db
@@ -132,13 +138,17 @@ export async function POST(request: Request) {
       const split = splits[i];
       const asset = assets[i];
       const classification = classifications[i];
+      const clsMeta = classifyResults[i];
       const sceneId = sceneIdByShotIndex.get(i) ?? null;
+      const durationSec = roundTime(split.end - split.start);
+      const reviewStatus = initialReviewStatusForShot(durationSec, clsMeta.usedFallback);
+      const classificationSource = clsMeta.usedFallback ? "gemini_fallback" : "gemini";
       const videoUrl = `/api/s3?key=${encodeURIComponent(asset.clipKey)}`;
       const thumbnailUrl = `/api/s3?key=${encodeURIComponent(asset.thumbnailKey)}`;
 
       const [insertedShot] = await db.insert(schema.shots).values({
         filmId, sceneId, sourceFile: path.basename(body.videoPath),
-        startTc: split.start, endTc: split.end, duration: roundTime(split.end - split.start),
+        startTc: split.start, endTc: split.end, duration: durationSec,
         videoUrl, thumbnailUrl,
       }).returning({ id: schema.shots.id });
 
@@ -156,7 +166,8 @@ export async function POST(request: Request) {
         angleVertical: classification.angle_vertical as typeof schema.shotMetadata.$inferInsert.angleVertical,
         angleHorizontal: classification.angle_horizontal as typeof schema.shotMetadata.$inferInsert.angleHorizontal,
         durationCat: classification.duration_cat as typeof schema.shotMetadata.$inferInsert.durationCat,
-        classificationSource: "gemini",
+        classificationSource,
+        reviewStatus,
       });
 
       await db.insert(schema.shotSemantic).values({
@@ -177,6 +188,16 @@ export async function POST(request: Request) {
 
       shotCount++;
     }
+
+    await db
+      .update(schema.films)
+      .set({
+        ingestProvenance: buildIngestProvenance({
+          detector: detectCtx.resolvedDetector,
+          boundaryDetector: detectCtx.boundaryLabel,
+        }),
+      })
+      .where(eq(schema.films.id, filmId));
 
     return NextResponse.json({
       success: true,

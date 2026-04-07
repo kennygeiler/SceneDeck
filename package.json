@@ -15,6 +15,7 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:clear": "tsx scripts/clear-app-data.ts",
     "db:embeddings": "tsx src/db/generate-embeddings.ts",
+    "db:embeddings:image": "tsx src/db/generate-image-embeddings.ts",
     "db:studio": "drizzle-kit studio",
     "batch-worker": "python3 -m pipeline.batch_worker",
     "corpus:ingest": "tsx src/db/ingest-corpus.ts",

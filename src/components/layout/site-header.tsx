@@ -15,7 +15,6 @@ const navigation = [
   { href: "/agent", label: "Agent" },
   { href: "/admin", label: "Admin" },
   { href: "/verify", label: "Verify" },
-  { href: "/decks", label: "Decks" },
   { href: "/export", label: "Export" },
 ] as const;
 

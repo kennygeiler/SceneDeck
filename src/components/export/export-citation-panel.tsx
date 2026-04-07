@@ -86,7 +86,7 @@ export function ExportCitationPanel({
             className="mt-3 text-xl font-semibold text-[var(--color-text-primary)]"
             style={{ fontFamily: "var(--font-heading)" }}
           >
-            Copy for papers, decks, or READMEs
+            Copy for papers or READMEs
           </h2>
           <p className="mt-2 max-w-prose text-sm leading-7 text-[var(--color-text-secondary)]">
             Plain-text citation referencing this deployment, the composition

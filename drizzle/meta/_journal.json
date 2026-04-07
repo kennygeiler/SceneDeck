@@ -29,6 +29,20 @@
       "when": 1774464055051,
       "tag": "0003_orange_oracle",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1774483200000,
+      "tag": "0004_ingest_provenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1774483300000,
+      "tag": "0005_shot_image_embeddings",
+      "breakpoints": true
     }
   ]
 }

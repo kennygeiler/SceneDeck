@@ -8,7 +8,7 @@ import { db, schema } from "@/db";
 import { generateTextEmbedding } from "@/db/embeddings";
 import {
   type ProgressEvent,
-  detectShots,
+  detectShotsForIngest,
   extractLocally,
   uploadAssets,
   classifyShot,
@@ -18,6 +18,11 @@ import {
 } from "@/lib/ingest-pipeline";
 import { searchTmdbMovieId, fetchTmdbMovieDetails, fetchTmdbCast } from "@/lib/tmdb";
 import { planContiguousScenesByNormalizedTitle } from "@/lib/scene-grouping";
+import { shouldRunPysceneEnsemble } from "@/lib/boundary-ensemble";
+import {
+  buildIngestProvenance,
+  initialReviewStatusForShot,
+} from "@/lib/pipeline-provenance";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,9 +64,20 @@ export async function POST(request: Request) {
         // Step 1: Detect shots
         const detectorLabel =
           detector === "adaptive" ? "Adaptive (default, research)" : "Content (faster, hard cuts)";
-        emit({ type: "step", step: "detect", status: "active", message: `Analyzing shot boundaries — ${detectorLabel}` });
+        const detectMessage = shouldRunPysceneEnsemble()
+          ? "PySceneDetect ensemble (adaptive + content + NMS)"
+          : detectorLabel;
+        emit({
+          type: "step",
+          step: "detect",
+          status: "active",
+          message: `Analyzing shot boundaries — ${detectMessage}`,
+        });
         const t0 = Date.now();
-        const splits = await detectShots(videoPath, detector);
+        const { splits, ctx: detectCtx } = await detectShotsForIngest(
+          videoPath,
+          detector,
+        );
         const detectDuration = (Date.now() - t0) / 1000;
         emit({ type: "step", step: "detect", status: "complete", message: `Found ${splits.length} shots`, duration: detectDuration });
         emit({ type: "init", totalShots: splits.length, concurrency });
@@ -95,12 +111,14 @@ export async function POST(request: Request) {
         const classifyConcurrency = Math.min(concurrency * 3, 15);
         emit({ type: "step", step: "classify", status: "active", message: `Classifying ${splits.length} shots (${classifyConcurrency} workers)...` });
         const t3 = Date.now();
-        const classifications = await processInParallel(splits, classifyConcurrency, async (split, worker) => {
+        const classifyResults = await processInParallel(splits, classifyConcurrency, async (split, worker) => {
           emit({ type: "shot", step: "classify", index: split.index, total: splits.length, worker, status: "start" });
           const result = await classifyShot(videoPath, split, body.filmTitle, body.director, body.year, castList);
-          emit({ type: "shot", step: "classify", index: split.index, total: splits.length, worker, status: "complete", framing: result.framing, sceneTitle: result.scene_title });
+          const c = result.classification;
+          emit({ type: "shot", step: "classify", index: split.index, total: splits.length, worker, status: "complete", framing: c.framing, sceneTitle: c.scene_title });
           return result;
         });
+        const classifications = classifyResults.map((r) => r.classification);
         emit({ type: "step", step: "classify", status: "complete", message: `${splits.length} shots classified`, duration: (Date.now() - t3) / 1000 });
 
         // Step 4: Group scenes
@@ -178,14 +196,21 @@ export async function POST(request: Request) {
           const split = splits[i];
           const asset = uploadedAssets[i];
           const classification = classifications[i];
+          const clsMeta = classifyResults[i];
           const sceneId = sceneIdByShotIndex.get(i) ?? null;
+          const durationSec = roundTime(split.end - split.start);
+          const reviewStatus = initialReviewStatusForShot(
+            durationSec,
+            clsMeta.usedFallback,
+          );
+          const classificationSource = clsMeta.usedFallback ? "gemini_fallback" : "gemini";
 
           const videoUrl = `/api/s3?key=${encodeURIComponent(asset.clipKey)}`;
           const thumbnailUrl = `/api/s3?key=${encodeURIComponent(asset.thumbnailKey)}`;
 
           const [insertedShot] = await db.insert(schema.shots).values({
             filmId, sceneId, sourceFile: path.basename(body.videoPath),
-            startTc: split.start, endTc: split.end, duration: roundTime(split.end - split.start),
+            startTc: split.start, endTc: split.end, duration: durationSec,
             videoUrl, thumbnailUrl,
           }).returning({ id: schema.shots.id });
 
@@ -213,7 +238,8 @@ export async function POST(request: Request) {
               angleVertical: classification.angle_vertical as typeof schema.shotMetadata.$inferInsert.angleVertical,
               angleHorizontal: classification.angle_horizontal as typeof schema.shotMetadata.$inferInsert.angleHorizontal,
               durationCat: classification.duration_cat as typeof schema.shotMetadata.$inferInsert.durationCat,
-              classificationSource: "gemini",
+              classificationSource,
+              reviewStatus,
             }),
             db.insert(schema.shotSemantic).values({
               shotId: insertedShot.id, description: classification.description || null,
@@ -232,6 +258,16 @@ export async function POST(request: Request) {
         // Cleanup extract temp dir
         const { rm: rmDir } = await import("node:fs/promises");
         await rmDir(extractDir, { recursive: true, force: true }).catch(() => {});
+
+        await db
+          .update(schema.films)
+          .set({
+            ingestProvenance: buildIngestProvenance({
+              detector: detectCtx.resolvedDetector,
+              boundaryDetector: detectCtx.boundaryLabel,
+            }),
+          })
+          .where(eq(schema.films.id, filmId));
 
         emit({ type: "step", step: "write", status: "complete", message: `${shotCount} shots written`, duration: (Date.now() - t5) / 1000 });
         emit({ type: "complete", filmId, filmTitle: body.filmTitle, shotCount, sceneCount: scenePlans.length });

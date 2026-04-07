@@ -220,6 +220,12 @@ export default function IngestPage() {
             <label className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
               Shot Detection Algorithm
             </label>
+            <p className="mt-3 max-w-prose text-xs leading-5 text-[var(--color-text-tertiary)]">
+              After ingest, shots are the primary metadata grain. Set{" "}
+              <code className="font-mono text-[10px]">METROVISION_BOUNDARY_DETECTOR=pyscenedetect_ensemble_pyscene</code> on
+              the server for dual PySceneDetect + NMS (Phase D). Automatic &quot;scene&quot; rows are model grouping
+              for navigation only—not screenplay scenes.
+            </p>
             <div className="mt-2 flex gap-3">
               <button
                 type="button"

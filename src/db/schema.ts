@@ -24,6 +24,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+import type { IngestProvenancePayload } from "../lib/pipeline-provenance";
+
 export type ForegroundElement = string;
 export type BackgroundElement = string;
 
@@ -79,6 +81,8 @@ export const films = pgTable("films", {
   runtime: integer("runtime"),
   genres: text("genres").array(),
   sourceUrl: text("source_url"),
+  /** Latest full-film ingest metadata (detector, models, taxonomy hash). */
+  ingestProvenance: jsonb("ingest_provenance").$type<IngestProvenancePayload | null>(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
@@ -177,6 +181,16 @@ export const shotEmbeddings = pgTable("shot_embeddings", {
   searchText: text("search_text"),
 });
 
+/** Phase D: CLIP-style thumbnail vectors for visual similarity (separate from text/RAG embeddings). */
+export const shotImageEmbeddings = pgTable("shot_image_embeddings", {
+  shotId: uuid("shot_id")
+    .references(() => shots.id, { onDelete: "cascade" })
+    .notNull()
+    .primaryKey(),
+  embedding: vector("embedding", { dimensions: 768 }).notNull(),
+  model: text("model").notNull(),
+});
+
 export const shotObjects = pgTable("shot_objects", {
   id: uuid("id").defaultRandom().primaryKey(),
   shotId: uuid("shot_id")
@@ -218,6 +232,9 @@ export type NewVerification = typeof verifications.$inferInsert;
 
 export type ShotEmbedding = typeof shotEmbeddings.$inferSelect;
 export type NewShotEmbedding = typeof shotEmbeddings.$inferInsert;
+
+export type ShotImageEmbedding = typeof shotImageEmbeddings.$inferSelect;
+export type NewShotImageEmbedding = typeof shotImageEmbeddings.$inferInsert;
 
 export type ShotObject = typeof shotObjects.$inferSelect;
 export type NewShotObject = typeof shotObjects.$inferInsert;

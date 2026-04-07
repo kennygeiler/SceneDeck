@@ -5,6 +5,17 @@ import path from "node:path";
 
 import { uploadToS3, buildS3Key } from "./s3";
 import { acquireToken } from "./rate-limiter";
+import {
+  boundaryMergeEpsilonSec,
+  boundaryModeFromEnv,
+  clusterCutTimes,
+  loadExtraBoundaryCuts,
+  shouldRunPysceneEnsemble,
+} from "./boundary-ensemble";
+import {
+  getGeminiAdjudicateModel,
+  getGeminiClassifyModel,
+} from "./pipeline-provenance";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -146,6 +157,146 @@ export async function detectShots(
     .filter((s): s is DetectedSplit => s !== null);
 }
 
+async function probeVideoDurationSec(videoPath: string): Promise<number> {
+  const { stdout } = await runCommand("ffprobe", [
+    "-v", "error",
+    "-show_entries", "format=duration",
+    "-of", "default=noprint_wrappers=1:nokey=1",
+    videoPath,
+  ]);
+  return parseFloat(stdout.trim()) || 0;
+}
+
+function endpointsFromSplits(splits: DetectedSplit[]): number[] {
+  const out = new Set<number>();
+  for (const s of splits) {
+    out.add(s.start);
+    out.add(s.end);
+  }
+  return [...out];
+}
+
+function splitsFromBoundaries(boundaries: number[]): DetectedSplit[] {
+  const b = [...new Set(boundaries.map(roundTime))].sort((a, c) => a - c);
+  const splits: DetectedSplit[] = [];
+  for (let i = 0; i < b.length - 1; i++) {
+    const start = b[i]!;
+    const end = b[i + 1]!;
+    if (end > start) {
+      splits.push({ start, end, index: splits.length });
+    }
+  }
+  return splits;
+}
+
+export type DetectShotsContext = {
+  usedEnsemble: boolean;
+  extraCutsMerged: number;
+  resolvedDetector: "content" | "adaptive" | "ensemble";
+  boundaryLabel: string;
+};
+
+/** Phase D: dual PySceneDetect + NMS, optional `METROVISION_EXTRA_BOUNDARY_CUTS_JSON`. */
+export async function detectShotsEnsemble(
+  videoPath: string,
+  extraCuts: number[],
+): Promise<DetectedSplit[]> {
+  const [adaptive, content, duration] = await Promise.all([
+    detectShots(videoPath, "adaptive"),
+    detectShots(videoPath, "content"),
+    probeVideoDurationSec(videoPath),
+  ]);
+  const pointList = [...endpointsFromSplits(adaptive), ...endpointsFromSplits(content)];
+  const d =
+    duration > 0
+      ? duration
+      : Math.max(0, ...pointList);
+  const eps = boundaryMergeEpsilonSec();
+  const interior = [...new Set(pointList.map(roundTime))].filter(
+    (t) => t > 0 && t < d,
+  );
+  let clustered = clusterCutTimes(interior, eps);
+  if (extraCuts.length) {
+    clustered = clusterCutTimes(
+      [...clustered, ...extraCuts.map(roundTime)],
+      eps,
+    );
+  }
+  const boundaries = [0, ...clustered.filter((t) => t > 0 && t < d), d].sort(
+    (a, b) => a - b,
+  );
+  const uniq = boundaries.filter(
+    (t, i, arr) => i === 0 || t > arr[i - 1]!,
+  );
+  return splitsFromBoundaries(uniq);
+}
+
+export async function detectShotsForIngest(
+  videoPath: string,
+  requestedDetector: "content" | "adaptive",
+): Promise<{ splits: DetectedSplit[]; ctx: DetectShotsContext }> {
+  const extra = loadExtraBoundaryCuts();
+  if (shouldRunPysceneEnsemble()) {
+    const splits = await detectShotsEnsemble(videoPath, extra);
+    return {
+      splits,
+      ctx: {
+        usedEnsemble: true,
+        extraCutsMerged: extra.length,
+        resolvedDetector: "ensemble",
+        boundaryLabel:
+          extra.length > 0
+            ? "pyscenedetect_ensemble_pyscene+extra"
+            : "pyscenedetect_ensemble_pyscene",
+      },
+    };
+  }
+
+  let splits = await detectShots(videoPath, requestedDetector);
+  const duration = await probeVideoDurationSec(videoPath);
+  if (extra.length > 0) {
+    const d =
+      duration > 0
+        ? duration
+        : Math.max(0, ...endpointsFromSplits(splits));
+    const eps = boundaryMergeEpsilonSec();
+    const interior = [...new Set(endpointsFromSplits(splits).map(roundTime))].filter(
+      (t) => t > 0 && t < d,
+    );
+    const clustered = clusterCutTimes(
+      [...interior, ...extra.map(roundTime)],
+      eps,
+    );
+    const boundaries = [
+      0,
+      ...clustered.filter((t) => t > 0 && t < d),
+      d,
+    ].sort((a, b) => a - b);
+    const uniq = boundaries.filter(
+      (t, i, arr) => i === 0 || t > arr[i - 1]!,
+    );
+    splits = splitsFromBoundaries(uniq);
+  }
+
+  const mode = boundaryModeFromEnv();
+  const boundaryLabel =
+    extra.length > 0
+      ? `${mode}_${requestedDetector}+extra`
+      : mode === "pyscenedetect_cli"
+        ? `pyscenedetect_cli_${requestedDetector}`
+        : `${mode}_${requestedDetector}`;
+
+  return {
+    splits,
+    ctx: {
+      usedEnsemble: false,
+      extraCutsMerged: extra.length,
+      resolvedDetector: requestedDetector,
+      boundaryLabel,
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Step 2: Extract clip + thumbnail (OPTIMIZED)
 // - Smaller thumbnail (320px)
@@ -248,6 +399,12 @@ function fallbackClassification(): ClassifiedShot {
   };
 }
 
+export type ClassifyShotResult = {
+  classification: ClassifiedShot;
+  /** True when both primary and optional adjudicator models failed — template row used. */
+  usedFallback: boolean;
+};
+
 export async function classifyShot(
   videoPath: string,
   split: DetectedSplit,
@@ -255,42 +412,34 @@ export async function classifyShot(
   director: string,
   year: number,
   castList: string[],
-): Promise<ClassifiedShot> {
+): Promise<ClassifyShotResult> {
   try {
-    return await _classifyShotInner(videoPath, split, filmTitle, director, year, castList);
+    return await classifyShotWithGemini(
+      videoPath,
+      split,
+      filmTitle,
+      director,
+      year,
+      castList,
+    );
   } catch (err) {
     console.error(`[classify] Shot ${split.index} failed, using fallback:`, (err as Error).message);
-    return fallbackClassification();
+    return { classification: fallbackClassification(), usedFallback: true };
   }
 }
 
-async function _classifyShotInner(
-  videoPath: string,
-  split: DetectedSplit,
+function buildClassificationPrompt(
   filmTitle: string,
-  director: string,
   year: number,
+  director: string,
   castList: string[],
-): Promise<ClassifiedShot> {
-  const apiKey = process.env.GOOGLE_API_KEY;
-  if (!apiKey) throw new Error("GOOGLE_API_KEY is not set.");
-
-  const tempDir = await mkdtemp(path.join(tmpdir(), "metrovision-gemini-"));
-  // OPTIMIZATION: max 10s clip at 320px, higher CRF = smaller file = faster upload
-  const clipDuration = Math.min(split.end - split.start, 10);
-  const clipFile = path.join(tempDir, "clip.mp4");
-
-  await runCommand("ffmpeg", [
-    "-y", "-ss", String(split.start), "-t", String(clipDuration),
-    "-i", videoPath, "-c:v", "libx264", "-crf", "32",
-    "-vf", "scale=320:trunc(ow/a/2)*2", "-r", "12", "-an", clipFile,
-  ]);
-
-  try {
-    const clipBuffer = await readFile(clipFile);
-    const base64Video = clipBuffer.toString("base64");
-
-    const prompt = `Shot composition analysis: "${filmTitle}" (${year}, ${director}).
+  split: DetectedSplit,
+  adjudicatorRetry: boolean,
+): string {
+  const adjudicatorNote = adjudicatorRetry
+    ? "\n\nYour previous model returned invalid JSON. Respond with ONLY a single valid JSON object matching the schema, no markdown."
+    : "";
+  return `Shot composition analysis: "${filmTitle}" (${year}, ${director}).
 ${castList.length > 0 ? `Cast: ${castList.slice(0, 8).join(", ")}` : ""}
 TC: ${formatTimecode(split.start)}-${formatTimecode(split.end)} (${(split.end - split.start).toFixed(1)}s)
 
@@ -313,52 +462,140 @@ angle_horizontal: frontal/profile/three_quarter/rear/ots
 duration_cat: flash/brief/standard/extended/long_take/oner
 foreground_elements: array of strings (objects/people in foreground)
 background_elements: array of strings (objects/environment in background)
-Only valid JSON.`;
+Only valid JSON.${adjudicatorNote}`;
+}
 
-    await acquireToken();
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ inlineData: { mimeType: "video/mp4", data: base64Video } }, { text: prompt }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 1024, responseMimeType: "application/json" },
-        }),
-      },
+function parseGeminiClassificationJson(result: unknown): ClassifiedShot | null {
+  if (!result || typeof result !== "object") return null;
+  const rec = result as { candidates?: unknown[] };
+  if (!rec.candidates?.length) return null;
+
+  const candidate = rec.candidates[0] as {
+    finishReason?: string;
+    content?: { parts?: Array<{ text?: string }> };
+  };
+  if (
+    candidate.finishReason &&
+    candidate.finishReason !== "STOP" &&
+    candidate.finishReason !== "MAX_TOKENS"
+  ) {
+    return null;
+  }
+
+  const parts = candidate?.content?.parts ?? [];
+  let fullText = "";
+  for (const part of parts) {
+    if (part.text) fullText += part.text + "\n";
+  }
+  if (!fullText.trim()) fullText = parts?.[0]?.text ?? "";
+  fullText = fullText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const jsonMatch = fullText.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return null;
+
+  try {
+    return JSON.parse(jsonMatch[0]) as ClassifiedShot;
+  } catch {
+    return null;
+  }
+}
+
+async function geminiGenerateClassification(
+  base64Video: string,
+  prompt: string,
+  model: string,
+): Promise<ClassifiedShot | null> {
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) throw new Error("GOOGLE_API_KEY is not set.");
+
+  await acquireToken();
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { inlineData: { mimeType: "video/mp4", data: base64Video } },
+              { text: prompt },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 1024,
+          responseMimeType: "application/json",
+        },
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Gemini API error: ${response.status} ${errText.slice(0, 200)}`);
+  }
+
+  const result = await response.json();
+  return parseGeminiClassificationJson(result);
+}
+
+async function classifyShotWithGemini(
+  videoPath: string,
+  split: DetectedSplit,
+  filmTitle: string,
+  director: string,
+  year: number,
+  castList: string[],
+): Promise<ClassifyShotResult> {
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) throw new Error("GOOGLE_API_KEY is not set.");
+
+  const tempDir = await mkdtemp(path.join(tmpdir(), "metrovision-gemini-"));
+  const clipDuration = Math.min(split.end - split.start, 10);
+  const clipFile = path.join(tempDir, "clip.mp4");
+
+  await runCommand("ffmpeg", [
+    "-y", "-ss", String(split.start), "-t", String(clipDuration),
+    "-i", videoPath, "-c:v", "libx264", "-crf", "32",
+    "-vf", "scale=320:trunc(ow/a/2)*2", "-r", "12", "-an", clipFile,
+  ]);
+
+  try {
+    const clipBuffer = await readFile(clipFile);
+    const base64Video = clipBuffer.toString("base64");
+
+    const primaryModel = getGeminiClassifyModel();
+    const promptPrimary = buildClassificationPrompt(
+      filmTitle,
+      year,
+      director,
+      castList,
+      split,
+      false,
     );
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Gemini API error: ${response.status} ${errText.slice(0, 200)}`);
+    let parsed = await geminiGenerateClassification(base64Video, promptPrimary, primaryModel);
+    if (parsed) {
+      return { classification: parsed, usedFallback: false };
     }
 
-    const result = await response.json();
-
-    if (!result?.candidates?.length) {
-      return fallbackClassification();
+    const adjudicator = getGeminiAdjudicateModel();
+    if (adjudicator) {
+      const promptAdj = buildClassificationPrompt(
+        filmTitle,
+        year,
+        director,
+        castList,
+        split,
+        true,
+      );
+      parsed = await geminiGenerateClassification(base64Video, promptAdj, adjudicator);
+      if (parsed) {
+        return { classification: parsed, usedFallback: false };
+      }
     }
 
-    const candidate = result.candidates[0];
-    if (candidate.finishReason && candidate.finishReason !== "STOP" && candidate.finishReason !== "MAX_TOKENS") {
-      return fallbackClassification();
-    }
-
-    const parts = candidate?.content?.parts ?? [];
-    let fullText = "";
-    for (const part of parts) {
-      if (part.text) fullText += part.text + "\n";
-    }
-    if (!fullText.trim()) fullText = parts?.[0]?.text ?? "";
-    fullText = fullText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-    const jsonMatch = fullText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return fallbackClassification();
-
-    try {
-      return JSON.parse(jsonMatch[0]) as ClassifiedShot;
-    } catch {
-      return fallbackClassification();
-    }
+    return { classification: fallbackClassification(), usedFallback: true };
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

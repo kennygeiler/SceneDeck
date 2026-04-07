@@ -79,7 +79,10 @@ const shotSelection = {
   filmDirector: schema.films.director,
   filmYear: schema.films.year,
   filmTmdbId: schema.films.tmdbId,
+  filmIngestProvenance: schema.films.ingestProvenance,
   filmCreatedAt: schema.films.createdAt,
+  sceneGroupedTitle: schema.scenes.title,
+  sceneGroupedNumber: schema.scenes.sceneNumber,
   metadataId: schema.shotMetadata.id,
   metadataShotId: schema.shotMetadata.shotId,
   metadataFraming: schema.shotMetadata.framing,
@@ -124,6 +127,7 @@ function selectJoinedShots() {
     .select(shotSelection)
     .from(schema.shots)
     .innerJoin(schema.films, eq(schema.shots.filmId, schema.films.id))
+    .leftJoin(schema.scenes, eq(schema.shots.sceneId, schema.scenes.id))
     .leftJoin(schema.shotMetadata, eq(schema.shots.id, schema.shotMetadata.shotId))
     .leftJoin(schema.shotSemantic, eq(schema.shots.id, schema.shotSemantic.shotId));
 }
@@ -249,6 +253,7 @@ async function attachObjectsToShots(shots: ShotWithDetails[]) {
 function mapExportShotRow(row: ShotRow): ExportShotRecord {
   return {
     shotId: row.shotId,
+    filmId: row.filmId,
     filmTitle: row.filmTitle,
     director: row.filmDirector,
     year: row.filmYear ?? null,
@@ -271,6 +276,9 @@ function mapExportShotRow(row: ShotRow): ExportShotRecord {
     angleHorizontal: (row.metadataAngleHorizontal ?? "frontal") as HorizontalAngleSlug,
     durationCategory: (row.metadataDurationCat ?? "standard") as DurationCategorySlug,
     classificationSource: row.metadataClassificationSource ?? null,
+    reviewStatus: row.metadataReviewStatus ?? null,
+    autoGroupedSceneTitle: row.sceneGroupedTitle ?? null,
+    autoGroupedSceneNumber: row.sceneGroupedNumber ?? null,
     description: row.semanticDescription ?? null,
     subjects: (row.semanticSubjects ?? []).join(" | "),
     mood: row.semanticMood ?? null,
@@ -546,6 +554,32 @@ export async function getShotsForExport(filters?: {
   return rows.map(mapExportShotRow);
 }
 
+export async function getShotsForExportByIds(shotIds: string[]) {
+  if (shotIds.length === 0) {
+    return [];
+  }
+  const rows = await selectJoinedShots()
+    .where(inArray(schema.shots.id, shotIds))
+    .orderBy(schema.films.title, schema.shots.startTc);
+  return rows.map(mapExportShotRow);
+}
+
+export async function getFilmManifestRows(filmIds: string[]) {
+  if (filmIds.length === 0) {
+    return [];
+  }
+  return db
+    .select({
+      filmId: schema.films.id,
+      title: schema.films.title,
+      director: schema.films.director,
+      year: schema.films.year,
+      ingestProvenance: schema.films.ingestProvenance,
+    })
+    .from(schema.films)
+    .where(inArray(schema.films.id, filmIds));
+}
+
 async function searchShotsWithIlike(query: string): Promise<ShotWithDetails[]> {
   const searchTerm = `%${query}%`;
   const rows = await selectJoinedShots()
@@ -665,6 +699,60 @@ export async function searchShots(query: string, options?: SearchShotsOptions) {
   }
 
   return searchShotsWithIlike(normalizedQuery);
+}
+
+type RankedImageEmbeddingRow = {
+  shotId: string;
+  distance: number;
+};
+
+/** Phase D: pgvector similarity on thumbnail CLIP embeddings (`pnpm db:embeddings:image`). */
+export async function getVisuallySimilarShots(
+  shotId: string,
+  limit = 12,
+): Promise<ShotWithDetails[]> {
+  const cap = Math.min(Math.max(limit, 1), 30);
+  const [base] = await db
+    .select({ embedding: schema.shotImageEmbeddings.embedding })
+    .from(schema.shotImageEmbeddings)
+    .where(eq(schema.shotImageEmbeddings.shotId, shotId));
+
+  if (!base) {
+    return [];
+  }
+
+  const queryVector = toVectorLiteral(base.embedding);
+  const embeddingResult = await db.execute(
+    sql<RankedImageEmbeddingRow>`
+      SELECT shot_id AS "shotId", embedding <=> ${queryVector}::vector AS "distance"
+      FROM ${schema.shotImageEmbeddings}
+      WHERE shot_id <> ${shotId}::uuid
+      ORDER BY embedding <=> ${queryVector}::vector
+      LIMIT ${cap}
+    `,
+  );
+  const ranked = embeddingResult.rows as RankedImageEmbeddingRow[];
+  const shotIds = ranked.map((row) => row.shotId);
+
+  if (shotIds.length === 0) {
+    return [];
+  }
+
+  const rows = await selectJoinedShots().where(inArray(schema.shots.id, shotIds));
+  const shotsById = new Map(rows.map((row) => [row.shotId, mapShotRow(row)]));
+  const ordered: ShotWithDetails[] = [];
+
+  for (const row of ranked) {
+    const shot = shotsById.get(row.shotId);
+    if (shot) {
+      ordered.push({
+        ...shot,
+        relevance: 1 - row.distance,
+      });
+    }
+  }
+
+  return attachObjectsToShots(ordered);
 }
 
 export async function getShotsForReview(): Promise<ShotReviewQueueItem[]> {

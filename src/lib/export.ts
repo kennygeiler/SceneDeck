@@ -6,6 +6,7 @@ export type ExportFormat = (typeof EXPORT_FORMATS)[number];
 
 export const EXPORT_SHOT_COLUMNS = [
   "shotId",
+  "filmId",
   "filmTitle",
   "director",
   "year",
@@ -28,6 +29,9 @@ export const EXPORT_SHOT_COLUMNS = [
   "angleHorizontal",
   "durationCategory",
   "classificationSource",
+  "reviewStatus",
+  "autoGroupedSceneTitle",
+  "autoGroupedSceneNumber",
   "description",
   "subjects",
   "mood",
@@ -48,6 +52,7 @@ export function buildExportUrl(
     filmTitle?: string;
     shotSize?: string;
   },
+  options?: { includeManifest?: boolean },
 ) {
   const params = new URLSearchParams();
 
@@ -69,6 +74,10 @@ export function buildExportUrl(
     params.set("shotSize", filters.shotSize);
   }
 
+  if (options?.includeManifest && format === "json") {
+    params.set("includeManifest", "1");
+  }
+
   return `/api/export?${params.toString()}`;
 }
 
@@ -80,6 +89,7 @@ export function triggerExportDownload(
     filmTitle?: string;
     shotSize?: string;
   },
+  options?: { includeManifest?: boolean },
 ) {
   if (typeof document === "undefined") {
     return;
@@ -87,7 +97,7 @@ export function triggerExportDownload(
 
   const link = document.createElement("a");
 
-  link.href = buildExportUrl(format, filters);
+  link.href = buildExportUrl(format, filters, options);
   link.rel = "noopener";
   link.click();
 }

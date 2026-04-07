@@ -7,7 +7,7 @@ import type { Request, Response } from "express";
 
 import { db, schema } from "./db.js";
 import {
-  detectShots,
+  detectShotsForIngest,
   classifyShot,
   processInParallel,
   extractLocally,
@@ -16,6 +16,7 @@ import {
   roundTime,
   runCommand,
 } from "../../src/lib/ingest-pipeline.js";
+import { shouldRunPysceneEnsemble } from "../../src/lib/boundary-ensemble.js";
 import {
   searchTmdbMovieId,
   fetchTmdbMovieDetails,
@@ -23,6 +24,10 @@ import {
 } from "../../src/lib/tmdb.js";
 import { generateTextEmbedding } from "../../src/lib/openai-embedding.js";
 import { planContiguousScenesByNormalizedTitle } from "../../src/lib/scene-grouping.js";
+import {
+  buildIngestProvenance,
+  initialReviewStatusForShot,
+} from "../../src/lib/pipeline-provenance.js";
 
 async function resolveVideo(videoUrl: string): Promise<string> {
   if (!videoUrl.startsWith("http")) {
@@ -89,14 +94,20 @@ export async function ingestFilmHandler(req: Request, res: Response) {
 
     const detLabel =
       detector === "adaptive" ? "Adaptive (default, research)" : "Content (faster, hard cuts)";
+    const detectLabel = shouldRunPysceneEnsemble()
+      ? "PySceneDetect ensemble (adaptive + content + NMS)"
+      : detLabel;
     emit({
       type: "step",
       step: "detect",
       status: "active",
-      message: `Detecting shots — ${detLabel}`,
+      message: `Detecting shots — ${detectLabel}`,
     });
     const t0 = Date.now();
-    const splits = await detectShots(videoPath, detector);
+    const { splits, ctx: detectCtx } = await detectShotsForIngest(
+      videoPath,
+      detector,
+    );
     console.log(`[worker] Detection complete: ${splits.length} shots`);
     emit({
       type: "step",
@@ -170,7 +181,7 @@ export async function ingestFilmHandler(req: Request, res: Response) {
     });
     const t3 = Date.now();
     const yearNum = Number(body.year);
-    const classifications = await processInParallel(
+    const classifyResults = await processInParallel(
       splits,
       classifyConcurrency,
       async (split, w) => {
@@ -182,7 +193,7 @@ export async function ingestFilmHandler(req: Request, res: Response) {
           worker: w,
           status: "start",
         });
-        const result = await classifyShot(
+        const wrapped = await classifyShot(
           videoPath,
           split,
           body.filmTitle,
@@ -190,6 +201,7 @@ export async function ingestFilmHandler(req: Request, res: Response) {
           yearNum,
           castList,
         );
+        const result = wrapped.classification;
         emit({
           type: "shot",
           step: "classify",
@@ -200,9 +212,10 @@ export async function ingestFilmHandler(req: Request, res: Response) {
           framing: result.framing,
           sceneTitle: result.scene_title,
         });
-        return result;
+        return wrapped;
       },
     );
+    const classifications = classifyResults.map((r) => r.classification);
     emit({
       type: "step",
       step: "classify",
@@ -331,7 +344,11 @@ export async function ingestFilmHandler(req: Request, res: Response) {
       const split = splits[i];
       const asset = uploadedAssets[i];
       const cls = classifications[i];
+      const clsMeta = classifyResults[i];
       const sceneId = sceneIdByShotIndex.get(i) ?? null;
+      const durationSec = roundTime(split.end - split.start);
+      const reviewStatus = initialReviewStatusForShot(durationSec, clsMeta.usedFallback);
+      const classificationSource = clsMeta.usedFallback ? "gemini_fallback" : "gemini";
 
       const videoUrl = `/api/s3?key=${encodeURIComponent(asset.clipKey)}`;
       const thumbnailUrl = `/api/s3?key=${encodeURIComponent(asset.thumbnailKey)}`;
@@ -344,7 +361,7 @@ export async function ingestFilmHandler(req: Request, res: Response) {
           sourceFile: basename,
           startTc: split.start,
           endTc: split.end,
-          duration: roundTime(split.end - split.start),
+          duration: durationSec,
           videoUrl,
           thumbnailUrl,
         })
@@ -374,7 +391,8 @@ export async function ingestFilmHandler(req: Request, res: Response) {
           angleHorizontal:
             cls.angle_horizontal as typeof schema.shotMetadata.$inferInsert.angleHorizontal,
           durationCat: cls.duration_cat as typeof schema.shotMetadata.$inferInsert.durationCat,
-          classificationSource: "gemini",
+          classificationSource,
+          reviewStatus,
         }),
         db.insert(schema.shotSemantic).values({
           shotId: shot.id,
@@ -406,6 +424,16 @@ export async function ingestFilmHandler(req: Request, res: Response) {
     }
 
     await rm(extractDir, { recursive: true, force: true }).catch(() => {});
+
+    await db
+      .update(schema.films)
+      .set({
+        ingestProvenance: buildIngestProvenance({
+          detector: detectCtx.resolvedDetector,
+          boundaryDetector: detectCtx.boundaryLabel,
+        }),
+      })
+      .where(eq(schema.films.id, filmId));
 
     emit({
       type: "step",
