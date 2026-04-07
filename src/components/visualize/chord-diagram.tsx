@@ -142,8 +142,7 @@ export function ChordDiagram({ shots, onSelectMovement }: Props) {
       .selectAll("path")
       .data(chord)
       .join("path")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .attr("d", ribbon as any)
+      .attr("d", (d) => ribbon(d) ?? "")
       .attr("fill", (d) => colorFor(types[d.source.index]))
       .attr("stroke", "none")
       .style("mix-blend-mode", "screen");
@@ -167,8 +166,7 @@ export function ChordDiagram({ shots, onSelectMovement }: Props) {
 
     groups
       .append("path")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .attr("d", arc as any)
+      .attr("d", (d) => arc(d) ?? "")
       .attr("fill", (d) => colorFor(types[d.index]))
       .attr("stroke", "#0d0d12")
       .attr("stroke-width", 1.5)
@@ -190,19 +188,17 @@ export function ChordDiagram({ shots, onSelectMovement }: Props) {
     // ---- Labels ----
     groups
       .append("text")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .each((d: any) => {
-        d.angle = (d.startAngle + d.endAngle) / 2;
-      })
       .attr("dy", "0.35em")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .attr("transform", (d: any) => {
-        const angle = (d.angle * 180) / Math.PI - 90;
-        const flip = d.angle > Math.PI;
-        return `rotate(${angle}) translate(${outerRadius + 10}) ${flip ? "rotate(180)" : ""}`;
+      .attr("transform", (d) => {
+        const mid = (d.startAngle + d.endAngle) / 2;
+        const angleDeg = (mid * 180) / Math.PI - 90;
+        const flip = mid > Math.PI;
+        return `rotate(${angleDeg}) translate(${outerRadius + 10}) ${flip ? "rotate(180)" : ""}`;
       })
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .attr("text-anchor", (d: any) => (d.angle > Math.PI ? "end" : "start"))
+      .attr("text-anchor", (d) => {
+        const mid = (d.startAngle + d.endAngle) / 2;
+        return mid > Math.PI ? "end" : "start";
+      })
       .attr("fill", "#8e8e99")
       .attr("font-size", 9)
       .attr("font-family", "monospace")

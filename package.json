@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "check:schema-drift": "tsx scripts/check-schema-drift.ts",
+    "check:taxonomy": "tsx scripts/check-taxonomy-parity.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx src/db/seed.ts",

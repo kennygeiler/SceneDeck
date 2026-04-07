@@ -12,7 +12,7 @@ This milestone delivers phased hardening and alignment work traced to `.planning
 - [x] **Phase 2: Correctness & schema integrity** — API auth crypto import; worker vs app Drizzle schema drift
 - [x] **Phase 3: Security & exposure** — LLM route abuse; API key transport; `process-scene` exposure; image remote patterns
 - [x] **Phase 4: Rate limits & heavy-work boundaries** — Worker/RAG/agent Gemini limiting; semantic search fallback; `process-scene` stance vs AC-01/AC-20
-- [ ] **Phase 5: Fragile modules** — Taxonomy TS/Python parity; D3 and large client components
+- [x] **Phase 5: Fragile modules** — Taxonomy TS/Python parity; D3 and large client components
 - [ ] **Phase 6: Tests & observability** — Baseline automated tests, CI, structured logging
 
 ## Phase Details
@@ -134,8 +134,8 @@ Plans:
 
 Plans:
 
-- [ ] 05-01: Add taxonomy parity verification (comparisons + CI hook)
-- [ ] 05-02: Tighten `src/components/visualize/*` and large client components (e.g. review workspace, pipeline viz) hook/deps and typings
+- [x] 05-01: Add taxonomy parity verification (comparisons + CI hook)
+- [x] 05-02: Tighten `src/components/visualize/*` and large client components (e.g. review workspace, pipeline viz) hook/deps and typings
 
 ---
 
@@ -173,5 +173,5 @@ Plans:
 | 2 | Correctness & schema integrity | 2/2 | Complete | 2026-04-07 |
 | 3 | Security & exposure | 4/4 | Complete | 2026-04-07 |
 | 4 | Rate limits & heavy-work boundaries | 4/4 | Complete | 2026-04-07 |
-| 5 | Fragile modules | 0/2 | Not started | — |
+| 5 | Fragile modules | 2/2 | Complete | 2026-04-07 |
 | 6 | Tests & observability | 0/3 | Not started | — |

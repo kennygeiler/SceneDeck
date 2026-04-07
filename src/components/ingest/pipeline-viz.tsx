@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 // ---------------------------------------------------------------------------
@@ -334,6 +334,92 @@ export function PipelineViz({ videoPath, filmTitle, director, year, concurrency,
   const [elapsed, setElapsed] = useState(0);
   const stripRef = useRef<HTMLDivElement>(null);
 
+  const handleEvent = useCallback(
+    (e: Record<string, unknown>) => {
+      const now = Date.now();
+      setState((prev) => {
+        const next = { ...prev };
+        switch (e.type) {
+          case "step":
+            next.steps = prev.steps.map((s) =>
+              s.id === e.step
+                ? {
+                    ...s,
+                    status: e.status as StepInfo["status"],
+                    duration: (e.duration as number) ?? s.duration,
+                    startedAt: e.status === "active" ? now : s.startedAt,
+                  }
+                : s,
+            );
+            break;
+          case "init":
+            next.totalShots = e.totalShots as number;
+            next.concurrency = (e.concurrency as number) ?? prev.concurrency;
+            next.frames = Array.from({ length: e.totalShots as number }, (_, i) => ({
+              index: i,
+              extract: "pending",
+              classify: "pending",
+              write: "pending",
+            }));
+            break;
+          case "shot": {
+            const idx = e.index as number;
+            const step = e.step as string;
+            const status = e.status as "start" | "complete";
+            next.frames = prev.frames.map((f, i) => {
+              if (i !== idx) return f;
+              const u = { ...f };
+              if (step === "extract") {
+                if (status === "start") {
+                  u.extract = "active";
+                  u.extractStartedAt = now;
+                } else {
+                  u.extract = "complete";
+                  u.extractDuration = u.extractStartedAt ? (now - u.extractStartedAt) / 1000 : undefined;
+                }
+              } else if (step === "classify") {
+                if (status === "start") {
+                  u.classify = "active";
+                  u.classifyStartedAt = now;
+                } else {
+                  u.classify = "complete";
+                  u.classifyDuration = u.classifyStartedAt ? (now - u.classifyStartedAt) / 1000 : undefined;
+                }
+                if (e.movementType) u.movementType = e.movementType as string;
+                if (e.sceneTitle) u.sceneTitle = e.sceneTitle as string;
+              } else if (step === "write") u.write = status === "start" ? "active" : "complete";
+              if (e.worker !== undefined) u.worker = e.worker as number;
+              return u;
+            });
+            setTimeout(() => {
+              if (!stripRef.current) return;
+              const active = stripRef.current.querySelector(".frame-extracting, .frame-classifying");
+              active?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+            }, 50);
+            break;
+          }
+          case "complete": {
+            const result = {
+              filmId: e.filmId as string,
+              filmTitle: e.filmTitle as string,
+              shotCount: e.shotCount as number,
+              sceneCount: e.sceneCount as number,
+            };
+            next.result = result;
+            onComplete?.(result);
+            break;
+          }
+          case "error":
+            next.error = e.message as string;
+            onError?.(e.message as string);
+            break;
+        }
+        return next;
+      });
+    },
+    [onComplete, onError],
+  );
+
   useEffect(() => {
     if (state.result || state.error) return;
     const interval = setInterval(() => setElapsed(Math.floor((Date.now() - state.startTime) / 1000)), 1000);
@@ -359,7 +445,11 @@ export function PipelineViz({ videoPath, filmTitle, director, year, concurrency,
           body: JSON.stringify(bodyPayload),
           signal: abort.signal,
         });
-        if (!res.ok || !res.body) { const errText = await res.text(); setState((s) => ({ ...s, error: errText })); return; }
+        if (!res.ok || !res.body) {
+          const errText = await res.text();
+          setState((s) => ({ ...s, error: errText }));
+          return;
+        }
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buf = "";
@@ -372,7 +462,11 @@ export function PipelineViz({ videoPath, filmTitle, director, year, concurrency,
           for (const part of parts) {
             const line = part.replace(/^data: /, "").trim();
             if (!line) continue;
-            try { handleEvent(JSON.parse(line)); } catch { /* skip */ }
+            try {
+              handleEvent(JSON.parse(line));
+            } catch {
+              /* skip */
+            }
           }
         }
       } catch (err) {
@@ -380,66 +474,8 @@ export function PipelineViz({ videoPath, filmTitle, director, year, concurrency,
       }
     })();
     return () => abort.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoPath, filmTitle, director, year, concurrency]);
+  }, [videoPath, filmTitle, director, year, concurrency, detector, workerUrl, handleEvent]);
 
-  function handleEvent(e: Record<string, unknown>) {
-    const now = Date.now();
-    setState((prev) => {
-      const next = { ...prev };
-      switch (e.type) {
-        case "step":
-          next.steps = prev.steps.map((s) =>
-            s.id === e.step ? { ...s, status: e.status as StepInfo["status"], duration: (e.duration as number) ?? s.duration, startedAt: e.status === "active" ? now : s.startedAt } : s,
-          );
-          break;
-        case "init":
-          next.totalShots = e.totalShots as number;
-          next.concurrency = (e.concurrency as number) ?? prev.concurrency;
-          next.frames = Array.from({ length: e.totalShots as number }, (_, i) => ({
-            index: i, extract: "pending", classify: "pending", write: "pending",
-          }));
-          break;
-        case "shot": {
-          const idx = e.index as number;
-          const step = e.step as string;
-          const status = e.status as "start" | "complete";
-          next.frames = prev.frames.map((f, i) => {
-            if (i !== idx) return f;
-            const u = { ...f };
-            if (step === "extract") {
-              if (status === "start") { u.extract = "active"; u.extractStartedAt = now; }
-              else { u.extract = "complete"; u.extractDuration = u.extractStartedAt ? (now - u.extractStartedAt) / 1000 : undefined; }
-            } else if (step === "classify") {
-              if (status === "start") { u.classify = "active"; u.classifyStartedAt = now; }
-              else { u.classify = "complete"; u.classifyDuration = u.classifyStartedAt ? (now - u.classifyStartedAt) / 1000 : undefined; }
-              if (e.movementType) u.movementType = e.movementType as string;
-              if (e.sceneTitle) u.sceneTitle = e.sceneTitle as string;
-            } else if (step === "write") u.write = status === "start" ? "active" : "complete";
-            if (e.worker !== undefined) u.worker = e.worker as number;
-            return u;
-          });
-          setTimeout(() => {
-            if (!stripRef.current) return;
-            const active = stripRef.current.querySelector(".frame-extracting, .frame-classifying");
-            active?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-          }, 50);
-          break;
-        }
-        case "complete": {
-          const result = { filmId: e.filmId as string, filmTitle: e.filmTitle as string, shotCount: e.shotCount as number, sceneCount: e.sceneCount as number };
-          next.result = result;
-          onComplete?.(result);
-          break;
-        }
-        case "error":
-          next.error = e.message as string;
-          onError?.(e.message as string);
-          break;
-      }
-      return next;
-    });
-  }
 
   // Computed
   const extracted = state.frames.filter((f) => f.extract === "complete").length;

@@ -1,9 +1,9 @@
 "use client";
-/* eslint-disable react-hooks/exhaustive-deps */
 import {
   type DragEvent,
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -211,7 +211,7 @@ export function ReviewSplitsWorkspace() {
     splits.at(-1)?.id ??
     null;
 
-  const clearTimers = () => {
+  const clearTimers = useCallback(() => {
     if (progressTimerRef.current !== null) {
       window.clearInterval(progressTimerRef.current);
       progressTimerRef.current = null;
@@ -220,7 +220,7 @@ export function ReviewSplitsWorkspace() {
       window.clearTimeout(redirectTimerRef.current);
       redirectTimerRef.current = null;
     }
-  };
+  }, []);
 
   const resetApprovalState = () => {
     clearTimers();
@@ -237,7 +237,7 @@ export function ReviewSplitsWorkspace() {
       }
       clearTimers();
     };
-  }, [videoUrl]);
+  }, [videoUrl, clearTimers]);
   useEffect(() => {
     if (!videoUrl || splits.length === 0) {
       setThumbnails(new Map());
@@ -424,9 +424,38 @@ export function ReviewSplitsWorkspace() {
       setStatus(error instanceof Error ? error.message : "Scene processing failed.");
     }
   };
+
+  const keyNavRef = useRef<{
+    videoUrl: string | null;
+    approvalStage: ApprovalStage;
+    currentTime: number;
+    duration: number;
+    selectedSplit: ReviewSplit | null;
+    insertSplitAt: (time: number, source: SplitSource, confidence: number | null) => void;
+    removeSplit: (splitId: string) => void;
+    jumpToBoundary: (direction: -1 | 1) => void;
+    openApprovalModal: () => void;
+    nudgeSelectedSplit: (delta: number) => void;
+    seekTo: (time: number) => void;
+  } | null>(null);
+  keyNavRef.current = {
+    videoUrl,
+    approvalStage,
+    currentTime,
+    duration,
+    selectedSplit,
+    insertSplitAt,
+    removeSplit,
+    jumpToBoundary,
+    openApprovalModal,
+    nudgeSelectedSplit,
+    seekTo,
+  };
+
   useEffect(() => {
     const handleKeydown = async (event: KeyboardEvent) => {
-      if (!videoUrl || approvalStage !== "idle") {
+      const k = keyNavRef.current;
+      if (!k || !k.videoUrl || k.approvalStage !== "idle") {
         return;
       }
       const target = event.target;
@@ -449,42 +478,42 @@ export function ReviewSplitsWorkspace() {
       }
       if (event.key.toLowerCase() === "s") {
         event.preventDefault();
-        insertSplitAt(videoRef.current?.currentTime ?? currentTime, "manual", null);
+        k.insertSplitAt(videoRef.current?.currentTime ?? k.currentTime, "manual", null);
         return;
       }
-      if ((event.key === "Delete" || event.key === "Backspace") && selectedSplit) {
+      if ((event.key === "Delete" || event.key === "Backspace") && k.selectedSplit) {
         event.preventDefault();
-        removeSplit(selectedSplit.id);
+        k.removeSplit(k.selectedSplit.id);
         return;
       }
       if (event.key.toLowerCase() === "j") {
         event.preventDefault();
-        jumpToBoundary(-1);
+        k.jumpToBoundary(-1);
         return;
       }
       if (event.key.toLowerCase() === "l") {
         event.preventDefault();
-        jumpToBoundary(1);
+        k.jumpToBoundary(1);
         return;
       }
       if (event.key === "Enter") {
         event.preventDefault();
-        openApprovalModal();
+        k.openApprovalModal();
         return;
       }
       if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
         event.preventDefault();
         const direction = event.key === "ArrowRight" ? 1 : -1;
-        if (selectedSplit && selectedSplit.end < duration) {
-          nudgeSelectedSplit(direction * (1 / DEFAULT_FPS));
+        if (k.selectedSplit && k.selectedSplit.end < k.duration) {
+          k.nudgeSelectedSplit(direction * (1 / DEFAULT_FPS));
         } else {
-          seekTo(currentTime + direction);
+          k.seekTo(k.currentTime + direction);
         }
       }
     };
     window.addEventListener("keydown", handleKeydown);
     return () => window.removeEventListener("keydown", handleKeydown);
-  }, [approvalStage, currentTime, duration, selectedSplit, videoUrl]);
+  }, [approvalStage, videoUrl]);
   const loadVideo = async (file: File) => {
     if (!file.type.startsWith("video/")) {
       setStatus("Only video/* files are supported.");
