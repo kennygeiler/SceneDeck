@@ -2,7 +2,7 @@ import type {
   ShotObjectAttributes,
   ShotObjectKeyframe,
   ShotSceneContext,
-} from "@/db/schema";
+} from "../db/schema";
 import type {
   BlockingTypeSlug,
   ColorTemperatureSlug,
@@ -16,7 +16,7 @@ import type {
   ShotSizeSlug,
   SymmetryTypeSlug,
   VerticalAngleSlug,
-} from "@/lib/taxonomy";
+} from "./taxonomy";
 
 export type ClassifiedShot = {
   framing: string;

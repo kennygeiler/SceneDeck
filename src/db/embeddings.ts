@@ -1,6 +1,9 @@
-import OpenAI from "openai";
-
 import type { ShotWithDetails } from "@/lib/types";
+import {
+  generateTextEmbedding,
+  SHOT_EMBEDDING_DIMENSIONS,
+  SHOT_EMBEDDING_MODEL,
+} from "@/lib/openai-embedding";
 import {
   getDepthDisplayName,
   getFramingDisplayName,
@@ -8,18 +11,7 @@ import {
   getBlockingDisplayName,
 } from "@/lib/shot-display";
 
-export const SHOT_EMBEDDING_MODEL = "text-embedding-3-small";
-export const SHOT_EMBEDDING_DIMENSIONS = 768;
-
-function resolveApiKey(apiKey?: string) {
-  const resolvedApiKey = apiKey?.trim() || process.env.OPENAI_API_KEY?.trim();
-
-  if (!resolvedApiKey) {
-    throw new Error("OPENAI_API_KEY is not set.");
-  }
-
-  return resolvedApiKey;
-}
+export { SHOT_EMBEDDING_MODEL, SHOT_EMBEDDING_DIMENSIONS, generateTextEmbedding };
 
 export function buildShotSearchText(shot: ShotWithDetails) {
   return [
@@ -35,26 +27,6 @@ export function buildShotSearchText(shot: ShotWithDetails) {
     .map((value) => value.trim())
     .filter(Boolean)
     .join(" ");
-}
-
-export async function generateTextEmbedding(input: string, apiKey?: string) {
-  const client = new OpenAI({
-    apiKey: resolveApiKey(apiKey),
-  });
-  const response = await client.embeddings.create({
-    model: SHOT_EMBEDDING_MODEL,
-    input,
-    dimensions: SHOT_EMBEDDING_DIMENSIONS,
-  });
-  const embedding = response.data[0]?.embedding;
-
-  if (!embedding || embedding.length !== SHOT_EMBEDDING_DIMENSIONS) {
-    throw new Error(
-      `Expected ${SHOT_EMBEDDING_DIMENSIONS}-dim embedding, received ${embedding?.length ?? 0}.`,
-    );
-  }
-
-  return embedding;
 }
 
 export function toVectorLiteral(embedding: number[]) {

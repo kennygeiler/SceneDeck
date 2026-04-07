@@ -51,7 +51,6 @@ async function fetchTmdbJson<T>(
     headers: {
       Accept: "application/json",
     },
-    next: { revalidate: 86400 },
   });
 
   if (!response.ok) {

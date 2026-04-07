@@ -3,13 +3,21 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "outDir": "dist",
-    "rootDir": "src",
+    "noEmit": true,
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "declaration": true,
     "resolveJsonModule": true
   },
-  "include": ["src/**/*"]
+  "include": [
+    "src/**/*.ts",
+    "../src/lib/ingest-pipeline.ts",
+    "../src/lib/s3.ts",
+    "../src/lib/rate-limiter.ts",
+    "../src/lib/types.ts",
+    "../src/lib/tmdb.ts",
+    "../src/lib/openai-embedding.ts",
+    "../src/lib/taxonomy.ts",
+    "../src/db/schema.ts"
+  ]
 }

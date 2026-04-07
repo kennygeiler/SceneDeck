@@ -1,7 +1,7 @@
 /**
  * Token-bucket rate limiter for Gemini API calls (AC-07).
  * Target: 130 RPM (Tier 1 safe margin).
- * Worker copy: `worker/src/rate-limiter.ts` — keep limits in sync.
+ * Express worker uses this module via `ingest-pipeline` (no duplicate copy).
  */
 
 const MAX_TOKENS = 130;

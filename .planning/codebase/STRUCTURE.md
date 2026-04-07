@@ -38,7 +38,7 @@ SceneDeck/
 
 - Purpose: Shared `SiteShell` layout for main UX pages.
 - Contains: One folder per route (`page.tsx`, optional `loading.tsx`).
-- Key files: `src/app/(site)/layout.tsx`, `src/app/(site)/page.tsx`, `src/app/(site)/browse/page.tsx`, `src/app/(site)/film/[id]/page.tsx`, `src/app/(site)/shot/[id]/page.tsx`, `src/app/(site)/agent/page.tsx`, `src/app/(site)/visualize/page.tsx`, `src/app/(site)/ingest/page.tsx`, `src/app/(site)/verify/page.tsx`, `src/app/(site)/admin/page.tsx`, `src/app/(site)/export/page.tsx`, `src/app/(site)/decks/page.tsx`, `src/app/(site)/review-splits/page.tsx`, nested verify routes under `src/app/(site)/verify/`.
+- Key files: `src/app/(site)/layout.tsx`, `src/app/(site)/page.tsx`, `src/app/(site)/browse/page.tsx`, `src/app/(site)/film/[id]/page.tsx`, `src/app/(site)/shot/[id]/page.tsx`, `src/app/(site)/agent/page.tsx`, `src/app/(site)/visualize/page.tsx`, `src/app/(site)/ingest/page.tsx`, `src/app/(site)/verify/page.tsx`, `src/app/(site)/admin/page.tsx`, `src/app/(site)/export/page.tsx`, `src/app/(site)/review-splits/page.tsx`, nested verify routes under `src/app/(site)/verify/`.
 
 **`src/app/api/`:**
 
@@ -49,7 +49,7 @@ SceneDeck/
 **`src/components/`:**
 
 - Purpose: Presentation and feature UI.
-- Contains: `agent/`, `decks/`, `export/`, `films/`, `home/`, `layout/`, `review/`, `shots/`, `verify/`, `video/`, `visualize/`, and `ui/` for shared primitives.
+- Contains: `agent/`, `archive/`, `export/`, `films/`, `home/`, `layout/`, `review/`, `shots/`, `verify/`, `video/`, `visualize/`, and `ui/` for shared primitives.
 - Key files: `src/components/layout/site-shell.tsx`, `src/components/video/shot-player.tsx`, `src/components/video/metadata-overlay.tsx`, `src/components/agent/chat-interface.tsx`, `src/components/visualize/viz-dashboard.tsx`.
 
 **`src/db/`:**
@@ -76,7 +76,7 @@ SceneDeck/
 **`worker/src/`:**
 
 - Purpose: Express service codebase.
-- Key files: `worker/src/server.ts`, `worker/src/ingest.ts`, `worker/src/db.ts`, `worker/src/schema.ts`, `worker/src/s3.ts`.
+- Key files: `worker/src/server.ts`, `worker/src/ingest.ts`, `worker/src/db.ts`, `worker/src/s3.ts`; ingest logic shared from `src/lib/ingest-pipeline.ts`.
 - Note: Separate Node project — install and run from `worker/` per `worker/package.json`.
 
 **`pipeline/`:**
@@ -171,7 +171,7 @@ SceneDeck/
 
 **Worker-only behavior:**
 
-- Code: `worker/src/`; mirror schema changes in `worker/src/schema.ts` if the worker must stay in sync.
+- Code: `worker/src/`; DB schema is `src/db/schema.ts` (imported by `worker/src/db.ts`).
 
 **Python pipeline step:**
 

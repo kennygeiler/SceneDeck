@@ -16,13 +16,13 @@ pnpm db:seed          # Seed database (tsx src/db/seed.ts)
 pnpm db:clear         # TRUNCATE films + CASCADE (dev reset). Requires CONFIRM_CLEAR=yes. Run from **repo root** (or `cd worker && pnpm db:clear` delegates to root).
 pnpm db:embeddings    # Generate shot embeddings (tsx src/db/generate-embeddings.ts)
 pnpm db:studio        # Open Drizzle Studio
-pnpm check:schema-drift  # App vs worker Drizzle columns for shared tables (see scripts/check-schema-drift.ts)
+pnpm check:schema-drift  # Ingest-related Drizzle tables present (`src/db/schema.ts` shared with worker)
 pnpm check:taxonomy      # src/lib/taxonomy.ts vs pipeline/taxonomy.py (AC-02)
 pnpm test                # Vitest (unit tests; CI runs this too)
 
 # TS Ingest Worker (Express, runs separately)
 cd worker && pnpm dev   # Start worker dev server (tsx watch)
-cd worker && pnpm build # TypeScript compile
+cd worker && pnpm build # `tsc --noEmit` (worker imports `../src/lib/*` at runtime via `tsx`)
 
 # Python pipeline
 cd pipeline
@@ -111,10 +111,9 @@ src/components/agent/chat-interface.tsx -- Chat UI
 
 # TS Ingest Worker
 worker/src/server.ts                  -- Express server entry
-worker/src/ingest.ts                  -- Film ingest pipeline (SSE, Gemini, TMDB, S3)
-worker/src/s3.ts                      -- S3 upload utilities
-worker/src/db.ts                      -- Worker DB client
-worker/src/schema.ts                  -- Worker schema copy
+worker/src/ingest.ts                  -- Film ingest SSE handler (delegates to `src/lib/ingest-pipeline.ts` + app schema)
+worker/src/s3.ts                      -- S3 upload utilities (legacy; pipeline uses `src/lib/s3.ts` via ingest-pipeline)
+worker/src/db.ts                      -- Drizzle client; schema from `src/db/schema.ts`
 
 # Python Pipeline
 pipeline/main.py                      -- CLI entry point
@@ -125,9 +124,9 @@ pipeline/write_db.py                  -- Postgres writes
 
 # Config
 package.json                          -- Root deps (`name`: metrovision)
-worker/package.json                   -- Worker deps (`name`: metrovision-worker; npm, not pnpm workspace)
+worker/package.json                   -- Worker deps (`name`: metrovision-worker; workspace package)
 drizzle.config.ts                     -- Drizzle Kit config
-pnpm-workspace.yaml                   -- Workspace config (worker not yet integrated)
+pnpm-workspace.yaml                   -- Workspace includes root app + `worker`
 .github/workflows/ci.yml              -- CI: lint, taxonomy, schema-drift, test
 vitest.config.ts                      -- Unit tests (`src/lib/__tests__/`)
 
@@ -142,7 +141,7 @@ vitest.config.ts                      -- Unit tests (`src/lib/__tests__/`)
 
 ## Rate limits & ingest boundaries (AC-07, AC-20)
 
-- **Gemini (AC-07):** `acquireToken()` from `src/lib/rate-limiter.ts` (~130 RPM token bucket) runs before Gemini HTTP calls in `ingest-pipeline.ts`, `object-detection.ts` (enrichment), `api/agent/chat`, and `api/rag`. The TS ingest **worker** mirrors the same limits in `worker/src/rate-limiter.ts` for shot classification.
+- **Gemini (AC-07):** `acquireToken()` from `src/lib/rate-limiter.ts` (~130 RPM token bucket) runs before Gemini HTTP calls in `ingest-pipeline.ts` (used by Next ingest stream **and** the Express worker), `object-detection.ts` (enrichment). `api/agent/chat` and `api/rag` should align with the same limiter where they call Gemini.
 - **Semantic search:** `src/db/queries.ts` `searchShots` uses pgvector when `shot_embeddings` has data; otherwise or on failure it falls back to ILIKE. Logs are prefixed **`[searchShots]`** — monitor in production; run `pnpm db:embeddings` to populate vectors after ingest.
 - **Canonical long-running ingest:** Use the **Express worker** (`worker/`, SSE) or **Python pipeline** (`pipeline/`) for film-scale jobs. **`/api/process-scene`** is **off on Vercel**; **`/api/ingest-film/stream`** still targets a full Node host with local `videoPath` and is not a substitute for the worker on small serverless timeouts.
 

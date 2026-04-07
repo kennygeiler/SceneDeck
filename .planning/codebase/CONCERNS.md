@@ -22,11 +22,7 @@
 - Impact: Onboarding commands fail; operators assume seeding exists.
 - Fix approach: Add the script and seed module, or remove the command from `AGENTS.md`.
 
-**Dual Drizzle schema definitions:**
-- Issue: `worker/src/schema.ts` is a hand-maintained subset described as mirroring `src/db/schema.ts`. Any column or table change in the app schema risks worker drift until manually synced.
-- Files: `worker/src/schema.ts`, `src/db/schema.ts`
-- Impact: Runtime insert/select errors or silent shape mismatches after schema evolution.
-- Fix approach: Share a single schema package/file via workspace import, or add a CI check that diffs exported table shapes.
+**Dual Drizzle schema definitions:** *(resolved 2026-04)* — `worker/src/db.ts` imports `src/db/schema.ts` directly; `scripts/check-schema-drift.ts` asserts shared tables exist. Keep worker imports pointed at the app schema when adding tables.
 
 **Package naming drift:**
 - Issue: Root `package.json` uses `"name": "metrovision"` while historical references still say "scenedeck" (`AGENTS.md` config section).
@@ -84,10 +80,8 @@ No `TODO` / `FIXME` / `HACK` / `XXX` markers were found in first-party trees `sr
 - Improvement path: Alert on fallback, fix vector extension/connectivity, add indexes for common text filters.
 
 **Worker concurrent Gemini calls:**
-- Problem: `worker/src/ingest.ts` uses `processInParallel` for embeddings and classifies shots with direct `fetch` to Gemini (`classifyShot`) with no shared token bucket in that TS path (unlike `src/lib/ingest-pipeline.ts` and `pipeline/classify.py` which use `acquireToken` / `acquire_token`).
-- Files: `worker/src/ingest.ts`, `src/lib/rate-limiter.ts`, `pipeline/classify.py`
-- Cause: AC-07 satisfied in Python and some TS libs but not uniformly on the worker classification path.
-- Improvement path: Reuse `src/lib/rate-limiter.ts` patterns in the worker (or a shared package) before parallel Gemini calls.
+- ~~Problem: worker classify path lacked rate limit~~ *(resolved)* — worker now calls `classifyShot` from `src/lib/ingest-pipeline.ts`, which uses `acquireToken()` before Gemini.
+- Files: `worker/src/ingest.ts`, `src/lib/ingest-pipeline.ts`, `pipeline/classify.py`
 
 **RAG and agent routes — no shared rate limiter:**
 - Problem: `src/app/api/rag/route.ts` and `src/app/api/agent/chat/route.ts` call Gemini without `acquireToken` from `src/lib/rate-limiter.ts`.

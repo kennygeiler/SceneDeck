@@ -202,6 +202,14 @@ export async function POST(request: Request) {
               lightingDirection: classification.lighting_direction as typeof schema.shotMetadata.$inferInsert.lightingDirection,
               lightingQuality: classification.lighting_quality as typeof schema.shotMetadata.$inferInsert.lightingQuality,
               colorTemperature: classification.color_temperature as typeof schema.shotMetadata.$inferInsert.colorTemperature,
+              foregroundElements:
+                Array.isArray(classification.foreground_elements) && classification.foreground_elements.length > 0
+                  ? classification.foreground_elements
+                  : null,
+              backgroundElements:
+                Array.isArray(classification.background_elements) && classification.background_elements.length > 0
+                  ? classification.background_elements
+                  : null,
               shotSize: classification.shot_size as typeof schema.shotMetadata.$inferInsert.shotSize,
               angleVertical: classification.angle_vertical as typeof schema.shotMetadata.$inferInsert.angleVertical,
               angleHorizontal: classification.angle_horizontal as typeof schema.shotMetadata.$inferInsert.angleHorizontal,

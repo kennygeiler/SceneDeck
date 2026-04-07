@@ -3,8 +3,8 @@ import { readFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { uploadToS3, buildS3Key } from "@/lib/s3";
-import { acquireToken } from "@/lib/rate-limiter";
+import { uploadToS3, buildS3Key } from "./s3";
+import { acquireToken } from "./rate-limiter";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -16,8 +16,8 @@ export type DetectedSplit = {
   index: number;
 };
 
-import type { ClassifiedShot } from "@/lib/types";
-export type { ClassifiedShot } from "@/lib/types";
+import type { ClassifiedShot } from "./types";
+export type { ClassifiedShot } from "./types";
 
 export type ProgressCallback = (event: ProgressEvent) => void;
 
