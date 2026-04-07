@@ -1,8 +1,6 @@
-# MetroVision (SceneDeck)
+# MetroVision
 
 **MetroVision is a shot-level composition archive for cinematography research and tooling**—structured framing/depth/blocking (and related fields), human verification, exports you can cite, and optional vector search. **MetroVision** is the product name; **SceneDeck** is a common repo/codename.
-
-*Marketing on the landing page stays focused on that wedge; the repo still contains ingest, agent, batch review, API, and other surfaces for operators and integrators.*
 
 ![Next.js](https://img.shields.io/badge/Next.js-15-black)
 ![React](https://img.shields.io/badge/React-19-1d9bf0)
@@ -30,7 +28,6 @@ Placeholder: `https://scenedeck-demo.vercel.app`
 | **Visualize** | Pattern views across the archive (landing demo deep-links the **composition scatter**). |
 | **Export** | JSON/CSV plus an on-page **citation / methodology** blurb (live verification stats). |
 
-**Also in the repo (not the core marketing story):** Verify (queue + batch), ingest (SSE / worker), Python batch pipeline, agent chat, decks, admin, REST API v1, review splits, embeddings-backed search, etc.
 
 **Search** uses **pgvector** embeddings when `shot_embeddings` is populated; otherwise it falls back to **ILIKE** text search (see server logs for `[searchShots]` messages). Run `pnpm db:embeddings` after ingest to enable semantic similarity.
 
@@ -50,15 +47,15 @@ Placeholder: `https://scenedeck-demo.vercel.app`
                         v                               v                               v
               ┌─────────────────┐             ┌─────────────────┐             ┌─────────────────┐
               │  Next.js 15 App │             │  TS Worker      │             │  Python         │
-              │  (Vercel / Node)  │             │  (Express SSE)   │             │  pipeline/      │
-              │  App Router, UI,  │             │  Ingest film:    │             │  Batch:         │
-              │  API routes, RAG, │             │  detect, extract │             │  PySceneDetect, │
-              │  agent chat       │             │  Gemini classify │             │  Gemini, S3, DB │
-              └────────┬────────┘             │  TMDB, S3, DB    │             └────────┬────────┘
-                       │                     └────────┬────────┘                      │
-                       │                              │                              │
-                       │         presigned URLs        │                              │
-                       └──────────────┬───────────────┴──────────────────────────────┘
+              │  (Vercel / Node)  │           │  (Express SSE)  │             │  pipeline/      │
+              │  App Router, UI,  │           │  Ingest film:   │             │  Batch:         │
+              │  API routes, RAG, │           │  detect, extract│             │  PySceneDetect, │
+              │  agent chat       │           │  Gemini classify│             │  Gemini, S3, DB │
+              └────────┬────────┘             │  TMDB, S3, DB   │             └────────┬────────┘
+                       │                      └────────┬────────┘                      │
+                       │                               │                               │
+                       │         presigned URLs        │                               │
+                       └──────────────┬─────────────-──┴────────────────────────────-──┘
                                       v
                             ┌──────────────────┐
                             │   AWS S3         │
