@@ -14,20 +14,32 @@ function hashKey(key: string): string {
   return createHash("sha256").update(key).digest("hex");
 }
 
+const LEGACY_QUERY_ENV = "METROVISION_ALLOW_API_KEY_QUERY";
+
+function allowLegacyApiKeyQuery(): boolean {
+  const v = process.env[LEGACY_QUERY_ENV]?.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
+
 export async function validateApiKey(
   request: NextRequest,
 ): Promise<{ valid: true; keyId: string } | { valid: false; error: string }> {
   const authHeader = request.headers.get("authorization");
-  const queryKey = request.nextUrl.searchParams.get("api_key");
+  const queryKey = allowLegacyApiKeyQuery()
+    ? request.nextUrl.searchParams.get("api_key")
+    : null;
 
   const rawKey = authHeader?.startsWith("Bearer ")
     ? authHeader.slice(7).trim()
     : queryKey?.trim();
 
   if (!rawKey) {
+    const legacyHint = allowLegacyApiKeyQuery()
+      ? " Query ?api_key= is allowed only when METROVISION_ALLOW_API_KEY_QUERY is enabled."
+      : "";
     return {
       valid: false,
-      error: "Missing API key. Provide via Authorization: Bearer <key> header or ?api_key= query parameter.",
+      error: `Missing API key. Use Authorization: Bearer <key>.${legacyHint}`,
     };
   }
 

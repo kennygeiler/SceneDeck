@@ -116,6 +116,14 @@ pnpm-workspace.yaml                   -- Workspace config (worker not yet integr
 .kiln/docs/codebase-state.md          -- Living inventory (rakim)
 ```
 
+## Production hardening (public deploys)
+
+Optional env vars (see `.planning/codebase/INTEGRATIONS.md`):
+
+- **`METROVISION_LLM_GATE_SECRET`** — If set, `POST /api/agent/chat` and `POST /api/rag` require header **`x-metrovision-llm-gate`** with the same value (reduces anonymous Gemini/OpenAI spend).
+- **`METROVISION_PROCESS_SCENE_SECRET`** — If set, `POST /api/process-scene` requires **`x-metrovision-process-scene-secret`**. The route is **disabled on Vercel** (`503`); use the worker ingest path for hosted workflows.
+- **`METROVISION_ALLOW_API_KEY_QUERY`** — Set to `true` only to temporarily allow v1 API keys via `?api_key=`; prefer Bearer.
+
 ## Known Issues
 
 (None — Phase 01 aligned AC-14 and agent docs with `^0.45.1`.)

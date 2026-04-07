@@ -63,7 +63,7 @@
 
 **API portal / programmatic access:**
 
-- **Database-backed API keys** — `src/lib/api-auth.ts` validates Bearer or `?api_key=` against `schema.apiKeys` (hashed keys). Used by versioned REST such as `src/app/api/v1/search/route.ts`. Keys are operator-issued, not env vars.
+- **Database-backed API keys** — `src/lib/api-auth.ts` validates `Authorization: Bearer <key>` against `schema.apiKeys` (hashed keys). Used by versioned REST such as `src/app/api/v1/search/route.ts`. Keys are operator-issued, not env vars. Legacy `?api_key=` is **off by default** (leaks via logs/referrers); set `METROVISION_ALLOW_API_KEY_QUERY=true` only for a controlled migration window.
 
 ## Monitoring & Observability
 
@@ -103,6 +103,9 @@
 
 **Optional / feature-specific:**
 
+- `METROVISION_LLM_GATE_SECRET` — Gates `POST /api/agent/chat` and `POST /api/rag` behind header `x-metrovision-llm-gate` when set.
+- `METROVISION_PROCESS_SCENE_SECRET` — Gates `POST /api/process-scene` behind header `x-metrovision-process-scene-secret` when set; route returns `503` on Vercel regardless.
+- `METROVISION_ALLOW_API_KEY_QUERY` — Set `true` only to allow legacy `?api_key=` on v1 REST during migration (default: Bearer only).
 - `SCENEDETECT_PATH` — Custom PySceneDetect binary (`src/lib/ingest-pipeline.ts`, `worker/src/ingest.ts`).
 - `METROVISION_PYTHON_BIN` — Python executable for server-invoked pipeline (`src/app/api/process-scene/route.ts`).
 - `REPLICATE_API_TOKEN`, `REPLICATE_YOLO_MODEL`, `GEMINI_API_KEY` — As above.

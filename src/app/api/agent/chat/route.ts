@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { AGENT_SYSTEM_PROMPT } from "@/lib/agent-system-prompt";
 import { TOOL_DECLARATIONS, executeToolCall } from "@/lib/agent-tools";
+import { rejectIfLlmRouteGated } from "@/lib/llm-route-gate";
 import { retrieve, formatRetrievalContext } from "@/lib/rag-retrieval";
 
 interface ChatMessage {
@@ -99,6 +100,9 @@ function extractFunctionCall(
 
 export async function POST(request: Request) {
   try {
+    const gated = rejectIfLlmRouteGated(request);
+    if (gated) return gated;
+
     const { messages } = (await request.json()) as RequestBody;
 
     if (!messages || !Array.isArray(messages)) {

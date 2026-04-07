@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 
+import { rejectIfLlmRouteGated } from "@/lib/llm-route-gate";
 import { retrieve, formatRetrievalContext } from "@/lib/rag-retrieval";
 
 const SYSTEM_PROMPT = `You are MetroVision, an expert cinematography analysis assistant. You have access to a database of classified film shots and a knowledge corpus of cinematography textbooks, research papers, and critical analysis.
@@ -20,6 +21,9 @@ You serve two audiences:
 
 export async function POST(request: NextRequest) {
   try {
+    const gated = rejectIfLlmRouteGated(request);
+    if (gated) return gated;
+
     const { query } = (await request.json()) as { query: string };
 
     if (!query?.trim()) {

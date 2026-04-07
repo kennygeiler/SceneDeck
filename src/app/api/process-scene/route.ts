@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { timingSafeEqual } from "node:crypto";
 import { constants } from "node:fs";
 import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -400,10 +401,40 @@ async function upsertFilm(
   return insertedFilm.id;
 }
 
+const PROCESS_SCENE_SECRET_HEADER = "x-metrovision-process-scene-secret";
+
 export async function POST(request: Request) {
   let tempDir: string | null = null;
 
   try {
+    if (process.env.VERCEL === "1") {
+      return NextResponse.json(
+        {
+          error:
+            "process-scene is disabled on Vercel (ffmpeg/Python/local paths). Use the TS worker ingest pipeline or run this API on a self-hosted Node host. See AGENTS.md.",
+        },
+        { status: 503 },
+      );
+    }
+
+    const sceneSecret = process.env.METROVISION_PROCESS_SCENE_SECRET?.trim();
+    if (sceneSecret) {
+      const presented =
+        request.headers.get(PROCESS_SCENE_SECRET_HEADER)?.trim() ?? "";
+      const a = Buffer.from(sceneSecret);
+      const b = Buffer.from(presented);
+      const ok = a.length === b.length && timingSafeEqual(a, b);
+      if (!ok) {
+        return NextResponse.json(
+          {
+            error:
+              "Invalid or missing x-metrovision-process-scene-secret (must match METROVISION_PROCESS_SCENE_SECRET).",
+          },
+          { status: 401 },
+        );
+      }
+    }
+
     const payload = parseBody((await request.json()) as ProcessSceneRequest);
     await access(payload.videoPath, constants.R_OK);
 

@@ -10,7 +10,7 @@ This milestone delivers phased hardening and alignment work traced to `.planning
 
 - [x] **Phase 1: Documentation & constraint alignment** — Kiln/AGENTS accuracy; Drizzle policy; onboarding scripts; naming
 - [x] **Phase 2: Correctness & schema integrity** — API auth crypto import; worker vs app Drizzle schema drift
-- [ ] **Phase 3: Security & exposure** — LLM route abuse; API key transport; `process-scene` exposure; image remote patterns
+- [x] **Phase 3: Security & exposure** — LLM route abuse; API key transport; `process-scene` exposure; image remote patterns
 - [ ] **Phase 4: Rate limits & heavy-work boundaries** — Worker/RAG/agent Gemini limiting; semantic search fallback; `process-scene` stance vs AC-01/AC-20
 - [ ] **Phase 5: Fragile modules** — Taxonomy TS/Python parity; D3 and large client components
 - [ ] **Phase 6: Tests & observability** — Baseline automated tests, CI, structured logging
@@ -84,10 +84,10 @@ Plans:
 
 Plans:
 
-- [ ] 03-01: Define and implement production guards for public Gemini spend routes (header secret, edge limits, env flags)
-- [ ] 03-02: Deprecate or remove `?api_key=` from `validateApiKey`; update integrator docs
-- [ ] 03-03: Harden `src/app/api/process-scene/route.ts` for deployment model (auth, allowlist, or explicit disable on Vercel)
-- [ ] 03-04: Tighten `images.remotePatterns` in `next.config.ts` to known CDNs/buckets
+- [x] 03-01: Define and implement production guards for public Gemini spend routes (header secret, edge limits, env flags)
+- [x] 03-02: Deprecate or remove `?api_key=` from `validateApiKey`; update integrator docs
+- [x] 03-03: Harden `src/app/api/process-scene/route.ts` for deployment model (auth, allowlist, or explicit disable on Vercel)
+- [x] 03-04: Tighten `images.remotePatterns` in `next.config.ts` to known CDNs/buckets
 
 ---
 
@@ -171,7 +171,7 @@ Plans:
 |-------|------|----------------|--------|-----------|
 | 1 | Documentation & constraint alignment | 4/4 | Complete | 2026-04-07 |
 | 2 | Correctness & schema integrity | 2/2 | Complete | 2026-04-07 |
-| 3 | Security & exposure | 0/4 | Not started | — |
+| 3 | Security & exposure | 4/4 | Complete | 2026-04-07 |
 | 4 | Rate limits & heavy-work boundaries | 0/4 | Not started | — |
 | 5 | Fragile modules | 0/2 | Not started | — |
 | 6 | Tests & observability | 0/3 | Not started | — |
