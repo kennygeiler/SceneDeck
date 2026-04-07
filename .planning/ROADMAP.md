@@ -9,7 +9,7 @@ This milestone delivers phased hardening and alignment work traced to `.planning
 **Phase Numbering:** Integer phases are sequential. Decimal phases (e.g. 3.1) are reserved for urgent insertions if needed.
 
 - [x] **Phase 1: Documentation & constraint alignment** — Kiln/AGENTS accuracy; Drizzle policy; onboarding scripts; naming
-- [ ] **Phase 2: Correctness & schema integrity** — API auth crypto import; worker vs app Drizzle schema drift
+- [x] **Phase 2: Correctness & schema integrity** — API auth crypto import; worker vs app Drizzle schema drift
 - [ ] **Phase 3: Security & exposure** — LLM route abuse; API key transport; `process-scene` exposure; image remote patterns
 - [ ] **Phase 4: Rate limits & heavy-work boundaries** — Worker/RAG/agent Gemini limiting; semantic search fallback; `process-scene` stance vs AC-01/AC-20
 - [ ] **Phase 5: Fragile modules** — Taxonomy TS/Python parity; D3 and large client components
@@ -60,8 +60,8 @@ Plans:
 
 Plans:
 
-- [ ] 02-01: Fix `src/lib/api-auth.ts` imports and UUID generation per Node `crypto` best practice _(planned — see `.planning/phases/02-correctness-schema-integrity/`)_
-- [ ] 02-02: Align worker `films.source_url`, add `check:schema-drift`, document `shot_metadata` gap _(planned — same dir)_
+- [x] 02-01: Fix `src/lib/api-auth.ts` imports and UUID generation per Node `crypto` best practice
+- [x] 02-02: Align worker `films.source_url`, add `check:schema-drift`, document `shot_metadata` gap
 
 ---
 
@@ -170,7 +170,7 @@ Plans:
 | Phase | Name | Plans Complete | Status | Completed |
 |-------|------|----------------|--------|-----------|
 | 1 | Documentation & constraint alignment | 4/4 | Complete | 2026-04-07 |
-| 2 | Correctness & schema integrity | 0/2 | Not started | — |
+| 2 | Correctness & schema integrity | 2/2 | Complete | 2026-04-07 |
 | 3 | Security & exposure | 0/4 | Not started | — |
 | 4 | Rate limits & heavy-work boundaries | 0/4 | Not started | — |
 | 5 | Fragile modules | 0/2 | Not started | — |

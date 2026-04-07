@@ -15,6 +15,7 @@ pnpm db:push          # Push schema to Neon
 pnpm db:seed          # Seed database (tsx src/db/seed.ts)
 pnpm db:embeddings    # Generate shot embeddings (tsx src/db/generate-embeddings.ts)
 pnpm db:studio        # Open Drizzle Studio
+pnpm check:schema-drift  # App vs worker Drizzle columns for shared tables (see scripts/check-schema-drift.ts)
 
 # TS Ingest Worker (Express, runs separately)
 cd worker && pnpm dev   # Start worker dev server (tsx watch)

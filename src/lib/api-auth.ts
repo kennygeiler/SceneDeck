@@ -3,7 +3,7 @@
  * AC-21: No auth in v1 — API keys only, operator-issued, no OAuth.
  */
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { eq } from "drizzle-orm";
 import { NextRequest } from "next/server";
@@ -61,7 +61,7 @@ export async function validateApiKey(
  * and stores the hash.
  */
 export async function generateApiKey(name: string): Promise<{ key: string; id: string }> {
-  const raw = `mv_${crypto.randomUUID().replace(/-/g, "")}`;
+  const raw = `mv_${randomUUID().replace(/-/g, "")}`;
   const keyHash = hashKey(raw);
 
   const [row] = await db

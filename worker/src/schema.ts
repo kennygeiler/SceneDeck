@@ -30,6 +30,7 @@ export const films = pgTable("films", {
   overview: text("overview"),
   runtime: integer("runtime"),
   genres: text("genres").array(),
+  sourceUrl: text("source_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
@@ -77,6 +78,8 @@ export const shotMetadata = pgTable("shot_metadata", {
   isCompound: boolean("is_compound").default(false),
   compoundParts: jsonb("compound_parts"),
   classificationSource: text("classification_source").default("manual"),
+  confidence: real("confidence"),
+  reviewStatus: text("review_status").default("unreviewed"),
 });
 
 export const shotSemantic = pgTable("shot_semantic", {
