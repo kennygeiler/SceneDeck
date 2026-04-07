@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getShotById } from "@/db/queries";
+import { ShotProvenanceCard } from "@/components/archive/shot-provenance-card";
 import { AddToDeckButton } from "@/components/decks/add-to-deck-button";
 import { DetectObjectsButton } from "@/components/shots/detect-objects-button";
 import { ShotPlayer } from "@/components/video/shot-player";
@@ -146,6 +147,8 @@ export default async function ShotDetailPage({ params }: ShotDetailPageProps) {
           </Link>
         </div>
       </section>
+
+      <ShotProvenanceCard shot={shot} />
 
       <ShotPlayer shot={shot} />
 

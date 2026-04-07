@@ -1,10 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { getAllFilms, getAllShots } from "@/db/queries";
+import { ArchiveDemoSlice } from "@/components/archive/archive-demo-slice";
 import { FilmCard } from "@/components/films/film-card";
 import { HomeHero } from "@/components/home/home-hero";
 import { ShotCard } from "@/components/shots/shot-card";
+import { getAllFilms, getAllShots, getVerificationStats } from "@/db/queries";
+import { FRAMINGS } from "@/lib/taxonomy";
 import {
   formatShotDuration,
   getDepthDisplayName,
@@ -15,32 +17,37 @@ import {
 const workflowSteps = [
   {
     step: "01",
-    title: "Ingest",
+    title: "Archive",
     description:
-      "Detect scenes, attach clips and thumbnails, and push normalized shot records into the archive.",
+      "Shot-level composition metadata (framing, depth, blocking, and related fields) with provenance and verification hooks.",
   },
   {
     step: "02",
-    title: "Analyze",
-    description:
-      "Classify framing, depth, blocking, lighting, and shot scale using the shared MetroVision taxonomy.",
-  },
-  {
-    step: "03",
     title: "Explore",
     description:
-      "Search the live database, inspect overlay telemetry, and route uncertain records into human verification.",
+      "Browse, visualize patterns across films, and export structured records with citation-ready methodology text.",
   },
 ] as const;
 
 export default async function Home() {
-  const [films, allShots] = await Promise.all([getAllFilms(), getAllShots()]);
+  const [films, allShots, verificationStats] = await Promise.all([
+    getAllFilms(),
+    getAllShots(),
+    getVerificationStats(),
+  ]);
   const featuredShots = allShots.slice(0, 3);
   const [spotlightShot, ...secondaryShots] = featuredShots;
+  const framingTypeCount = Object.keys(FRAMINGS).length;
 
   return (
     <div className="flex flex-col gap-16 pb-16 sm:gap-20 lg:gap-24">
       <HomeHero />
+
+      <ArchiveDemoSlice
+        stats={verificationStats}
+        framingTypeCount={framingTypeCount}
+        spotlightShotId={spotlightShot?.id ?? null}
+      />
 
       <section
         id="featured"
@@ -57,11 +64,11 @@ export default async function Home() {
               className="mt-3 text-3xl font-semibold tracking-[var(--letter-spacing-snug)] text-[var(--color-text-primary)] sm:text-4xl lg:text-5xl"
               style={{ fontFamily: "var(--font-heading)" }}
             >
-              Live shots from the database, staged like a product demo.
+              Featured shots from the live archive
             </h2>
             <p className="mt-4 max-w-2xl text-base leading-8 text-[var(--color-text-secondary)]">
-              These records are rendered from the same data layer that powers the
-              browse surface, detail overlay, and verification queue.
+              Same rows you browse and cite—composition metadata, overlay, and
+              verification state included.
             </p>
           </div>
 
@@ -261,18 +268,18 @@ export default async function Home() {
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="max-w-3xl">
               <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                Film analysis
+                By film
               </p>
               <h2
                 id="films-heading"
                 className="mt-3 text-3xl font-semibold tracking-[var(--letter-spacing-snug)] text-[var(--color-text-primary)] sm:text-4xl"
                 style={{ fontFamily: "var(--font-heading)" }}
               >
-                Complete films with scene-level coverage analysis.
+                Films in the corpus
               </h2>
               <p className="mt-4 max-w-2xl text-base leading-8 text-[var(--color-text-secondary)]">
-                Every shot classified, every scene mapped. Explore how directors
-                build coverage across an entire film.
+                Open a title to see shot timelines, coverage stats, and how much
+                of the film has human verification.
               </p>
             </div>
             <Link
@@ -300,11 +307,11 @@ export default async function Home() {
             className="mt-3 text-3xl font-semibold tracking-[var(--letter-spacing-snug)] text-[var(--color-text-primary)] sm:text-4xl"
             style={{ fontFamily: "var(--font-heading)" }}
           >
-            How it works
+            How researchers use it
           </h2>
           <p className="mt-4 max-w-2xl text-base leading-8 text-[var(--color-text-secondary)]">
-            The system moves from offline ingestion to searchable exploration
-            without changing the taxonomy or the presentation layer.
+            A single taxonomy and database surface for composition research,
+            tooling prototypes, and teaching—not a grab-bag of unrelated demos.
           </p>
         </div>
 

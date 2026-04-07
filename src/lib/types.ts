@@ -90,6 +90,8 @@ export type ShotWithDetails = {
     durationCategory: DurationCategorySlug | null;
     classificationSource: string | null;
     confidence: number | null;
+    /** Pipeline / HITL queue state from `shot_metadata.review_status`. */
+    reviewStatus: string | null;
   };
   semantic: {
     id: string | null;
@@ -107,6 +109,12 @@ export type ShotWithDetails = {
   videoUrl: string | null;
   thumbnailUrl: string | null;
   createdAt: string | null;
+  /** Derived from `verifications` rows for this shot (latest first). */
+  trust?: {
+    verificationCount: number;
+    latestVerifiedAt: string | null;
+    latestOverallRating: number | null;
+  } | null;
   objects: Array<{
     id: string;
     trackId: string;
@@ -247,6 +255,12 @@ export type FilmWithDetails = {
   shotCount: number;
   totalDuration: number;
   scenes: SceneWithShots[];
+};
+
+/** Shots in this film that have at least one human verification row. */
+export type FilmTrustSummary = {
+  shotsWithHumanVerification: number;
+  lastVerifiedAt: string | null;
 };
 
 export type FilmCard = {

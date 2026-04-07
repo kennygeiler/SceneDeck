@@ -1,6 +1,8 @@
 # MetroVision (SceneDeck)
 
-Searchable film-shot intelligence with **composition-centric metadata** (framing, depth, blocking, lighting, shot size, angles), **vector + text search**, and **playback-aware overlays**. **MetroVision** is the product name; **SceneDeck** is a common repo/codename.
+**MetroVision is a shot-level composition archive for cinematography research and tooling**—structured framing/depth/blocking (and related fields), human verification, exports you can cite, and optional vector search. **MetroVision** is the product name; **SceneDeck** is a common repo/codename.
+
+*Marketing on the landing page stays focused on that wedge; the repo still contains ingest, agent, batch review, API, and other surfaces for operators and integrators.*
 
 ![Next.js](https://img.shields.io/badge/Next.js-15-black)
 ![React](https://img.shields.io/badge/React-19-1d9bf0)
@@ -18,23 +20,17 @@ Searchable film-shot intelligence with **composition-centric metadata** (framing
 
 Placeholder: `https://scenedeck-demo.vercel.app`
 
-## What the product does (features)
+## What the product does (wedge vs full repo)
 
 | Area | What it’s for |
 |------|----------------|
-| **Browse** | Filter and explore films and shots using taxonomy fields (framing, shot size, semantic text, etc.). |
-| **Film detail** | See a film’s scenes and shots in context (posters, metadata from TMDB where configured). |
-| **Shot detail** | Play clips with an **SVG metadata overlay** (composition badges, cues aligned to playback). |
-| **Visualize** | Six **D3** views (rhythm, sunburst, heatmap, chord, scatter, radar) for patterns across the archive. |
-| **Verify** | Human-in-the-loop queue to review shots, rate fields, and submit corrections. |
-| **Verify (batch)** | Batch-oriented review workflow for larger queues. |
-| **Review splits** | Upload a film file, inspect auto-detected shot boundaries, tweak, then submit for processing (operator / local-friendly). |
-| **Ingest** | Start **SSE-backed** film ingest (local Next stream or remote **TypeScript worker** when `NEXT_PUBLIC_WORKER_URL` points at it). |
-| **Agent** | Chat UI backed by **Gemini** with tool calls and optional RAG over the corpus + DB (rate-limited). |
-| **Export** | Pull structured shot/film data for research or external tools. |
-| **Decks** | Curate and manage shot collections. |
-| **Admin** | Operator tools (e.g. accuracy summaries, correction patterns). |
-| **REST API (v1)** | API-keyed access for films, shots, search, taxonomy (`Authorization: Bearer …`). |
+| **Browse** | Filter films and shots by composition taxonomy and text. |
+| **Shot detail** | Clip playback, **SVG overlay**, model **confidence**, **review status**, **last human verification**. |
+| **Film detail** | Timeline + **share of shots with human verification** + last verification time. |
+| **Visualize** | Pattern views across the archive (landing demo deep-links the **composition scatter**). |
+| **Export** | JSON/CSV plus an on-page **citation / methodology** blurb (live verification stats). |
+
+**Also in the repo (not the core marketing story):** Verify (queue + batch), ingest (SSE / worker), Python batch pipeline, agent chat, decks, admin, REST API v1, review splits, embeddings-backed search, etc.
 
 **Search** uses **pgvector** embeddings when `shot_embeddings` is populated; otherwise it falls back to **ILIKE** text search (see server logs for `[searchShots]` messages). Run `pnpm db:embeddings` after ingest to enable semantic similarity.
 
@@ -90,11 +86,10 @@ Placeholder: `https://scenedeck-demo.vercel.app`
 
 ### Researcher or curator (read-heavy)
 
-1. Land on the home page → understand what the archive contains.  
-2. Open **Browse** → filter by composition / shot size / text.  
-3. Open a **shot** → watch the clip with overlays; jump to **Film** for surrounding context.  
-4. Use **Visualize** to see rhythm, director/film patterns, or transition matrices.  
-5. Optionally **Export** or build **Decks** for a paper, edit, or presentation.
+1. **Browse** → filter by composition fields.  
+2. **Shot** → overlay + provenance (confidence, label origin, verification).  
+3. **Visualize** → e.g. composition scatter (`/visualize#composition-scatter`).  
+4. **Export** → download data + copy citation text.
 
 ### Operator (ingest + quality)
 
@@ -102,7 +97,14 @@ Placeholder: `https://scenedeck-demo.vercel.app`
 2. **Ingest:** run the **worker** (`cd worker && pnpm dev`) for reliable long jobs, or use the **Ingest** page against a configured worker URL.  
 3. Backfill vectors: `pnpm db:embeddings` so search uses semantics.  
 4. Use **Verify** / **batch verify** to fix bad rows; **Admin** for aggregates and correction patterns.  
-5. Re-run checks locally: `pnpm check:schema-drift`, `pnpm check:taxonomy`.
+5. Re-run checks locally: `pnpm check:schema-drift`, `pnpm check:taxonomy`, `pnpm test`.
+
+## Quality gates (CI & tests)
+
+For **labs and toolmakers evaluating the stack**, automated checks are part of the product story—not “cleanup only.”
+
+- **GitHub Actions** (`.github/workflows/ci.yml`): `pnpm lint`, `pnpm check:taxonomy`, `pnpm check:schema-drift`, `pnpm test`.  
+- **`pnpm build`** is intentionally **not** required in CI without a real `DATABASE_URL` (Next pages hit the DB at build time); run it locally or in deploy previews with secrets configured.
 
 ### Integrator (API)
 

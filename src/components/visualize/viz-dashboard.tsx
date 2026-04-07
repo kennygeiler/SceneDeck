@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { VisualizationData } from "@/lib/types";
 
 import { ChordDiagram } from "./chord-diagram";
@@ -29,6 +29,15 @@ export function VizDashboard({ data }: VizDashboardProps) {
   }, [data.shots, selectedMovement, selectedDirector, selectedFilm]);
 
   const hasFilters = selectedMovement || selectedDirector || selectedFilm;
+
+  useEffect(() => {
+    const id = window.location.hash.replace(/^#/, "");
+    if (id !== "composition-scatter") return;
+    const el = document.getElementById("composition-scatter");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
 
   return (
     <div className="space-y-6 pb-16">
@@ -115,7 +124,9 @@ export function VizDashboard({ data }: VizDashboardProps) {
         </div>
 
         {/* Row 2: Scatter + Radar */}
-        <CompositionScatter shots={filteredShots} />
+        <div id="composition-scatter" className="scroll-mt-28">
+          <CompositionScatter shots={filteredShots} />
+        </div>
         <DirectorRadar shots={data.shots} directors={data.directors} />
 
         {/* Row 3: Streamgraph (full width) */}

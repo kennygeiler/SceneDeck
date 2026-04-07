@@ -6,7 +6,11 @@ import { FilmHeader } from "@/components/films/film-header";
 import { FilmCoverageStats } from "@/components/films/film-coverage-stats";
 import { FilmTimeline } from "@/components/films/film-timeline";
 import { SceneCard } from "@/components/films/scene-card";
-import { getFilmById, getFilmCoverageStats } from "@/db/queries";
+import {
+  getFilmById,
+  getFilmCoverageStats,
+  getFilmTrustSummary,
+} from "@/db/queries";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -24,9 +28,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function FilmDetailPage({ params }: Props) {
   const { id } = await params;
-  const [film, stats] = await Promise.all([
+  const [film, stats, filmTrust] = await Promise.all([
     getFilmById(id),
     getFilmCoverageStats(id),
+    getFilmTrustSummary(id),
   ]);
 
   if (!film) notFound();
@@ -46,7 +51,7 @@ export default async function FilmDetailPage({ params }: Props) {
       </div>
 
       {/* Film Header */}
-      <FilmHeader film={film} />
+      <FilmHeader film={film} trust={filmTrust} />
 
       {/* Full Film Timeline */}
       <section>

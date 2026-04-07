@@ -27,6 +27,7 @@ import type {
   ExportShotRecord,
   FilmCard,
   FilmCoverageStats,
+  FilmTrustSummary,
   FilmWithDetails,
   SceneWithShots,
   ShotReviewQueueItem,
@@ -96,6 +97,7 @@ const shotSelection = {
   metadataDurationCat: schema.shotMetadata.durationCat,
   metadataClassificationSource: schema.shotMetadata.classificationSource,
   metadataConfidence: schema.shotMetadata.confidence,
+  metadataReviewStatus: schema.shotMetadata.reviewStatus,
   semanticId: schema.shotSemantic.id,
   semanticShotId: schema.shotSemantic.shotId,
   semanticDescription: schema.shotSemantic.description,
@@ -168,6 +170,7 @@ function mapShotRow(row: ShotRow): ShotWithDetails {
       durationCategory: (row.metadataDurationCat ?? "standard") as DurationCategorySlug,
       classificationSource: row.metadataClassificationSource ?? null,
       confidence: row.metadataConfidence ?? null,
+      reviewStatus: row.metadataReviewStatus ?? null,
     },
     semantic: row.semanticId
       ? {
@@ -446,7 +449,48 @@ export async function getShotById(id: string) {
   }
 
   const [shot] = await attachObjectsToShots([mapShotRow(row)]);
-  return shot ?? null;
+  if (!shot) {
+    return null;
+  }
+
+  const verifications = await getVerificationsForShot(id);
+  if (verifications.length === 0) {
+    return { ...shot, trust: null };
+  }
+
+  const latest = verifications[0];
+  return {
+    ...shot,
+    trust: {
+      verificationCount: verifications.length,
+      latestVerifiedAt: latest.verifiedAt,
+      latestOverallRating: latest.overallRating,
+    },
+  };
+}
+
+export async function getFilmTrustSummary(filmId: string): Promise<FilmTrustSummary> {
+  const rows = await db
+    .select({
+      shotId: schema.verifications.shotId,
+      verifiedAt: schema.verifications.verifiedAt,
+    })
+    .from(schema.verifications)
+    .innerJoin(schema.shots, eq(schema.verifications.shotId, schema.shots.id))
+    .where(eq(schema.shots.filmId, filmId));
+
+  const uniqueShots = new Set(rows.map((r) => r.shotId));
+  let latest: Date | null = null;
+  for (const r of rows) {
+    if (r.verifiedAt && (!latest || r.verifiedAt > latest)) {
+      latest = r.verifiedAt;
+    }
+  }
+
+  return {
+    shotsWithHumanVerification: uniqueShots.size,
+    lastVerifiedAt: latest ? latest.toISOString() : null,
+  };
 }
 
 export async function getObjectsForShot(shotId: string) {

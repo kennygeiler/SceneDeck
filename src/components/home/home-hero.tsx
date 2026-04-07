@@ -25,20 +25,20 @@ const stats = [
 
 const heroSignals = [
   {
-    label: "Overlay fidelity",
-    value: "SVG motion telemetry",
+    label: "Composition taxonomy",
+    value: "Framing, depth, blocking, scale",
     icon: Radar,
     accent: "var(--color-overlay-arrow)",
   },
   {
-    label: "Archive surface",
-    value: "Searchable Neon records",
+    label: "Trust surface",
+    value: "Confidence, review, verification",
     icon: Clapperboard,
     accent: "var(--color-overlay-trajectory)",
   },
   {
-    label: "Pipeline",
-    value: "Ingest → Analyze → Explore",
+    label: "Research outputs",
+    value: "Charts + export + citation",
     icon: Workflow,
     accent: "var(--color-overlay-badge)",
   },
@@ -76,21 +76,21 @@ export function HomeHero() {
             className="size-2 rounded-full shadow-[var(--shadow-glow)]"
             style={{ backgroundColor: "var(--color-status-verified)" }}
           />
-          Production surface for shot composition intelligence
+          Shot-level composition archive
         </div>
 
         <h1
           className="mt-6 max-w-5xl text-5xl font-bold tracking-[var(--letter-spacing-tight)] sm:text-6xl lg:text-8xl"
           style={{ fontFamily: "var(--font-heading)" }}
         >
-          <span className="text-[var(--color-text-primary)]">The </span>
-          <span className="laser-text">motion intelligence archive</span>
+          <span className="text-[var(--color-text-primary)]">Research-grade </span>
+          <span className="laser-text">shot metadata</span>
           <span className="text-[var(--color-text-primary)]">.</span>
         </h1>
         <p className="mt-4 max-w-3xl text-lg leading-8 text-[var(--color-text-secondary)] sm:text-xl">
-          MetroVision turns film scenes into a searchable, verification-aware
-          archive of shot composition — framing, depth, blocking, lighting, and
-          scale — all surfaced through a playback-synced visual overlay.
+          MetroVision is a shot-level composition archive for cinematography
+          research and tooling—searchable records, human verification, and exports
+          you can cite.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -122,7 +122,7 @@ export function HomeHero() {
             </Link>
           </motion.div>
           <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-            Live database records. Portfolio-grade presentation.
+            Browse, visualize one chart, export with methodology.
           </p>
         </div>
 
@@ -214,13 +214,13 @@ export function HomeHero() {
           <div className="relative flex items-center justify-between border-b border-[var(--color-border-subtle)] pb-4">
             <div>
               <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                Cinematic telemetry canvas
+                Composition fields
               </p>
               <h2
                 className="mt-2 text-2xl font-semibold tracking-[var(--letter-spacing-snug)] text-[var(--color-text-primary)]"
                 style={{ fontFamily: "var(--font-heading)" }}
               >
-                Metadata surface
+                Taxonomy snapshot
               </h2>
             </div>
             <div className="rounded-full border border-[var(--color-border-default)] px-3 py-1 font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-status-verified)]">
