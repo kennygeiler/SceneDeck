@@ -10,9 +10,11 @@ import {
   useState,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Bookmark, Copy, Download, Trash2 } from "lucide-react";
+import { Bookmark, CloudUpload, Copy, Download, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { evalBoundaryCuts, normalizeCutList } from "@/lib/boundary-eval";
+import type { FilmEvalExportPayload } from "@/lib/film-eval-export";
 import type { FilmCard } from "@/lib/types";
 
 const STORAGE_PREFIX = "metrovision:eval-gold:";
@@ -68,6 +70,7 @@ type FilmPayload = {
     videoUrl: string | null;
     framing: string;
   }>;
+  predictedExport: FilmEvalExportPayload;
 };
 
 type Persisted = {
@@ -101,6 +104,44 @@ type GoldAnnotateWorkspaceProps = {
   films: FilmCard[];
 };
 
+function CutTimelineStrip({
+  label,
+  times,
+  maxSec,
+  markerClass,
+}: {
+  label: string;
+  times: number[];
+  maxSec: number;
+  markerClass: string;
+}) {
+  const m = Math.max(maxSec, 1);
+  return (
+    <div className="space-y-1">
+      <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+        {label}{" "}
+        <span className="tabular-nums text-[var(--color-text-secondary)]">({times.length})</span>
+      </p>
+      <div className="relative h-4 w-full overflow-hidden rounded border border-[var(--color-border-subtle)] bg-black/50">
+        {times.length === 0 ? (
+          <span className="absolute inset-0 flex items-center px-2 font-mono text-[10px] text-[var(--color-text-tertiary)]">
+            —
+          </span>
+        ) : (
+          times.map((t, i) => (
+            <span
+              key={`${t.toFixed(3)}-${i}`}
+              className={`absolute top-0 bottom-0 w-px ${markerClass}`}
+              style={{ left: `${Math.min(100, Math.max(0, (t / m) * 100))}%` }}
+              title={`${t.toFixed(3)}s`}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -132,6 +173,14 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
   frameStepRef.current = frameStepSec;
 
   const [playbackSpeedPercent, setPlaybackSpeedPercent] = useState(100);
+  /** Same units as `pnpm eval:pipeline --tol`. */
+  const [compareTolSec, setCompareTolSec] = useState(0.5);
+
+  const [artifactAdminSecret, setArtifactAdminSecret] = useState("");
+  const [rememberArtifactSecret, setRememberArtifactSecret] = useState(false);
+  const [artifactSaveStatus, setArtifactSaveStatus] = useState<string | null>(null);
+  const [artifactSaveError, setArtifactSaveError] = useState<string | null>(null);
+  const [artifactSaving, setArtifactSaving] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const videoSrcRef = useRef<string | null>(null);
@@ -196,6 +245,29 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
       /* ignore */
     }
   }, [storageKey, sessionReady]);
+
+  useEffect(() => {
+    if (!sessionReady) return;
+    try {
+      const s = sessionStorage.getItem("mv-eval-artifact-admin");
+      if (s) {
+        setArtifactAdminSecret(s);
+        setRememberArtifactSecret(true);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [sessionReady]);
+
+  useEffect(() => {
+    if (!rememberArtifactSecret) {
+      try {
+        sessionStorage.removeItem("mv-eval-artifact-admin");
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [rememberArtifactSecret]);
 
   useEffect(() => {
     if (!storageKey || !sessionReady) return;
@@ -265,6 +337,9 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
         }
         if (cancelled) return;
         const fp = data as FilmPayload;
+        if (!fp.predictedExport) {
+          throw new Error("Film payload missing predictedExport; deploy API update?");
+        }
         setFilmPayload(fp);
         setReferenceShotId((prev) => {
           if (prev && fp.shots.some((s) => s.id === prev)) return prev;
@@ -327,6 +402,31 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
   }, [sourceMode, timeOffsetSec, playerTime, referenceShot?.startTc]);
 
   filmTimelineRef.current = filmTimelineSec;
+
+  const boundaryStats = useMemo(() => {
+    if (!filmPayload?.predictedExport) return null;
+    const pred = filmPayload.predictedExport.cutsSec;
+    return evalBoundaryCuts(cuts, pred, compareTolSec);
+  }, [filmPayload, cuts, compareTolSec]);
+
+  const fnList = useMemo(() => {
+    if (!boundaryStats) return [];
+    const matchedGt = new Set(boundaryStats.matchedPairs.map((x) => x.gt));
+    return normalizeCutList(cuts).filter((g) => !matchedGt.has(g));
+  }, [boundaryStats, cuts]);
+
+  const fpList = useMemo(() => {
+    if (!boundaryStats || !filmPayload?.predictedExport) return [];
+    const matchedPr = new Set(boundaryStats.matchedPairs.map((x) => x.pred));
+    return normalizeCutList(filmPayload.predictedExport.cutsSec).filter((p) => !matchedPr.has(p));
+  }, [boundaryStats, filmPayload]);
+
+  const compareMaxSec = useMemo(() => {
+    const p = filmPayload?.predictedExport?.cutsSec ?? [];
+    const all = [...cuts, ...p, filmTimelineSec];
+    if (all.length === 0) return 120;
+    return Math.max(120, ...all) * 1.02;
+  }, [cuts, filmPayload, filmTimelineSec]);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -450,7 +550,7 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
     setLocalFileLabel("");
   }
 
-  function downloadJson() {
+  function buildGoldExportPayload(): Record<string, unknown> {
     const fromLocalName = localFileLabel.replace(/\.[^.]+$/u, "").trim();
     const filmTitle =
       filmPayload?.film.title ??
@@ -458,7 +558,7 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
       (sourceMode === "local" && fromLocalName ? fromLocalName : null) ??
       "annotation";
     const createdAt = new Date().toISOString();
-    const payload = {
+    return {
       schemaVersion: "1.0",
       source: "metrovision_gold_annotate",
       sessionId,
@@ -479,7 +579,12 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
           : undefined,
       cutsSec: cuts,
     };
+  }
 
+  function downloadJson() {
+    const payload = buildGoldExportPayload();
+    const filmTitle = String(payload.filmTitle ?? "annotation");
+    const createdAt = String(payload.createdAt ?? new Date().toISOString());
     const slug = slugifyPart(filmTitle) || "gold";
     const stamp = createdAt.slice(0, 10);
     const filename = `gold-${slug}-${stamp}.json`;
@@ -490,6 +595,82 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  async function saveEvalArtifactToServer(kind: "gold" | "predicted") {
+    setArtifactSaveError(null);
+    setArtifactSaveStatus(null);
+    const bodyPayload =
+      kind === "gold" ? buildGoldExportPayload() : filmPayload?.predictedExport;
+    if (!bodyPayload) {
+      setArtifactSaveError(
+        kind === "predicted"
+          ? "Load a film with predicted shots from the database first."
+          : "Nothing to save.",
+      );
+      return;
+    }
+    setArtifactSaving(true);
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (artifactAdminSecret.trim()) {
+        headers.Authorization = `Bearer ${artifactAdminSecret.trim()}`;
+      }
+      const ft =
+        kind === "gold"
+          ? String((bodyPayload as { filmTitle?: string }).filmTitle ?? "session")
+          : String((bodyPayload as { filmTitle?: string }).filmTitle ?? "film");
+      const res = await fetch("/api/eval/artifacts", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          kind,
+          filmId: filmId || null,
+          sessionId: sessionId || null,
+          label: `${kind} · ${ft}`,
+          payload: bodyPayload,
+        }),
+      });
+      const data = (await res.json()) as { error?: string; retrievalUrl?: string };
+      if (!res.ok) {
+        throw new Error(data.error ?? `Save failed (${res.status})`);
+      }
+      if (rememberArtifactSecret && artifactAdminSecret.trim()) {
+        try {
+          sessionStorage.setItem("mv-eval-artifact-admin", artifactAdminSecret.trim());
+        } catch {
+          /* ignore */
+        }
+      }
+      const url = data.retrievalUrl ?? "";
+      if (url) {
+        setArtifactSaveStatus(url);
+        try {
+          await navigator.clipboard.writeText(url);
+        } catch {
+          /* ignore */
+        }
+      }
+    } catch (e) {
+      setArtifactSaveError(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setArtifactSaving(false);
+    }
+  }
+
+  function downloadPredictedJson() {
+    if (!filmPayload?.predictedExport) return;
+    const pe = filmPayload.predictedExport;
+    const stamp = new Date().toISOString().slice(0, 10);
+    const slug = slugifyPart(pe.filmTitle) || "predicted";
+    const blob = new Blob([`${JSON.stringify(pe, null, 2)}\n`], {
+      type: "application/json",
+    });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `predicted-${slug}-${stamp}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -905,8 +1086,257 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
             <Download className="size-4" />
             Download gold JSON
           </Button>
+
+          <div
+            className="space-y-3 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] p-4"
+            style={{
+              backgroundColor:
+                "color-mix(in oklch, var(--color-surface-primary) 72%, transparent)",
+            }}
+          >
+            <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+              Private copy (Neon, not git)
+            </p>
+            <p className="text-xs leading-5 text-[var(--color-text-secondary)]">
+              Stores JSON in Postgres. Retrieval uses a secret link with <code className="font-mono text-[10px]">?t=</code>{" "}
+              (save it — the token is not stored server-side). In production, set{" "}
+              <code className="font-mono text-[10px]">METROVISION_EVAL_ARTIFACT_ADMIN_SECRET</code> and paste the same
+              value below for uploads.
+            </p>
+            <div className="flex flex-col gap-1">
+              <label className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+                Admin secret (Bearer)
+              </label>
+              <input
+                type="password"
+                autoComplete="off"
+                value={artifactAdminSecret}
+                onChange={(e) => setArtifactAdminSecret(e.target.value)}
+                placeholder="Required in production when env is set"
+                className="h-9 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-primary)] px-3 font-mono text-xs text-[var(--color-text-primary)]"
+              />
+              <label className="flex cursor-pointer items-center gap-2 pt-1 font-mono text-[10px] text-[var(--color-text-secondary)]">
+                <input
+                  type="checkbox"
+                  checked={rememberArtifactSecret}
+                  onChange={(e) => setRememberArtifactSecret(e.target.checked)}
+                  className="accent-[var(--color-accent-base)]"
+                />
+                Remember in sessionStorage (this tab session)
+              </label>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-full sm:flex-1"
+                disabled={artifactSaving}
+                onClick={() => void saveEvalArtifactToServer("gold")}
+              >
+                <CloudUpload className="size-4" />
+                Save gold to DB
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-full sm:flex-1"
+                disabled={artifactSaving || !filmPayload?.predictedExport}
+                onClick={() => void saveEvalArtifactToServer("predicted")}
+              >
+                <CloudUpload className="size-4" />
+                Save predicted to DB
+              </Button>
+            </div>
+            {artifactSaveError ? (
+              <p className="font-mono text-xs text-[var(--color-signal-amber)]">{artifactSaveError}</p>
+            ) : null}
+            {artifactSaveStatus ? (
+              <div className="space-y-1">
+                <p className="font-mono text-[10px] text-[var(--color-signal-green)]">
+                  Saved — retrieval URL copied if clipboard allowed. Keep this link private.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    readOnly
+                    value={artifactSaveStatus}
+                    className="min-w-0 flex-1 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-primary)] px-2 py-1 font-mono text-[10px] text-[var(--color-text-primary)]"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    className="shrink-0 font-mono text-xs"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(artifactSaveStatus).catch(() => {});
+                    }}
+                  >
+                    <Copy className="size-3" />
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
       </section>
+
+      {filmId && filmPayload?.predictedExport ? (
+        <section
+          className="space-y-4 rounded-[var(--radius-xl)] border p-5"
+          style={{
+            backgroundColor:
+              "color-mix(in oklch, var(--color-surface-secondary) 76%, transparent)",
+            borderColor:
+              "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
+          }}
+        >
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+                Gold vs predicted (database)
+              </p>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--color-text-secondary)]">
+                Interior cut times from ingested shots (same as{" "}
+                <code className="font-mono text-xs">pnpm eval:export-film</code>). Matcher matches{" "}
+                <code className="font-mono text-xs">pnpm eval:pipeline</code> (greedy, one-to-one within
+                tolerance). If you use <strong>Local file</strong> or <strong>Custom URL</strong>, set{" "}
+                <strong>Time offset</strong> so your gold seconds line up with the DB timeline.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0 rounded-full"
+              onClick={downloadPredictedJson}
+            >
+              <Download className="size-4" />
+              Download predicted JSON
+            </Button>
+          </div>
+
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="flex flex-col gap-1">
+              <label className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+                Match tolerance (sec)
+              </label>
+              <input
+                type="number"
+                step={0.05}
+                min={0}
+                value={compareTolSec}
+                onChange={(e) => setCompareTolSec(Math.max(0, Number(e.target.value) || 0))}
+                className="h-9 w-28 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-primary)] px-3 font-mono text-sm tabular-nums text-[var(--color-text-primary)]"
+              />
+            </div>
+            {boundaryStats ? (
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1 font-mono text-xs tabular-nums sm:grid-cols-3">
+                <span className="text-[var(--color-text-tertiary)]">
+                  TP <span className="text-[var(--color-text-primary)]">{boundaryStats.truePositives}</span>
+                </span>
+                <span className="text-[var(--color-text-tertiary)]">
+                  FP <span className="text-[var(--color-signal-amber)]">{boundaryStats.falsePositives}</span>
+                </span>
+                <span className="text-[var(--color-text-tertiary)]">
+                  FN <span className="text-[var(--color-signal-amber)]">{boundaryStats.falseNegatives}</span>
+                </span>
+                <span className="text-[var(--color-text-tertiary)]">
+                  P{" "}
+                  <span className="text-[var(--color-text-primary)]">
+                    {(boundaryStats.precision * 100).toFixed(1)}%
+                  </span>
+                </span>
+                <span className="text-[var(--color-text-tertiary)]">
+                  R{" "}
+                  <span className="text-[var(--color-text-primary)]">
+                    {(boundaryStats.recall * 100).toFixed(1)}%
+                  </span>
+                </span>
+                <span className="text-[var(--color-text-tertiary)]">
+                  F1{" "}
+                  <span className="text-[var(--color-text-primary)]">{boundaryStats.f1.toFixed(3)}</span>
+                </span>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="space-y-3 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] p-4">
+            <CutTimelineStrip
+              label="Gold (this session)"
+              times={normalizeCutList(cuts)}
+              maxSec={compareMaxSec}
+              markerClass="bg-[var(--color-accent-base)]"
+            />
+            <CutTimelineStrip
+              label="Predicted (DB shot starts)"
+              times={normalizeCutList(filmPayload.predictedExport.cutsSec)}
+              maxSec={compareMaxSec}
+              markerClass="bg-sky-400/90"
+            />
+            <p className="font-mono text-[10px] text-[var(--color-text-tertiary)]">
+              Playhead ≈ {filmTimelineSec.toFixed(3)}s on both tracks when the time base matches.
+            </p>
+          </div>
+
+          {boundaryStats && boundaryStats.matchedPairs.length > 0 ? (
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+                Matched pairs (δ = pred − gold)
+              </p>
+              <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto font-mono text-xs">
+                {boundaryStats.matchedPairs
+                  .slice()
+                  .sort((a, b) => a.gt - b.gt)
+                  .map((m, i) => (
+                    <li
+                      key={`${m.gt}-${m.pred}-${i}`}
+                      className="flex flex-wrap gap-x-3 text-[var(--color-text-secondary)]"
+                    >
+                      <span className="text-[var(--color-signal-green)]">TP</span>
+                      <span className="tabular-nums">{m.gt.toFixed(3)}s</span>
+                      <span className="text-[var(--color-text-tertiary)]">↔</span>
+                      <span className="tabular-nums">{m.pred.toFixed(3)}s</span>
+                      <span className="tabular-nums text-[var(--color-text-tertiary)]">
+                        Δ {(m.pred - m.gt).toFixed(3)}s
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {fnList.length > 0 ? (
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-signal-amber)]">
+                Missed vs DB (FN) · {fnList.length}
+              </p>
+              <p className="mt-1 font-mono text-[11px] text-[var(--color-text-secondary)]">
+                Gold cuts with no predicted cut within {compareTolSec}s.
+              </p>
+              <ul className="mt-2 max-h-32 overflow-y-auto font-mono text-xs tabular-nums text-[var(--color-text-primary)]">
+                {fnList.map((t) => (
+                  <li key={`fn-${t}`}>{t.toFixed(3)}s</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {fpList.length > 0 ? (
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-signal-amber)]">
+                Extra vs gold (FP) · {fpList.length}
+              </p>
+              <p className="mt-1 font-mono text-[11px] text-[var(--color-text-secondary)]">
+                Predicted cuts with no gold cut within {compareTolSec}s.
+              </p>
+              <ul className="mt-2 max-h-32 overflow-y-auto font-mono text-xs tabular-nums text-[var(--color-text-primary)]">
+                {fpList.map((t) => (
+                  <li key={`fp-${t}`}>{t.toFixed(3)}s</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <section
         className="rounded-[var(--radius-xl)] border p-5"

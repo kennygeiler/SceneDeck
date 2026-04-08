@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 
 import { getFilmById } from "@/db/queries";
+import { buildFilmEvalExportPayload } from "@/lib/film-eval-export";
 
 export async function GET(request: Request) {
   const filmId = new URL(request.url).searchParams.get("filmId");
@@ -36,5 +37,7 @@ export async function GET(request: Request) {
       videoUrl: s.videoUrl,
       framing: s.metadata.framing,
     })),
+    /** Same JSON as `pnpm eval:export-film` — for in-app download + compare. */
+    predictedExport: buildFilmEvalExportPayload(film),
   });
 }

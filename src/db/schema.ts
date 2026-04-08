@@ -344,3 +344,21 @@ export const apiKeys = pgTable("api_keys", {
 
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type NewApiKey = typeof apiKeys.$inferInsert;
+
+// ---------------------------------------------------------------------------
+// Private eval artifacts (gold / predicted JSON) — not committed to git
+// ---------------------------------------------------------------------------
+
+export const evalArtifacts = pgTable("eval_artifacts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  kind: text("kind").notNull(),
+  filmId: uuid("film_id").references(() => films.id, { onDelete: "set null" }),
+  sessionId: text("session_id"),
+  label: text("label"),
+  payload: jsonb("payload").notNull(),
+  tokenHash: text("token_hash").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export type EvalArtifact = typeof evalArtifacts.$inferSelect;
+export type NewEvalArtifact = typeof evalArtifacts.$inferInsert;
