@@ -114,6 +114,22 @@ function extractEvalCutsSec(data: unknown): number[] {
   throw new Error('Expected a number[] or an object with "cutsSec": number[]');
 }
 
+/** Avoid `res.json()` on empty bodies (proxies, 502 HTML) — prevents "Unexpected end of JSON input". */
+async function readResponseJson(res: Response): Promise<unknown> {
+  const text = await res.text();
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return {};
+  }
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    throw new Error(
+      `Expected JSON (${res.status}): ${trimmed.slice(0, 200)}${trimmed.length > 200 ? "…" : ""}`,
+    );
+  }
+}
+
 type GoldAnnotateWorkspaceProps = {
   films: FilmCard[];
 };
@@ -346,7 +362,7 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
       setLoadError(null);
       try {
         const res = await fetch(`/api/eval/gold-annotate/film?filmId=${encodeURIComponent(filmId)}`);
-        const data = (await res.json()) as FilmPayload | { error?: string };
+        const data = (await readResponseJson(res)) as FilmPayload | { error?: string };
         if (!res.ok) {
           throw new Error("error" in data ? String(data.error) : "Failed to load film");
         }
@@ -678,7 +694,7 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
           payload: bodyPayload,
         }),
       });
-      const data = (await res.json()) as { error?: string; retrievalUrl?: string };
+      const data = (await readResponseJson(res)) as { error?: string; retrievalUrl?: string };
       if (!res.ok) {
         throw new Error(data.error ?? `Save failed (${res.status})`);
       }
