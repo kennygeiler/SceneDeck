@@ -91,6 +91,71 @@ export async function searchTmdbMovieId(
   return payload?.results?.find((result) => typeof result.id === "number")?.id ?? null;
 }
 
+/** Typeahead row from `/search/movie` (no director until detail fetch). */
+export type TmdbMovieSearchHit = {
+  tmdbId: number;
+  title: string;
+  /** Usually `YYYY` from `release_date`; may be empty for unreleased. */
+  year: string;
+};
+
+export async function searchTmdbMovies(
+  query: string,
+  limit = 12,
+): Promise<TmdbMovieSearchHit[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+
+  const payload = await fetchTmdbJson<TmdbSearchResponse>("/search/movie", {
+    query: q,
+  });
+
+  const rows = payload?.results ?? [];
+  return rows
+    .filter((r): r is typeof r & { id: number; title: string } =>
+      typeof r.id === "number" && Boolean(r.title?.trim()),
+    )
+    .slice(0, limit)
+    .map((r) => ({
+      tmdbId: r.id,
+      title: r.title.trim(),
+      year: r.release_date?.slice(0, 4) ?? "",
+    }));
+}
+
+type TmdbMovieWithCreditsResponse = {
+  title?: string;
+  release_date?: string;
+  credits?: {
+    crew?: Array<{ name?: string; job?: string }>;
+  };
+};
+
+/** Single TMDB round-trip for ingest form (title, year, primary director). */
+export async function fetchTmdbMovieIngestFields(
+  tmdbId: number,
+): Promise<{ title: string; year: string; director: string } | null> {
+  if (!Number.isInteger(tmdbId) || tmdbId < 1) return null;
+
+  const payload = await fetchTmdbJson<TmdbMovieWithCreditsResponse>(`/movie/${tmdbId}`, {
+    append_to_response: "credits",
+  });
+
+  if (!payload?.title?.trim()) return null;
+
+  const directorNames =
+    payload.credits?.crew
+      ?.filter((c) => c.job === "Director")
+      .map((c) => c.name?.trim())
+      .filter((n): n is string => Boolean(n)) ?? [];
+
+  return {
+    title: payload.title.trim(),
+    year: payload.release_date?.slice(0, 4) ?? "",
+    director: directorNames.length ? directorNames.join(", ") : "",
+  };
+}
+
 export type TmdbMovieDetails = {
   posterUrl: string | null;
   backdropUrl: string | null;

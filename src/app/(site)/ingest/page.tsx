@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { PipelineViz } from "@/components/ingest/pipeline-viz";
+import { TmdbTitleSearch } from "@/components/ingest/tmdb-title-search";
 
 type IngestPhase = "form" | "uploading" | "processing";
 
@@ -384,19 +385,18 @@ export default function IngestPage() {
             </div>
           </div>
 
-          {/* Metadata */}
+          {/* Metadata — title search fills director + year from TMDB */}
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
-              <label className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                Film Title
-              </label>
-              <input
-                type="text"
-                value={filmTitle}
-                onChange={(e) => setFilmTitle(e.target.value)}
+              <TmdbTitleSearch
+                title={filmTitle}
+                onTitleChange={setFilmTitle}
+                onPickFilm={(f) => {
+                  setFilmTitle(f.title);
+                  setDirector(f.director);
+                  setYear(f.year);
+                }}
                 disabled={phase !== "form"}
-                placeholder="2001: A Space Odyssey"
-                className="mt-2 w-full rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] outline-none focus:border-[var(--color-text-accent)]"
               />
             </div>
             <div>
