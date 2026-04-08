@@ -35,6 +35,32 @@ function tryParseOptionalTimelineBound(
   return { ok: true, value: n };
 }
 
+/** API routes may return JSON `{ error }` or plain/HTML (e.g. 413 Request Entity Too Large on Vercel). */
+async function readFetchErrorMessage(res: Response): Promise<string> {
+  const text = await res.text();
+  const trimmed = text.trim();
+  if (!trimmed) return `Request failed (HTTP ${res.status})`;
+  try {
+    const j = JSON.parse(trimmed) as { error?: string };
+    if (typeof j.error === "string" && j.error.trim()) return j.error.trim();
+  } catch {
+    /* not JSON */
+  }
+  const oneLine = trimmed.replace(/\s+/g, " ").slice(0, 300);
+  return oneLine || `Request failed (HTTP ${res.status})`;
+}
+
+function uploadSizeHint(status: number, message: string): string {
+  const tooBig =
+    status === 413 ||
+    /request entity too large|payload too large|body exceeded|FUNCTION_PAYLOAD_TOO_LARGE/i.test(
+      message,
+    );
+  return tooBig
+    ? " Large files must use direct-to-S3 upload: set NEXT_PUBLIC_WORKER_URL (or run ingest locally) instead of sending the video through this server."
+    : "";
+}
+
 export default function IngestPage() {
   const [phase, setPhase] = useState<IngestPhase>("form");
   const [filmTitle, setFilmTitle] = useState("");
@@ -101,8 +127,8 @@ export default function IngestPage() {
           }),
         });
         if (!urlRes.ok) {
-          const err = await urlRes.json();
-          throw new Error(err.error || "Failed to get upload URL");
+          const msg = await readFetchErrorMessage(urlRes);
+          throw new Error(msg || "Failed to get upload URL");
         }
         const { putUrl, videoUrl } = await urlRes.json();
 
@@ -124,8 +150,10 @@ export default function IngestPage() {
 
         const uploadRes = await fetch("/api/upload-video", { method: "POST", body: formData });
         if (!uploadRes.ok) {
-          const err = await uploadRes.json();
-          throw new Error(err.error || "Upload failed");
+          const msg = await readFetchErrorMessage(uploadRes);
+          throw new Error(
+            (msg || "Upload failed") + uploadSizeHint(uploadRes.status, msg),
+          );
         }
         const { videoPath: path } = await uploadRes.json();
         resolvedPath = path; // local file path
