@@ -26,10 +26,10 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 /**
- * Same limits as stream ingest. Hobby: use `300` max; Pro+: `800`.
- * Full films usually need the TS worker, not Vercel.
+ * Vercel Hobby: **300s** max (same as stream ingest). After upgrading to Pro, you can set **800** here for longer serverless runs.
+ * Prefer the TS worker for production ingest.
  */
-export const maxDuration = 800;
+export const maxDuration = 300;
 
 type IngestRequest = {
   videoPath: string;

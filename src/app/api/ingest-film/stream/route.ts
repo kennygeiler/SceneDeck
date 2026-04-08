@@ -31,10 +31,10 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 /**
- * Vercel serverless wall clock. **Hobby max is 300s** — if deploy fails, set this to `300` and use the TS worker for long ingests.
- * Pro/Enterprise: up to **800s** (still too short for many full films). `FUNCTION_INVOCATION_TIMEOUT` → limit hit; use `NEXT_PUBLIC_WORKER_URL` or a tighter timeline window.
+ * Vercel **Hobby** hard-caps at **300s** (deploy fails above that). Pro/Enterprise can raise this to **800** in this file after upgrading.
+ * Full films: use `NEXT_PUBLIC_WORKER_URL` (TS worker) or a short timeline window — 300s is often too little for serverless ingest.
  */
-export const maxDuration = 800;
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   const body = await request.json();
