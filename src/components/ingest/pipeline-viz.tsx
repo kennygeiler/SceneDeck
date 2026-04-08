@@ -449,9 +449,10 @@ export function PipelineViz({
         // Use remote worker if configured, otherwise local API
         const endpoint = workerUrl ? `${workerUrl}/api/ingest-film/stream` : "/api/ingest-film/stream";
 
-        // If using remote worker, send as videoUrl (S3 presigned). If local, send as videoPath.
+        const isHttpSource = /^https?:\/\//i.test(videoPath);
+        // S3 / remote URLs must be videoUrl so the server never proxies the file through Next.js JSON/body limits.
         const bodyPayload = {
-          ...(workerUrl
+          ...(isHttpSource
             ? { videoUrl: videoPath, filmTitle, director, year, concurrency, detector }
             : { videoPath, filmTitle, director, year, concurrency, detector }),
           ...(ingestStartSec !== undefined ? { ingestStartSec } : {}),

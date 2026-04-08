@@ -1,7 +1,10 @@
 import { spawn } from "node:child_process";
-import { readFile, mkdtemp, rm } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { access, constants, mkdir, readFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 import { uploadToS3, buildS3Key } from "./s3";
 import { acquireToken } from "./rate-limiter";
@@ -134,6 +137,43 @@ export async function runCommand(
       else reject(new Error(stderr || `${command} exited with code ${code}`));
     });
   });
+}
+
+/**
+ * Local filesystem path or http(s) URL → readable local path for PySceneDetect / FFmpeg.
+ * HTTP(S) sources are streamed to a temp file (no FFmpeg — works on Vercel); call dispose() when ingest is finished.
+ */
+export async function resolveIngestVideoToLocalPath(
+  videoPathOrUrl: string,
+): Promise<{ localPath: string; dispose: () => Promise<void> }> {
+  const input = videoPathOrUrl.trim();
+  if (!input.startsWith("http://") && !input.startsWith("https://")) {
+    const localPath = path.resolve(input);
+    await access(localPath, constants.R_OK);
+    return { localPath, dispose: async () => {} };
+  }
+
+  const downloadDir = path.join(tmpdir(), "metrovision-ingest-downloads");
+  await mkdir(downloadDir, { recursive: true });
+  const localPath = path.join(downloadDir, `${Date.now()}-source.mp4`);
+
+  const res = await fetch(input, { redirect: "follow" });
+  if (!res.ok) {
+    throw new Error(`Failed to download source video (HTTP ${res.status})`);
+  }
+  if (!res.body) {
+    throw new Error("Failed to download source video (empty response body)");
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const nodeReadable = Readable.fromWeb(res.body as any);
+  await pipeline(nodeReadable, createWriteStream(localPath));
+
+  return {
+    localPath,
+    dispose: async () => {
+      await rm(localPath, { force: true }).catch(() => {});
+    },
+  };
 }
 
 export function formatTimecode(seconds: number): string {

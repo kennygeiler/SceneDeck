@@ -1,5 +1,3 @@
-import { access } from "node:fs/promises";
-import { constants } from "node:fs";
 import path from "node:path";
 
 import { eq } from "drizzle-orm";
@@ -17,6 +15,7 @@ import {
   roundTime,
   parseIngestTimelineFromBody,
   clipDetectedSplitsToWindow,
+  resolveIngestVideoToLocalPath,
 } from "@/lib/ingest-pipeline";
 import { searchTmdbMovieId, fetchTmdbMovieDetails, fetchTmdbCast } from "@/lib/tmdb";
 import { planContiguousScenesByNormalizedTitle } from "@/lib/scene-grouping";
@@ -35,8 +34,8 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const body = await request.json();
 
-  if (!body.videoPath || !body.filmTitle || !body.director || !body.year) {
-    return new Response(JSON.stringify({ error: "Missing required fields" }), {
+  if ((!body.videoPath && !body.videoUrl) || !body.filmTitle || !body.director || !body.year) {
+    return new Response(JSON.stringify({ error: "Missing required fields (videoPath or videoUrl)" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });
@@ -66,16 +65,25 @@ export async function POST(request: Request) {
         }
       }
 
+      let disposeSourceVideo: (() => Promise<void>) | undefined;
+
       try {
         const concurrency = body.concurrency ?? 5;
         const detector: "content" | "adaptive" =
           body.detector === "content" ? "content" : "adaptive";
         const filmSlug = `${sanitize(body.filmTitle)}-${body.year}`;
-        const videoPath = path.resolve(body.videoPath);
 
-        await access(videoPath, constants.R_OK).catch(() => {
-          throw new Error(`Video file not found: ${videoPath}`);
-        });
+        const rawInput = String(body.videoUrl ?? body.videoPath);
+        let videoPath: string;
+        try {
+          const resolved = await resolveIngestVideoToLocalPath(rawInput);
+          videoPath = resolved.localPath;
+          disposeSourceVideo = resolved.dispose;
+        } catch (e) {
+          const message = e instanceof Error ? e.message : "Could not open or download source video";
+          emit({ type: "error", message });
+          return;
+        }
 
         // Step 1: Detect shots
         const detectorLabel =
@@ -241,7 +249,7 @@ export async function POST(request: Request) {
           const thumbnailUrl = `/api/s3?key=${encodeURIComponent(asset.thumbnailKey)}`;
 
           const [insertedShot] = await db.insert(schema.shots).values({
-            filmId, sceneId, sourceFile: path.basename(body.videoPath),
+            filmId, sceneId, sourceFile: path.basename(videoPath),
             startTc: split.start, endTc: split.end, duration: durationSec,
             videoUrl, thumbnailUrl,
           }).returning({ id: schema.shots.id });
@@ -307,6 +315,7 @@ export async function POST(request: Request) {
         const message = error instanceof Error ? error.message : "Pipeline failed";
         emit({ type: "error", message });
       } finally {
+        await disposeSourceVideo?.();
         controller.close();
       }
     },

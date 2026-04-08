@@ -57,7 +57,7 @@ function uploadSizeHint(status: number, message: string): string {
       message,
     );
   return tooBig
-    ? " Large files must use direct-to-S3 upload: set NEXT_PUBLIC_WORKER_URL (or run ingest locally) instead of sending the video through this server."
+    ? " Configure AWS S3 env vars on this deployment so the app can mint presigned URLs (browser uploads directly to S3), or run ingest locally / with a worker."
     : "";
 }
 
@@ -81,7 +81,6 @@ export default function IngestPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const workerUrl = process.env.NEXT_PUBLIC_WORKER_URL ?? "";
-  const useRemoteWorker = !!workerUrl;
 
   async function handleStart() {
     if (!selectedFile || !filmTitle || !director || !year) return;
@@ -114,25 +113,19 @@ export default function IngestPage() {
     try {
       let resolvedPath: string;
 
-      if (useRemoteWorker) {
-        // Step 1: Get presigned PUT URL from our API
-        const urlRes = await fetch("/api/upload-to-s3", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            fileName: selectedFile.name,
-            fileType: selectedFile.type || "video/mp4",
-            filmTitle,
-            year,
-          }),
-        });
-        if (!urlRes.ok) {
-          const msg = await readFetchErrorMessage(urlRes);
-          throw new Error(msg || "Failed to get upload URL");
-        }
-        const { putUrl, videoUrl } = await urlRes.json();
+      const presignRes = await fetch("/api/upload-to-s3", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: selectedFile.name,
+          fileType: selectedFile.type || "video/mp4",
+          filmTitle,
+          year,
+        }),
+      });
 
-        // Step 2: Upload directly from browser to S3 (no proxy)
+      if (presignRes.ok) {
+        const { putUrl, videoUrl } = await presignRes.json();
         const putRes = await fetch(putUrl, {
           method: "PUT",
           headers: { "Content-Type": selectedFile.type || "video/mp4" },
@@ -141,13 +134,14 @@ export default function IngestPage() {
         if (!putRes.ok) {
           throw new Error(`S3 upload failed: ${putRes.status}`);
         }
-
-        resolvedPath = videoUrl; // presigned S3 GET URL for worker
+        resolvedPath = videoUrl;
       } else {
-        // Upload to local server temp directory
+        const presignErr = await readFetchErrorMessage(presignRes);
+        if (presignRes.status >= 400 && presignRes.status < 500) {
+          throw new Error(presignErr);
+        }
         const formData = new FormData();
         formData.append("video", selectedFile);
-
         const uploadRes = await fetch("/api/upload-video", { method: "POST", body: formData });
         if (!uploadRes.ok) {
           const msg = await readFetchErrorMessage(uploadRes);
@@ -156,7 +150,7 @@ export default function IngestPage() {
           );
         }
         const { videoPath: path } = await uploadRes.json();
-        resolvedPath = path; // local file path
+        resolvedPath = path;
       }
 
       setIngestTimelineForRun({ ingestStartSec, ingestEndSec });
