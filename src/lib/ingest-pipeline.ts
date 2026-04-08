@@ -639,6 +639,7 @@ async function geminiGenerateClassification(
           responseMimeType: "application/json",
         },
       }),
+      signal: AbortSignal.timeout(120_000),
     },
   );
 

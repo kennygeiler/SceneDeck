@@ -344,7 +344,7 @@ export function ShotPlayer({ shot }: ShotPlayerProps) {
             Overlay legend
           </p>
           <span className="text-sm text-[var(--color-text-secondary)]">
-            Color channels map the overlay layers to movement analysis and detected scene elements.
+            Color channels map overlay layers to framing cues, geometry, and detected scene context.
           </span>
         </div>
         <div className="mt-4 flex flex-wrap gap-3">

@@ -14,7 +14,7 @@ export const TOOL_DECLARATIONS = [
   {
     name: "search_shots",
     description:
-      "Search the MetroVision archive for shots matching criteria. Use this to find examples of specific techniques, movements, or shot types.",
+      "Search the MetroVision archive for shots matching criteria. Use this to find examples of specific composition patterns, framings, shot sizes, or directors.",
     parameters: {
       type: "object",
       properties: {
@@ -72,7 +72,7 @@ export const TOOL_DECLARATIONS = [
   {
     name: "compare_films",
     description:
-      "Compare the cinematographic approaches of two or more films side-by-side, including shot size distributions, movement frequencies, and pacing.",
+      "Compare the cinematographic approaches of two or more films side-by-side, including shot size distributions, framing mix, and pacing.",
     parameters: {
       type: "object",
       properties: {
@@ -88,7 +88,7 @@ export const TOOL_DECLARATIONS = [
   {
     name: "get_technique_examples",
     description:
-      "Find specific examples of a cinematographic technique (movement type, shot size, angle) in the archive. Returns shots that demonstrate the technique.",
+      "Find specific examples of a cinematographic technique (framing, depth, shot size, lighting cue, or angle) in the archive. Returns shots that demonstrate the technique.",
     parameters: {
       type: "object",
       properties: {
@@ -128,7 +128,7 @@ export const TOOL_DECLARATIONS = [
   {
     name: "render_director_radar",
     description:
-      "Render a radar chart comparing camera technique distributions for one or more directors. Use when comparing directorial styles.",
+      "Render a radar chart comparing composition distributions (e.g. framing mix) for one or more directors. Use when comparing directorial styles.",
     parameters: {
       type: "object",
       properties: {
@@ -157,7 +157,7 @@ export const TOOL_DECLARATIONS = [
   {
     name: "render_comparison_table",
     description:
-      "Render a side-by-side comparison table of two films' cinematography statistics. Use when comparing films.",
+      "Render a side-by-side comparison table of two films' composition statistics. Use when comparing films.",
     parameters: {
       type: "object",
       properties: {

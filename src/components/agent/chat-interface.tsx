@@ -26,8 +26,8 @@ interface Message {
 
 const SUGGESTED_PROMPTS = [
   "What can you tell me about the films in the archive?",
-  "Compare Kubrick and Chazelle\u2019s camera techniques",
-  "What does a high static shot percentage mean?",
+  "Compare Kubrick and Chazelle\u2019s framing and pacing",
+  "What does a film with mostly centered framing suggest?",
   "I want to create tension \u2014 what techniques should I use?",
 ] as const;
 
@@ -345,7 +345,7 @@ export function ChatInterface() {
                 <span className="laser-text">MetroVision</span>
               </h1>
               <p className="mt-4 max-w-md text-base leading-8 text-[var(--color-text-secondary)]">
-                Cinematography intelligence grounded in real film data
+                Archive-grounded answers on composition, scenes, and directors
               </p>
             </div>
 
@@ -456,7 +456,7 @@ export function ChatInterface() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about cinematography..."
+            placeholder="Ask about framing, shot scale, lighting cues, or directors\u2026"
             disabled={isStreaming}
             rows={1}
             className="flex-1 resize-none rounded-[var(--radius-lg)] border bg-transparent px-4 py-3 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] disabled:opacity-50"

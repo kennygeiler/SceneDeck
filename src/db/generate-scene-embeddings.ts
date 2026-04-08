@@ -25,7 +25,7 @@ async function generateSceneEmbeddings() {
       f.title AS film_title,
       f.director,
       array_agg(ss.description) FILTER (WHERE ss.description IS NOT NULL) AS shot_descriptions,
-      array_agg(sm.movement_type) FILTER (WHERE sm.movement_type IS NOT NULL) AS movement_types
+      array_agg(DISTINCT sm.framing) FILTER (WHERE sm.framing IS NOT NULL) AS framing_slugs
     FROM scenes sc
     JOIN films f ON f.id = sc.film_id
     LEFT JOIN shots s ON s.scene_id = sc.id
@@ -37,7 +37,7 @@ async function generateSceneEmbeddings() {
   let count = 0;
   for (const row of scenes.rows as Record<string, unknown>[]) {
     const descriptions = ((row.shot_descriptions as string[]) ?? []).slice(0, 10);
-    const movements = [...new Set(((row.movement_types as string[]) ?? []))];
+    const framings = [...new Set(((row.framing_slugs as string[]) ?? []))];
 
     const searchText = [
       row.film_title,
@@ -45,7 +45,7 @@ async function generateSceneEmbeddings() {
       row.scene_title ?? "",
       row.scene_desc ?? "",
       row.location ?? "",
-      `Camera movements: ${movements.join(", ")}`,
+      framings.length > 0 ? `Shot framings: ${framings.join(", ")}` : "",
       ...descriptions,
     ]
       .filter(Boolean)
@@ -86,7 +86,7 @@ async function generateFilmEmbeddings() {
       f.overview,
       array_to_string(f.genres, ', ') AS genres,
       COUNT(DISTINCT s.id) AS shot_count,
-      array_agg(DISTINCT sm.movement_type) FILTER (WHERE sm.movement_type IS NOT NULL) AS movement_types,
+      array_agg(DISTINCT sm.framing) FILTER (WHERE sm.framing IS NOT NULL) AS framing_slugs,
       array_agg(DISTINCT sm.shot_size) FILTER (WHERE sm.shot_size IS NOT NULL) AS shot_sizes
     FROM films f
     LEFT JOIN shots s ON s.film_id = f.id
@@ -96,7 +96,7 @@ async function generateFilmEmbeddings() {
 
   let count = 0;
   for (const row of films.rows as Record<string, unknown>[]) {
-    const movements = ((row.movement_types as string[]) ?? []).filter(Boolean);
+    const framings = ((row.framing_slugs as string[]) ?? []).filter(Boolean);
     const sizes = ((row.shot_sizes as string[]) ?? []).filter(Boolean);
 
     const searchText = [
@@ -105,7 +105,7 @@ async function generateFilmEmbeddings() {
       row.year ? `(${row.year})` : "",
       row.genres ?? "",
       row.overview ?? "",
-      movements.length > 0 ? `Camera movements: ${movements.join(", ")}` : "",
+      framings.length > 0 ? `Shot framings: ${framings.join(", ")}` : "",
       sizes.length > 0 ? `Shot sizes: ${sizes.join(", ")}` : "",
       `${row.shot_count} shots analyzed`,
     ]

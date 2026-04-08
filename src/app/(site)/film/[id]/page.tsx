@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!film) return { title: "Film Not Found" };
   return {
     title: `${film.title} — ${film.director}`,
-    description: `Camera movement analysis of ${film.title} (${film.year}) by ${film.director}. ${film.shotCount} shots across ${film.sceneCount} scenes.`,
+    description: `Shot-level composition archive for ${film.title} (${film.year}) by ${film.director}. ${film.shotCount} shots across ${film.sceneCount} scenes.`,
   };
 }
 
@@ -61,7 +61,7 @@ export default async function FilmDetailPage({ params }: Props) {
           Shot Timeline
         </h2>
         <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-          Every shot in sequence, color-coded by movement type. Width proportional to duration.
+          Every shot in sequence, color-coded by framing. Width proportional to duration.
         </p>
         <div className="mt-4">
           <FilmTimeline shots={allShots} scenes={film.scenes} />
@@ -76,7 +76,7 @@ export default async function FilmDetailPage({ params }: Props) {
           Coverage Analysis
         </h2>
         <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-          Distribution of camera techniques across {film.shotCount} shots.
+          Framing and shot-size distribution across {film.shotCount} shots.
         </p>
         <div className="mt-4">
           <FilmCoverageStats stats={stats} />

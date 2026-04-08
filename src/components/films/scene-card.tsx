@@ -9,7 +9,7 @@ type SceneCardProps = {
 };
 
 export function SceneCard({ scene }: SceneCardProps) {
-  const dominantMovement = getDominantMovement(scene);
+  const dominantFraming = getDominantFraming(scene);
 
   return (
     <div
@@ -103,7 +103,7 @@ export function SceneCard({ scene }: SceneCardProps) {
             {scene.interiorExterior}
           </span>
         ) : null}
-        {dominantMovement ? (
+        {dominantFraming ? (
           <span
             className="rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-primary)]"
             style={{
@@ -113,7 +113,7 @@ export function SceneCard({ scene }: SceneCardProps) {
                 "color-mix(in oklch, var(--color-overlay-arrow) 82%, transparent)",
             }}
           >
-            {dominantMovement}
+            {dominantFraming}
           </span>
         ) : null}
       </div>
@@ -147,7 +147,7 @@ export function SceneCard({ scene }: SceneCardProps) {
   );
 }
 
-function getDominantMovement(scene: SceneWithShots): string | null {
+function getDominantFraming(scene: SceneWithShots): string | null {
   if (scene.shots.length === 0) return null;
   const freq = new Map<string, number>();
   for (const shot of scene.shots) {

@@ -631,7 +631,7 @@ function ReviewTab() {
   if (!current) return null;
 
   const correctionFields = [
-    { key: "movementType", label: "Movement Type", current: current.movementType },
+    { key: "movementType", label: "Framing", current: current.movementType },
     { key: "shotSize", label: "Shot Size", current: current.shotSize },
     { key: "direction", label: "Direction", current: current.direction },
     { key: "speed", label: "Speed", current: current.speed },

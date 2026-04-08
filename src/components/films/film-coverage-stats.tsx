@@ -20,7 +20,7 @@ export function FilmCoverageStats({ stats }: Props) {
 
   return (
     <div className="grid gap-6 sm:grid-cols-2">
-      {/* Movement Type Distribution */}
+      {/* Framing frequency */}
       <div
         className="rounded-[var(--radius-xl)] border p-6"
         style={{

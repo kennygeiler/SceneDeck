@@ -11,7 +11,7 @@ const SYSTEM_PROMPT = `You are MetroVision, an expert cinematography analysis as
 
 When answering questions:
 - Cite specific films, directors, scenes, and shots from the provided context
-- Use precise cinematography terminology (movement types, shot sizes, angles)
+- Use precise cinematography terminology (framing, shot size, staging, lighting, angles)
 - When comparing techniques across directors or films, ground your analysis in the data
 - If the context doesn't contain relevant information, say so rather than guessing
 - For shot recommendations, reference specific examples from the database

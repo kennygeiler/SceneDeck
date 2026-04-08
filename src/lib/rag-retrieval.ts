@@ -130,7 +130,7 @@ async function retrieveShots(
       se.shot_id,
       f.title AS film_title,
       f.director,
-      sm.movement_type,
+      sm.framing AS movement_type,
       sm.shot_size,
       ss.description,
       1 - (se.embedding <=> ${vecLiteral}::vector) AS score
@@ -242,7 +242,7 @@ export function formatRetrievalContext(result: RetrievalResult): string {
     sections.push("## Matching Shots from Database\n");
     for (const shot of result.shots) {
       sections.push(
-        `- **${shot.filmTitle}** (${shot.director}) — ${shot.movementType}, ${shot.shotSize}${shot.description ? `: ${shot.description}` : ""}`,
+        `- **${shot.filmTitle}** (${shot.director}) — framing: ${shot.movementType}, size: ${shot.shotSize}${shot.description ? `: ${shot.description}` : ""}`,
       );
     }
   }

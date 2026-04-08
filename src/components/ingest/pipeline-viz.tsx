@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
+import { getFramingDisplayName } from "@/lib/shot-display";
+import { getFramingColor } from "@/lib/timeline-colors";
+import type { FramingSlug } from "@/lib/taxonomy";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -61,15 +65,11 @@ const STEP_ESTIMATES: Record<StepId, (totalShots: number, concurrency: number) =
   write: (n) => n * 0.3,     // S3 upload + DB write batched
 };
 
-// Movement type colors
-const MOVE_COLORS: Record<string, string> = {
-  static: "#4a4a5e", pan: "#5cb8d6", tilt: "#4dbaa8", dolly: "#4dd68a",
-  truck: "#6dd64d", pedestal: "#99cc44", crane: "#d6b84d", boom: "#d6994d",
-  zoom: "#aad64d", dolly_zoom: "#d66a4d", handheld: "#9966d6", steadicam: "#4d6ad6",
-  drone: "#7744d6", aerial: "#4d99d6", arc: "#cc44d6", whip_pan: "#d6445a",
-  whip_tilt: "#d64488", rack_focus: "#44d6bb", follow: "#44d699", reveal: "#44d666",
-  reframe: "#6666aa",
-};
+/** Compact label for tiny strip cells (classifier framing slug). */
+function shortFramingLabel(slug: string): string {
+  const full = getFramingDisplayName(slug as FramingSlug);
+  return full.length > 12 ? `${full.slice(0, 11)}\u2026` : full;
+}
 
 // Distinct worker colors
 const WORKER_COLORS = [
@@ -77,7 +77,8 @@ const WORKER_COLORS = [
   "#7cd6d6", "#d6d65c", "#d67c5c", "#5c7cd6", "#d65cd6",
 ];
 
-const getColor = (mt: string) => MOVE_COLORS[mt] ?? "#5cb8d6";
+const framingChipColor = (slug: string) => getFramingColor(slug);
+
 const getWorkerColor = (w: number) => WORKER_COLORS[w % WORKER_COLORS.length];
 
 // Pacing colors and messages
@@ -400,7 +401,13 @@ export function PipelineViz({
                   u.classify = "complete";
                   u.classifyDuration = u.classifyStartedAt ? (now - u.classifyStartedAt) / 1000 : undefined;
                 }
-                if (e.movementType) u.movementType = e.movementType as string;
+                {
+                  const raw = e as Record<string, unknown>;
+                  const slug =
+                    (typeof raw.framing === "string" ? raw.framing : null)
+                    ?? (typeof raw.movementType === "string" ? raw.movementType : null);
+                  if (slug) u.movementType = slug;
+                }
                 if (e.sceneTitle) u.sceneTitle = e.sceneTitle as string;
               } else if (step === "write") u.write = status === "start" ? "active" : "complete";
               if (e.worker !== undefined) u.worker = e.worker as number;
@@ -697,7 +704,10 @@ export function PipelineViz({
             <div ref={stripRef} className="flex gap-1 overflow-x-auto px-4 py-4" style={{ scrollbarWidth: "thin", scrollbarColor: "var(--color-surface-tertiary) transparent" }}>
               {state.frames.map((frame) => {
                 const phase = getFramePhase(frame);
-                const bgColor = frame.movementType && frame.classify === "complete" ? getColor(frame.movementType) : undefined;
+                const bgColor =
+                  frame.movementType && frame.classify === "complete"
+                    ? framingChipColor(frame.movementType)
+                    : undefined;
                 const workerColor = frame.worker !== undefined ? getWorkerColor(frame.worker) : undefined;
 
                 return (
@@ -718,7 +728,7 @@ export function PipelineViz({
                     </span>
                     {frame.movementType && frame.classify === "complete" ? (
                       <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-mono text-[7px] font-bold uppercase tracking-widest" style={{ writingMode: "vertical-lr", textOrientation: "mixed", color: "#000000aa", letterSpacing: "0.15em" }}>
-                        {frame.movementType.replace("_", " ")}
+                        {shortFramingLabel(frame.movementType)}
                       </span>
                     ) : null}
                     {frame.worker !== undefined && (phase === "extracting" || phase === "classifying") ? (
@@ -769,9 +779,11 @@ export function PipelineViz({
           {discoveredTypes.size > 0 ? (
             <div className="flex flex-wrap gap-2">
               {Array.from(discoveredTypes).sort().map((mt) => (
-                <div key={mt} className="flex items-center gap-1.5">
-                  <div className="h-2 w-2 rounded-full" style={{ backgroundColor: getColor(mt!) }} />
-                  <span className="font-mono text-[8px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">{mt!.replace("_", " ")}</span>
+                  <div key={mt} className="flex items-center gap-1.5">
+                  <div className="h-2 w-2 rounded-full" style={{ backgroundColor: framingChipColor(mt!) }} />
+                  <span className="font-mono text-[8px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+                    {getFramingDisplayName(mt! as FramingSlug)}
+                  </span>
                 </div>
               ))}
             </div>
@@ -785,7 +797,7 @@ export function PipelineViz({
             <div className="mt-4 grid grid-cols-3 gap-4">
               <div><p className="text-3xl font-bold text-[var(--color-text-primary)]">{state.result.shotCount}</p><p className="mt-1 text-sm text-[var(--color-text-secondary)]">Shots analyzed</p></div>
               <div><p className="text-3xl font-bold text-[var(--color-text-primary)]">{state.result.sceneCount}</p><p className="mt-1 text-sm text-[var(--color-text-secondary)]">Scenes discovered</p></div>
-              <div><p className="text-3xl font-bold text-[var(--color-text-primary)]">{discoveredTypes.size}</p><p className="mt-1 text-sm text-[var(--color-text-secondary)]">Movement types</p></div>
+              <div><p className="text-3xl font-bold text-[var(--color-text-primary)]">{discoveredTypes.size}</p><p className="mt-1 text-sm text-[var(--color-text-secondary)]">Framing types</p></div>
             </div>
             <div className="mt-4 flex flex-wrap gap-4 font-mono text-[10px] text-[var(--color-text-tertiary)]">
               {state.steps.filter((s) => s.duration).map((s) => <span key={s.id}>{s.label}: {formatDuration(s.duration!)}</span>)}

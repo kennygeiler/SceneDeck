@@ -212,7 +212,7 @@ export function MetadataOverlay({ shot }: MetadataOverlayProps) {
         </p>
       </motion.div>
 
-      {/* Bottom-right — camera angle */}
+      {/* Bottom-right — shot angle */}
       <motion.div variants={itemVariants} className="absolute bottom-5 right-5">
         <div
           className="rounded-[var(--radius-lg)] border px-4 py-3 shadow-[var(--shadow-md)] backdrop-blur-xl"
@@ -224,7 +224,7 @@ export function MetadataOverlay({ shot }: MetadataOverlayProps) {
           }}
         >
           <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-            Camera angle
+            Shot angle
           </p>
           <div className="mt-2 space-y-1 text-right">
             <p className="font-mono text-xs text-[var(--color-text-primary)]">

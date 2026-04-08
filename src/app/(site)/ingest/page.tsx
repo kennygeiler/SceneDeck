@@ -330,8 +330,9 @@ export default function IngestPage() {
           Ingest Film
         </h1>
         <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
-          Select a video file and the pipeline will detect shots, classify camera movements,
-          group scenes, and upload everything — all visualized in real time.
+          Select a video file and the pipeline will detect shots, classify composition metadata (framing,
+          depth, scale, lighting cues, and related fields), group scenes, and upload assets — visualized in
+          real time.
         </p>
       </div>
 
