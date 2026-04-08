@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import { and, eq, gte, lte, count, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, count, inArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import { db, schema } from "@/db";
@@ -19,6 +19,7 @@ export async function GET(request: Request) {
     const reviewStatus = searchParams.get("reviewStatus");
     const confidenceMin = searchParams.get("confidenceMin");
     const confidenceMax = searchParams.get("confidenceMax");
+    const sort = searchParams.get("sort") === "confidence" ? "confidence" : "priority";
 
     // Build WHERE conditions
     const conditions = [];
@@ -45,6 +46,15 @@ export async function GET(request: Request) {
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const orderByExprs =
+      sort === "confidence"
+        ? [asc(schema.shotMetadata.confidence)]
+        : [
+            sql`(case when ${schema.shotMetadata.classificationSource} = 'gemini_fallback' then 0 else 1 end)`,
+            desc(schema.shots.duration),
+            asc(schema.shotMetadata.confidence),
+          ];
 
     // Count total matching rows for pagination
     const [{ total }] = await db
@@ -86,7 +96,7 @@ export async function GET(request: Request) {
         eq(schema.shotSemantic.shotId, schema.shotMetadata.shotId),
       )
       .where(whereClause)
-      .orderBy(schema.shotMetadata.confidence)
+      .orderBy(...orderByExprs)
       .limit(limit)
       .offset(offset);
 

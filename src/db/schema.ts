@@ -26,6 +26,13 @@ import {
 
 import type { IngestProvenancePayload } from "../lib/pipeline-provenance";
 
+/** Append-only log for structural H splits/merges (shot detail HITL). */
+export type HitlAuditEntry = {
+  at: string;
+  action: "split" | "merge";
+  payload: Record<string, unknown>;
+};
+
 export type ForegroundElement = string;
 export type BackgroundElement = string;
 
@@ -118,6 +125,7 @@ export const shots = pgTable("shots", {
   videoUrl: text("video_url"),
   thumbnailUrl: text("thumbnail_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  hitlAudit: jsonb("hitl_audit").$type<HitlAuditEntry[] | null>(),
 });
 
 export const shotMetadata = pgTable("shot_metadata", {

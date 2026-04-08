@@ -23,3 +23,4 @@ jobs:
       - run: pnpm check:taxonomy
       - run: pnpm check:schema-drift
       - run: pnpm test
+      - run: pnpm eval:smoke

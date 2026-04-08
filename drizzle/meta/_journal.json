@@ -43,6 +43,13 @@
       "when": 1774483300000,
       "tag": "0005_shot_image_embeddings",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1774569600000,
+      "tag": "0006_hitl_audit",
+      "breakpoints": true
     }
   ]
 }

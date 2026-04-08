@@ -109,6 +109,12 @@ export type ShotWithDetails = {
   videoUrl: string | null;
   thumbnailUrl: string | null;
   createdAt: string | null;
+  /** Structural HITL audit trail from `shots.hitl_audit`. */
+  hitlAudit?: Array<{
+    at: string;
+    action: "split" | "merge";
+    payload: Record<string, unknown>;
+  }> | null;
   /** Derived from `verifications` rows for this shot (latest first). */
   trust?: {
     verificationCount: number;

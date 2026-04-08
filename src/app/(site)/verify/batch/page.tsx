@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Flag, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,9 @@ type FilmOption = { id: string; title: string };
 // ---------------------------------------------------------------------------
 
 const PAGE_SIZE = 40;
+const BATCH_FILTERS_STORAGE_KEY = "metrovision:verify-batch-filters";
+const LONG_TAKE_SEC = 12;
+type SortMode = "priority" | "confidence";
 
 const REVIEW_STATUS_OPTIONS = [
   { value: "", label: "Needs review (default)" },
@@ -67,6 +71,10 @@ const REVIEW_STATUS_OPTIONS = [
 // ---------------------------------------------------------------------------
 
 export default function BatchReviewPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [filtersHydrated, setFiltersHydrated] = useState(false);
+
   // Data
   const [shots, setShots] = useState<BatchShot[]>([]);
   const [films, setFilms] = useState<FilmOption[]>([]);
@@ -78,6 +86,7 @@ export default function BatchReviewPage() {
   const [reviewStatus, setReviewStatus] = useState("");
   const [confidenceMin, setConfidenceMin] = useState("");
   const [confidenceMax, setConfidenceMax] = useState("");
+  const [sortMode, setSortMode] = useState<SortMode>("priority");
 
   // Pagination
   const [offset, setOffset] = useState(0);
@@ -89,6 +98,80 @@ export default function BatchReviewPage() {
   const [approving, setApproving] = useState<Set<string>>(new Set());
   const [approved, setApproved] = useState<Set<string>>(new Set());
   const [bulkApproving, setBulkApproving] = useState(false);
+
+  // -------------------------------------------------------------------------
+  // URL + localStorage (initial hydrate once)
+  // -------------------------------------------------------------------------
+
+  useLayoutEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.toString()) {
+      setFilmId(sp.get("filmId") ?? "");
+      setReviewStatus(sp.get("reviewStatus") ?? "");
+      setConfidenceMin(sp.get("confidenceMin") ?? "");
+      setConfidenceMax(sp.get("confidenceMax") ?? "");
+      setSortMode(sp.get("sort") === "confidence" ? "confidence" : "priority");
+      const off = parseInt(sp.get("offset") ?? "0", 10);
+      setOffset(Number.isFinite(off) && off >= 0 ? off : 0);
+    } else {
+      try {
+        const raw = localStorage.getItem(BATCH_FILTERS_STORAGE_KEY);
+        if (raw) {
+          const j = JSON.parse(raw) as Record<string, unknown>;
+          if (typeof j.filmId === "string") setFilmId(j.filmId);
+          if (typeof j.reviewStatus === "string") setReviewStatus(j.reviewStatus);
+          if (typeof j.confidenceMin === "string") setConfidenceMin(j.confidenceMin);
+          if (typeof j.confidenceMax === "string") setConfidenceMax(j.confidenceMax);
+          if (j.sortMode === "confidence" || j.sortMode === "priority") {
+            setSortMode(j.sortMode);
+          }
+          const off =
+            typeof j.offset === "number" && j.offset >= 0 ? Math.floor(j.offset) : 0;
+          setOffset(off);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    setFiltersHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!filtersHydrated) return;
+    const p = new URLSearchParams();
+    if (filmId) p.set("filmId", filmId);
+    if (reviewStatus) p.set("reviewStatus", reviewStatus);
+    if (confidenceMin) p.set("confidenceMin", confidenceMin);
+    if (confidenceMax) p.set("confidenceMax", confidenceMax);
+    if (sortMode !== "priority") p.set("sort", sortMode);
+    if (offset > 0) p.set("offset", String(offset));
+    router.replace(`${pathname}${p.toString() ? `?${p.toString()}` : ""}`, { scroll: false });
+    try {
+      localStorage.setItem(
+        BATCH_FILTERS_STORAGE_KEY,
+        JSON.stringify({
+          filmId,
+          reviewStatus,
+          confidenceMin,
+          confidenceMax,
+          sortMode,
+          offset,
+        }),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [
+    filtersHydrated,
+    pathname,
+    router,
+    filmId,
+    reviewStatus,
+    confidenceMin,
+    confidenceMax,
+    sortMode,
+    offset,
+  ]);
 
   // -------------------------------------------------------------------------
   // Fetch
@@ -103,6 +186,7 @@ export default function BatchReviewPage() {
     if (reviewStatus) params.set("reviewStatus", reviewStatus);
     if (confidenceMin) params.set("confidenceMin", confidenceMin);
     if (confidenceMax) params.set("confidenceMax", confidenceMax);
+    if (sortMode !== "priority") params.set("sort", sortMode);
 
     try {
       const res = await fetch(`/api/batch/review?${params}`);
@@ -114,16 +198,11 @@ export default function BatchReviewPage() {
     } finally {
       setLoading(false);
     }
-  }, [offset, filmId, reviewStatus, confidenceMin, confidenceMax]);
+  }, [offset, filmId, reviewStatus, confidenceMin, confidenceMax, sortMode]);
 
   useEffect(() => {
     fetchShots();
   }, [fetchShots]);
-
-  // Reset offset when filters change
-  useEffect(() => {
-    setOffset(0);
-  }, [filmId, reviewStatus, confidenceMin, confidenceMax]);
 
   // -------------------------------------------------------------------------
   // Actions
@@ -254,7 +333,10 @@ export default function BatchReviewPage() {
           </label>
           <select
             value={filmId}
-            onChange={(e) => setFilmId(e.target.value)}
+            onChange={(e) => {
+              setFilmId(e.target.value);
+              setOffset(0);
+            }}
             className="h-7 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-primary)] px-2 text-sm text-[var(--color-text-primary)]"
           >
             <option value="">All films</option>
@@ -272,7 +354,10 @@ export default function BatchReviewPage() {
           </label>
           <select
             value={reviewStatus}
-            onChange={(e) => setReviewStatus(e.target.value)}
+            onChange={(e) => {
+              setReviewStatus(e.target.value);
+              setOffset(0);
+            }}
             className="h-7 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-primary)] px-2 text-sm text-[var(--color-text-primary)]"
           >
             {REVIEW_STATUS_OPTIONS.map((opt) => (
@@ -294,7 +379,10 @@ export default function BatchReviewPage() {
             step={0.05}
             placeholder="0.0"
             value={confidenceMin}
-            onChange={(e) => setConfidenceMin(e.target.value)}
+            onChange={(e) => {
+              setConfidenceMin(e.target.value);
+              setOffset(0);
+            }}
             className="h-7 w-20 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-primary)] px-2 text-sm text-[var(--color-text-primary)]"
           />
         </div>
@@ -310,9 +398,29 @@ export default function BatchReviewPage() {
             step={0.05}
             placeholder="1.0"
             value={confidenceMax}
-            onChange={(e) => setConfidenceMax(e.target.value)}
+            onChange={(e) => {
+              setConfidenceMax(e.target.value);
+              setOffset(0);
+            }}
             className="h-7 w-20 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-primary)] px-2 text-sm text-[var(--color-text-primary)]"
           />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+            Sort
+          </label>
+          <select
+            value={sortMode}
+            onChange={(e) => {
+              setSortMode(e.target.value === "confidence" ? "confidence" : "priority");
+              setOffset(0);
+            }}
+            className="h-7 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-primary)] px-2 text-sm text-[var(--color-text-primary)]"
+          >
+            <option value="priority">Priority (fallback, long, confidence)</option>
+            <option value="confidence">Confidence (legacy)</option>
+          </select>
         </div>
 
         <div className="ml-auto flex items-end gap-2">
@@ -391,6 +499,13 @@ export default function BatchReviewPage() {
             const isApproved = approved.has(shot.shotId);
             const isApproving = approving.has(shot.shotId);
             const isSelected = selected.has(shot.shotId);
+            const isFallback = shot.classificationSource === "gemini_fallback";
+            const isLongTake =
+              shot.duration != null && Number.isFinite(shot.duration) && shot.duration >= LONG_TAKE_SEC;
+            const isLowConf =
+              shot.confidence !== null &&
+              Number.isFinite(shot.confidence) &&
+              shot.confidence < 0.5;
 
             return (
               <div
@@ -473,6 +588,26 @@ export default function BatchReviewPage() {
                     </div>
                   )}
                 </div>
+
+                {(isFallback || isLongTake || isLowConf) && (
+                  <div className="flex flex-wrap gap-1.5 border-b border-[var(--color-border-subtle)] px-3 py-2">
+                    {isFallback ? (
+                      <span className="rounded-full border border-[var(--color-signal-amber)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-[var(--color-signal-amber)]">
+                        Fallback
+                      </span>
+                    ) : null}
+                    {isLongTake ? (
+                      <span className="rounded-full border border-[var(--color-accent-base)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-[var(--color-text-secondary)]">
+                        Long take
+                      </span>
+                    ) : null}
+                    {isLowConf ? (
+                      <span className="rounded-full border border-[var(--color-border-default)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-[var(--color-signal-amber)]">
+                        Low conf
+                      </span>
+                    ) : null}
+                  </div>
+                )}
 
                 {/* Classification fields */}
                 <div className="space-y-2 px-3 py-3">

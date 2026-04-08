@@ -1,7 +1,9 @@
 import {
   and,
+  asc,
   desc,
   eq,
+  gte,
   ilike,
   inArray,
   or,
@@ -74,6 +76,7 @@ const shotSelection = {
   shotVideoUrl: schema.shots.videoUrl,
   shotThumbnailUrl: schema.shots.thumbnailUrl,
   shotCreatedAt: schema.shots.createdAt,
+  shotHitlAudit: schema.shots.hitlAudit,
   filmId: schema.films.id,
   filmTitle: schema.films.title,
   filmDirector: schema.films.director,
@@ -195,6 +198,7 @@ function mapShotRow(row: ShotRow): ShotWithDetails {
     videoUrl: proxyBlobUrl(row.shotVideoUrl ?? null),
     thumbnailUrl: proxyBlobUrl(row.shotThumbnailUrl ?? null),
     createdAt: toIsoString(row.shotCreatedAt ?? null),
+    hitlAudit: row.shotHitlAudit ?? null,
     objects: [],
   };
 }
@@ -446,6 +450,35 @@ export async function getAllShots(filters?: ShotQueryFilters) {
     .orderBy(desc(schema.shots.createdAt));
 
   return attachObjectsToShots(rows.map(mapShotRow));
+}
+
+/** Chronological next shot in the same film whose start aligns with `afterEndTc` (boundary tolerance). */
+export async function getNextShotAfterBoundary(
+  filmId: string,
+  afterEndTc: number,
+  epsilonSec = 0.35,
+): Promise<{ id: string; startTc: number; endTc: number | null } | null> {
+  const rows = await db
+    .select({
+      id: schema.shots.id,
+      startTc: schema.shots.startTc,
+      endTc: schema.shots.endTc,
+    })
+    .from(schema.shots)
+    .where(
+      and(
+        eq(schema.shots.filmId, filmId),
+        sql`${schema.shots.startTc} is not null`,
+        gte(schema.shots.startTc, afterEndTc - epsilonSec),
+      ),
+    )
+    .orderBy(asc(schema.shots.startTc))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row || row.startTc == null) return null;
+  if (Math.abs(row.startTc - afterEndTc) > epsilonSec) return null;
+  return { id: row.id, startTc: row.startTc, endTc: row.endTc };
 }
 
 export async function getShotById(id: string) {
