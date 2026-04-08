@@ -10,7 +10,7 @@ import {
   useState,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Bookmark, CloudUpload, Copy, Download, Trash2 } from "lucide-react";
+import { Bookmark, CloudUpload, Copy, Download, Trash2, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { evalBoundaryCuts, normalizeCutList } from "@/lib/boundary-eval";
@@ -100,6 +100,20 @@ function slugifyPart(s: string): string {
     .slice(0, 48);
 }
 
+/** Same shapes as `pnpm eval:pipeline` inputs: `{ cutsSec }` or raw `number[]`. */
+function extractEvalCutsSec(data: unknown): number[] {
+  if (Array.isArray(data)) {
+    return data.map(Number).filter((x) => Number.isFinite(x) && x >= 0);
+  }
+  if (data && typeof data === "object" && "cutsSec" in data) {
+    const c = (data as { cutsSec: unknown }).cutsSec;
+    if (Array.isArray(c)) {
+      return c.map(Number).filter((x) => Number.isFinite(x) && x >= 0);
+    }
+  }
+  throw new Error('Expected a number[] or an object with "cutsSec": number[]');
+}
+
 type GoldAnnotateWorkspaceProps = {
   films: FilmCard[];
 };
@@ -185,6 +199,7 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const videoSrcRef = useRef<string | null>(null);
   const localVideoUrlRef = useRef<string | null>(null);
+  const evalJsonImportRef = useRef<HTMLInputElement | null>(null);
   const [playerTime, setPlayerTime] = useState(0);
   const filmTimelineRef = useRef(0);
 
@@ -548,6 +563,36 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
     if (localVideoUrl) URL.revokeObjectURL(localVideoUrl);
     setLocalVideoUrl(null);
     setLocalFileLabel("");
+  }
+
+  async function onPickEvalJsonImport(ev: ChangeEvent<HTMLInputElement>) {
+    const file = ev.target.files?.[0];
+    ev.target.value = "";
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text) as unknown;
+      const raw = extractEvalCutsSec(data);
+      const next = [...new Set(raw.map(roundTc))].sort((a, b) => a - b);
+      if (cuts.length > 0) {
+        if (
+          !window.confirm(
+            `Replace ${cuts.length} cuts in this session with ${next.length} from “${file.name}”?`,
+          )
+        ) {
+          return;
+        }
+      }
+      setCuts(next);
+      if (data && typeof data === "object" && "annotatorNote" in data && !note.trim()) {
+        const an = (data as { annotatorNote?: unknown }).annotatorNote;
+        if (typeof an === "string" && an.trim()) {
+          setNote(an.trim());
+        }
+      }
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Could not read eval JSON.");
+    }
   }
 
   function buildGoldExportPayload(): Record<string, unknown> {
@@ -1059,7 +1104,29 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
               <Trash2 className="size-4" />
               Clear cuts
             </Button>
+            <input
+              ref={evalJsonImportRef}
+              type="file"
+              accept=".json,application/json"
+              className="sr-only"
+              aria-hidden
+              onChange={(e) => void onPickEvalJsonImport(e)}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-full"
+              onClick={() => evalJsonImportRef.current?.click()}
+            >
+              <Upload className="size-4" />
+              Import cuts JSON
+            </Button>
           </div>
+          <p className="font-mono text-[10px] text-[var(--color-text-tertiary)]">
+            Import accepts gold/predicted exports: <code className="rounded border px-0.5">cutsSec</code> array or a raw{" "}
+            <code className="rounded border px-0.5">number[]</code>. Fills this bookmarked session (localStorage); optional{" "}
+            <code className="rounded border px-0.5">annotatorNote</code> is applied only if the note field is empty.
+          </p>
           <p className="font-mono text-[10px] text-[var(--color-text-tertiary)]">
             Shortcuts: <kbd className="rounded border px-1">Space</kbd> play/pause ·{" "}
             <kbd className="rounded border px-1">←</kbd>
