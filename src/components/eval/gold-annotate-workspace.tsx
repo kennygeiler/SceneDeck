@@ -15,6 +15,10 @@ import { Bookmark, CloudUpload, Copy, Download, Trash2, Upload } from "lucide-re
 import { Button } from "@/components/ui/button";
 import { evalBoundaryCuts, normalizeCutList } from "@/lib/boundary-eval";
 import type { FilmEvalExportPayload } from "@/lib/film-eval-export";
+import {
+  evalTaxonomySlots,
+  type GoldShotSegment,
+} from "@/lib/slot-eval";
 import type { FilmCard } from "@/lib/types";
 
 const STORAGE_PREFIX = "metrovision:eval-gold:";
@@ -114,6 +118,27 @@ function extractEvalCutsSec(data: unknown): number[] {
   throw new Error('Expected a number[] or an object with "cutsSec": number[]');
 }
 
+function extractShotsFromEvalJson(data: unknown): GoldShotSegment[] | null {
+  if (!data || typeof data !== "object") return null;
+  const s = (data as { shots?: unknown }).shots;
+  if (!Array.isArray(s) || s.length === 0) return null;
+  const out: GoldShotSegment[] = [];
+  for (const row of s) {
+    if (!row || typeof row !== "object") continue;
+    const o = row as Record<string, unknown>;
+    const startSec = Number(o.startSec);
+    const endSec = Number(o.endSec);
+    if (!Number.isFinite(startSec) || !Number.isFinite(endSec)) continue;
+    out.push({
+      startSec,
+      endSec,
+      framing: o.framing != null ? String(o.framing) : null,
+      shotSize: o.shotSize != null ? String(o.shotSize) : null,
+    });
+  }
+  return out.length ? out : null;
+}
+
 /** Avoid `res.json()` on empty bodies (proxies, 502 HTML) — prevents "Unexpected end of JSON input". */
 async function readResponseJson(res: Response): Promise<unknown> {
   const text = await res.text();
@@ -205,6 +230,11 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
   const [playbackSpeedPercent, setPlaybackSpeedPercent] = useState(100);
   /** Same units as `pnpm eval:pipeline --tol`. */
   const [compareTolSec, setCompareTolSec] = useState(0.5);
+  /** Same as `pnpm eval:pipeline --iou` for --slots. */
+  const [slotIouMin, setSlotIouMin] = useState(0.35);
+  /** Gold `shots` from last import, for slot metrics vs DB predicted. */
+  const [importedGoldShots, setImportedGoldShots] = useState<GoldShotSegment[] | null>(null);
+  const [evalReportFeedback, setEvalReportFeedback] = useState<string | null>(null);
 
   const [artifactAdminSecret, setArtifactAdminSecret] = useState("");
   const [rememberArtifactSecret, setRememberArtifactSecret] = useState(false);
@@ -459,6 +489,41 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
     return Math.max(120, ...all) * 1.02;
   }, [cuts, filmPayload, filmTimelineSec]);
 
+  const predShotSegments = useMemo((): GoldShotSegment[] => {
+    if (!filmPayload?.predictedExport?.shots?.length) return [];
+    return filmPayload.predictedExport.shots.map((s) => ({
+      startSec: s.startSec,
+      endSec: s.endSec,
+      framing: s.framing ?? null,
+      shotSize: s.shotSize ?? null,
+    }));
+  }, [filmPayload]);
+
+  const slotSummary = useMemo(() => {
+    if (!importedGoldShots?.length || !predShotSegments.length) return null;
+    return evalTaxonomySlots(importedGoldShots, predShotSegments, slotIouMin);
+  }, [importedGoldShots, predShotSegments, slotIouMin]);
+
+  const evalPipelineReport = useMemo(() => {
+    if (!boundaryStats) return null;
+    const out: Record<string, unknown> = {
+      boundary: {
+        toleranceSec: boundaryStats.toleranceSec,
+        truePositives: boundaryStats.truePositives,
+        falsePositives: boundaryStats.falsePositives,
+        falseNegatives: boundaryStats.falseNegatives,
+        precision: boundaryStats.precision,
+        recall: boundaryStats.recall,
+        f1: boundaryStats.f1,
+        matchedPairsSample: boundaryStats.matchedPairs.slice(0, 40),
+      },
+    };
+    if (slotSummary) {
+      out.taxonomySlots = slotSummary;
+    }
+    return out;
+  }, [boundaryStats, slotSummary]);
+
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
@@ -534,9 +599,11 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
     if (cuts.length === 0) return;
     if (!window.confirm("Clear all cuts for this session?")) return;
     setCuts([]);
+    setImportedGoldShots(null);
   }
 
   function onFilmChange(nextId: string) {
+    setImportedGoldShots(null);
     setFilmId(nextId);
     setReferenceShotId("");
     const next = new URLSearchParams(searchParams.toString());
@@ -600,6 +667,7 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
         }
       }
       setCuts(next);
+      setImportedGoldShots(extractShotsFromEvalJson(data));
       if (data && typeof data === "object" && "annotatorNote" in data && !note.trim()) {
         const an = (data as { annotatorNote?: unknown }).annotatorNote;
         if (typeof an === "string" && an.trim()) {
@@ -734,6 +802,18 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
     a.download = `predicted-${slug}-${stamp}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
+  }
+
+  async function copyEvalPipelineReport() {
+    if (!evalPipelineReport) return;
+    try {
+      await navigator.clipboard.writeText(`${JSON.stringify(evalPipelineReport, null, 2)}\n`);
+      setEvalReportFeedback("Copied JSON — same fields as pnpm eval:pipeline (boundary + taxonomySlots if available).");
+      setTimeout(() => setEvalReportFeedback(null), 2800);
+    } catch {
+      setEvalReportFeedback("Copy failed.");
+      setTimeout(() => setEvalReportFeedback(null), 3000);
+    }
   }
 
   return (
@@ -1276,32 +1356,50 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                Gold vs predicted (database)
+                Predicted eval (same logic as CLI)
               </p>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--color-text-secondary)]">
-                Interior cut times from ingested shots (same as{" "}
-                <code className="font-mono text-xs">pnpm eval:export-film</code>). Matcher matches{" "}
-                <code className="font-mono text-xs">pnpm eval:pipeline</code> (greedy, one-to-one within
-                tolerance). If you use <strong>Local file</strong> or <strong>Custom URL</strong>, set{" "}
-                <strong>Time offset</strong> so your gold seconds line up with the DB timeline.
+                Boundary cuts vs ingested shots use the same matcher as{" "}
+                <code className="font-mono text-xs">pnpm eval:pipeline</code> (no files required). Predicted cuts match{" "}
+                <code className="font-mono text-xs">pnpm eval:export-film</code>. Use{" "}
+                <strong>Copy eval report</strong> for CLI-shaped JSON. Optional slot metrics match{" "}
+                <code className="font-mono text-xs">--slots</code> when you <strong>Import cuts JSON</strong> from a file
+                that also includes <code className="font-mono text-xs">shots[]</code>. If you use <strong>Local file</strong>{" "}
+                or <strong>Custom URL</strong>, align <strong>Time offset</strong> with the DB timeline.
               </p>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="shrink-0 rounded-full"
-              onClick={downloadPredictedJson}
-            >
-              <Download className="size-4" />
-              Download predicted JSON
-            </Button>
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                onClick={downloadPredictedJson}
+              >
+                <Download className="size-4" />
+                Download predicted JSON
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                disabled={!evalPipelineReport}
+                onClick={() => void copyEvalPipelineReport()}
+              >
+                <Copy className="size-4" />
+                Copy eval report
+              </Button>
+            </div>
           </div>
+          {evalReportFeedback ? (
+            <p className="font-mono text-[10px] text-[var(--color-text-tertiary)]">{evalReportFeedback}</p>
+          ) : null}
 
           <div className="flex flex-wrap items-end gap-4">
             <div className="flex flex-col gap-1">
               <label className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                Match tolerance (sec)
+                Boundary tolerance <code className="font-mono">—tol</code> (sec)
               </label>
               <input
                 type="number"
@@ -1309,6 +1407,22 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
                 min={0}
                 value={compareTolSec}
                 onChange={(e) => setCompareTolSec(Math.max(0, Number(e.target.value) || 0))}
+                className="h-9 w-28 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-primary)] px-3 font-mono text-sm tabular-nums text-[var(--color-text-primary)]"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+                Slot min IoU <code className="font-mono">—iou</code>
+              </label>
+              <input
+                type="number"
+                step={0.05}
+                min={0}
+                max={1}
+                value={slotIouMin}
+                onChange={(e) =>
+                  setSlotIouMin(Math.min(1, Math.max(0, Number(e.target.value) || 0)))
+                }
                 className="h-9 w-28 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-primary)] px-3 font-mono text-sm tabular-nums text-[var(--color-text-primary)]"
               />
             </div>
@@ -1342,6 +1456,62 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
               </div>
             ) : null}
           </div>
+
+          {importedGoldShots?.length ? (
+            <p className="font-mono text-[10px] text-[var(--color-text-secondary)]">
+              Slot eval: <span className="tabular-nums">{importedGoldShots.length}</span> gold{" "}
+              <code className="font-mono text-[10px]">shots[]</code> from last import vs{" "}
+              <span className="tabular-nums">{predShotSegments.length}</span> DB shots (IoU ≥{" "}
+              {slotIouMin}
+              ).
+            </p>
+          ) : (
+            <p className="font-mono text-[10px] text-[var(--color-text-tertiary)]">
+              <code className="font-mono text-[10px]">--slots</code> framing/shotSize: import JSON that includes{" "}
+              <code className="font-mono text-[10px]">shots[]</code> (<code className="font-mono text-[10px]">startSec</code>/
+              <code className="font-mono text-[10px]">endSec</code>). Annotate-only exports are usually cuts-only.
+            </p>
+          )}
+
+          {slotSummary ? (
+            <div
+              className="space-y-2 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] p-4"
+              style={{
+                backgroundColor:
+                  "color-mix(in oklch, var(--color-surface-primary) 70%, transparent)",
+              }}
+            >
+              <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+                Taxonomy slots
+              </p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1 font-mono text-xs tabular-nums sm:grid-cols-3">
+                <span className="text-[var(--color-text-tertiary)]">
+                  Matched{" "}
+                  <span className="text-[var(--color-text-primary)]">{slotSummary.matchedPairs}</span>
+                </span>
+                <span className="text-[var(--color-text-tertiary)]">
+                  Framing acc{" "}
+                  <span className="text-[var(--color-text-primary)]">
+                    {slotSummary.framingAccuracy != null
+                      ? `${(slotSummary.framingAccuracy * 100).toFixed(1)}%`
+                      : "—"}
+                  </span>
+                </span>
+                <span className="text-[var(--color-text-tertiary)]">
+                  Shot size acc{" "}
+                  <span className="text-[var(--color-text-primary)]">
+                    {slotSummary.shotSizeAccuracy != null
+                      ? `${(slotSummary.shotSizeAccuracy * 100).toFixed(1)}%`
+                      : "—"}
+                  </span>
+                </span>
+                <span className="col-span-2 text-[var(--color-text-tertiary)] sm:col-span-3">
+                  Framing denom {slotSummary.framingDenominator} · Shot size denom{" "}
+                  {slotSummary.shotSizeDenominator}
+                </span>
+              </div>
+            </div>
+          ) : null}
 
           <div className="space-y-3 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] p-4">
             <CutTimelineStrip
