@@ -17,6 +17,44 @@ import type { FilmCard } from "@/lib/types";
 
 const STORAGE_PREFIX = "metrovision:eval-gold:";
 
+/** One "frame" step for arrow-key nudge (browser cannot seek true frames without fps). */
+const FRAME_STEP_PRESETS: { label: string; sec: number }[] = [
+  { label: "24 fps (film)", sec: 1 / 24 },
+  { label: "25 fps", sec: 1 / 25 },
+  { label: "30 fps", sec: 1 / 30 },
+  { label: "1/20 s (~50ms)", sec: 0.05 },
+  { label: "1/10 s (~100ms)", sec: 0.1 },
+];
+
+const COARSE_NUDGE_SEC = 1;
+
+function snapFrameStepToPreset(sec: number): number {
+  if (!Number.isFinite(sec) || sec <= 0) return FRAME_STEP_PRESETS[0]!.sec;
+  const exact = FRAME_STEP_PRESETS.find((p) => Math.abs(p.sec - sec) < 1e-6);
+  if (exact) return exact.sec;
+  let best = FRAME_STEP_PRESETS[0]!.sec;
+  let bestD = Infinity;
+  for (const p of FRAME_STEP_PRESETS) {
+    const d = Math.abs(p.sec - sec);
+    if (d < bestD) {
+      bestD = d;
+      best = p.sec;
+    }
+  }
+  return best;
+}
+
+function isKeyboardFormTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
+}
+
+/** Clamp for `HTMLVideoElement.playbackRate` (browser support is typically ~0.25–4). */
+function clampPlaybackPercent(pct: number): number {
+  if (!Number.isFinite(pct)) return 100;
+  return Math.min(400, Math.max(25, Math.round(pct)));
+}
+
 type SourceMode = "shot" | "custom" | "local";
 
 type FilmPayload = {
@@ -42,6 +80,9 @@ type Persisted = {
   timeOffsetSec: number;
   /** Remembered filename only; blob URL cannot persist across reloads. */
   localFileLabel?: string;
+  frameStepSec?: number;
+  /** Playback speed as % of normal (100 = 1×). */
+  playbackSpeedPercent?: number;
 };
 
 function roundTc(sec: number): number {
@@ -86,8 +127,14 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
   const [localVideoUrl, setLocalVideoUrl] = useState<string | null>(null);
   const [localFileLabel, setLocalFileLabel] = useState("");
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [frameStepSec, setFrameStepSec] = useState(1 / 24);
+  const frameStepRef = useRef(frameStepSec);
+  frameStepRef.current = frameStepSec;
+
+  const [playbackSpeedPercent, setPlaybackSpeedPercent] = useState(100);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const videoSrcRef = useRef<string | null>(null);
   const localVideoUrlRef = useRef<string | null>(null);
   const [playerTime, setPlayerTime] = useState(0);
   const filmTimelineRef = useRef(0);
@@ -136,6 +183,12 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
           setTimeOffsetSec(p.timeOffsetSec);
         }
         if (typeof p.localFileLabel === "string") setLocalFileLabel(p.localFileLabel);
+        if (typeof p.frameStepSec === "number" && Number.isFinite(p.frameStepSec) && p.frameStepSec > 0) {
+          setFrameStepSec(snapFrameStepToPreset(p.frameStepSec));
+        }
+        if (typeof p.playbackSpeedPercent === "number" && Number.isFinite(p.playbackSpeedPercent)) {
+          setPlaybackSpeedPercent(clampPlaybackPercent(p.playbackSpeedPercent));
+        }
       } else if (urlFilm) {
         setFilmId(urlFilm);
       }
@@ -155,6 +208,8 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
       customVideoUrl,
       timeOffsetSec,
       localFileLabel,
+      frameStepSec,
+      playbackSpeedPercent,
     };
     try {
       localStorage.setItem(storageKey, JSON.stringify(payload));
@@ -172,6 +227,8 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
     customVideoUrl,
     timeOffsetSec,
     localFileLabel,
+    frameStepSec,
+    playbackSpeedPercent,
   ]);
 
   useEffect(() => {
@@ -237,6 +294,30 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
         ? customVideoUrl.trim() || null
         : referenceShot?.videoUrl ?? null;
 
+  videoSrcRef.current = videoSrc;
+
+  const applyPlaybackRate = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.playbackRate = clampPlaybackPercent(playbackSpeedPercent) / 100;
+  }, [playbackSpeedPercent]);
+
+  useEffect(() => {
+    applyPlaybackRate();
+  }, [applyPlaybackRate, videoSrc]);
+
+  const nudgePlayer = useCallback((deltaSec: number) => {
+    const v = videoRef.current;
+    if (!v || !videoSrcRef.current) return;
+    v.pause();
+    const dur = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : undefined;
+    let next = v.currentTime + deltaSec;
+    if (dur != null) next = Math.max(0, Math.min(dur - 1e-6, next));
+    else next = Math.max(0, next);
+    v.currentTime = next;
+    setPlayerTime(next);
+  }, []);
+
   const filmTimelineSec = useMemo(() => {
     if (sourceMode === "custom" || sourceMode === "local") {
       return roundTc(timeOffsetSec + playerTime);
@@ -265,17 +346,54 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
 
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
-      if (ev.target instanceof HTMLTextAreaElement || ev.target instanceof HTMLInputElement) {
-        return;
-      }
+      if (isKeyboardFormTarget(ev.target)) return;
+
       if (ev.key === "c" || ev.key === "C") {
+        if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
         ev.preventDefault();
         addCutAtFilmTime();
+        return;
+      }
+
+      if (ev.code === "Space" || ev.key === " ") {
+        const v = videoRef.current;
+        if (!v || !videoSrcRef.current) return;
+        ev.preventDefault();
+        if (v.paused) void v.play();
+        else v.pause();
+        return;
+      }
+
+      const step = frameStepRef.current;
+
+      if (ev.key === "ArrowLeft") {
+        if (!videoSrcRef.current) return;
+        ev.preventDefault();
+        nudgePlayer(ev.shiftKey ? -COARSE_NUDGE_SEC : -step);
+        return;
+      }
+      if (ev.key === "ArrowRight") {
+        if (!videoSrcRef.current) return;
+        ev.preventDefault();
+        nudgePlayer(ev.shiftKey ? COARSE_NUDGE_SEC : step);
+        return;
+      }
+      if (ev.key === "," || ev.key === "<") {
+        if (!videoSrcRef.current) return;
+        ev.preventDefault();
+        nudgePlayer(-step);
+        return;
+      }
+      if (ev.key === "." || ev.key === ">") {
+        if (!videoSrcRef.current) return;
+        ev.preventDefault();
+        nudgePlayer(step);
+        return;
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [addCutAtFilmTime]);
+  }, [addCutAtFilmTime, nudgePlayer]);
 
   function removeCut(index: number) {
     setCuts((prev) => prev.filter((_, idx) => idx !== index));
@@ -355,6 +473,10 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
       timeOffsetSec:
         sourceMode === "custom" || sourceMode === "local" ? timeOffsetSec : undefined,
       localFileName: sourceMode === "local" && localFileLabel ? localFileLabel : undefined,
+      playbackSpeedPercent:
+        clampPlaybackPercent(playbackSpeedPercent) !== 100
+          ? clampPlaybackPercent(playbackSpeedPercent)
+          : undefined,
       cutsSec: cuts,
     };
 
@@ -607,7 +729,10 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
                 className="size-full"
                 onLoadedMetadata={() => {
                   const v = videoRef.current;
-                  if (v) setPlayerTime(v.currentTime);
+                  if (v) {
+                    setPlayerTime(v.currentTime);
+                    v.playbackRate = clampPlaybackPercent(playbackSpeedPercent) / 100;
+                  }
                 }}
               />
             ) : (
@@ -618,6 +743,47 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
               </div>
             )}
           </div>
+
+          {videoSrc ? (
+            <div className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] p-3">
+              <label className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+                Playback speed (% of normal)
+              </label>
+              <div className="flex flex-wrap items-center gap-3">
+                <input
+                  type="range"
+                  min={25}
+                  max={400}
+                  step={5}
+                  value={clampPlaybackPercent(playbackSpeedPercent)}
+                  onChange={(e) =>
+                    setPlaybackSpeedPercent(clampPlaybackPercent(Number(e.target.value)))
+                  }
+                  className="min-w-[8rem] flex-1 accent-[var(--color-accent-base)]"
+                />
+                <span className="min-w-[3.25rem] font-mono text-sm tabular-nums text-[var(--color-text-primary)]">
+                  {clampPlaybackPercent(playbackSpeedPercent)}%
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {([50, 75, 90, 100, 125] as const).map((p) => (
+                    <Button
+                      key={p}
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      className="h-7 rounded-md px-2 font-mono text-[10px]"
+                      onClick={() => setPlaybackSpeedPercent(p)}
+                    >
+                      {p}%
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <p className="font-mono text-[10px] text-[var(--color-text-tertiary)]">
+                25–400% · slower speeds help spot cuts; timeline is still wall-clock film seconds.
+              </p>
+            </div>
+          ) : null}
         </div>
 
         <div className="space-y-4">
@@ -639,6 +805,69 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
             <p className="mt-2 font-mono text-[10px] text-[var(--color-text-tertiary)]">
               Player local: {playerTime.toFixed(3)}s
             </p>
+            <div className="mt-3 flex flex-col gap-1">
+              <label className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+                Frame step (arrow ← →)
+              </label>
+              <select
+                value={String(snapFrameStepToPreset(frameStepSec))}
+                onChange={(e) => setFrameStepSec(Number(e.target.value))}
+                className="h-8 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-primary)] px-2 font-mono text-xs text-[var(--color-text-primary)]"
+              >
+                {FRAME_STEP_PRESETS.map((p) => (
+                  <option key={p.label} value={String(p.sec)}>
+                    {p.label} ({p.sec.toFixed(4)}s)
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-full font-mono text-xs"
+                disabled={!videoSrc}
+                onClick={() => nudgePlayer(-frameStepSec)}
+              >
+                −1f
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-full font-mono text-xs"
+                disabled={!videoSrc}
+                onClick={() => nudgePlayer(frameStepSec)}
+              >
+                +1f
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-full font-mono text-xs"
+                disabled={!videoSrc}
+                onClick={() => nudgePlayer(-COARSE_NUDGE_SEC)}
+              >
+                −1s
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-full font-mono text-xs"
+                disabled={!videoSrc}
+                onClick={() => nudgePlayer(COARSE_NUDGE_SEC)}
+              >
+                +1s
+              </Button>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-[var(--color-text-secondary)]">
+              Tip: pause near the cut (Space), nudge with arrows or <kbd className="rounded border px-1">,</kbd>{" "}
+              <kbd className="rounded border px-1">.</kbd>, then <kbd className="rounded border px-1">C</kbd>.{" "}
+              <kbd className="rounded border px-1">Shift</kbd>+←/→ moves ±1s.
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -651,7 +880,12 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
             </Button>
           </div>
           <p className="font-mono text-[10px] text-[var(--color-text-tertiary)]">
-            Shortcut: <kbd className="rounded border px-1">C</kbd> adds a cut (when not typing in a field).
+            Shortcuts: <kbd className="rounded border px-1">Space</kbd> play/pause ·{" "}
+            <kbd className="rounded border px-1">←</kbd>
+            <kbd className="rounded border px-1">→</kbd>
+            <kbd className="rounded border px-1">,</kbd>
+            <kbd className="rounded border px-1">.</kbd> nudge · <kbd className="rounded border px-1">C</kbd> cut
+            (not while typing in a field).
           </p>
 
           <div className="flex flex-col gap-1">
