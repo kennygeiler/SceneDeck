@@ -504,6 +504,14 @@ export function PipelineViz({
             }
           }
         }
+        setState((s) => {
+          if (s.result || s.error) return s;
+          return {
+            ...s,
+            error:
+              "Connection closed before ingest finished (common causes: Vercel 300s function limit during detection, worker restart, or network drop). Try the Content detector, a shorter timeline window or clip, or set NEXT_PUBLIC_WORKER_URL to the TS worker for long PySceneDetect runs.",
+          };
+        });
       } catch (err) {
         if ((err as Error).name !== "AbortError") setState((s) => ({ ...s, error: (err as Error).message }));
       }

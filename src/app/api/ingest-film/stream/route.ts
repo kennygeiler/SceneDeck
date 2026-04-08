@@ -122,11 +122,28 @@ export async function POST(request: Request) {
         });
         const t0 = Date.now();
         const inlineCuts = parseInlineBoundaryCuts(body.extraBoundaryCuts);
-        const { splits: rawSplits, ctx: detectCtx } = await detectShotsForIngest(
-          videoPath,
-          detector,
-          inlineCuts ? { inlineExtraBoundaryCuts: inlineCuts } : undefined,
-        );
+        const detectHeartbeat = setInterval(() => {
+          const sec = Math.floor((Date.now() - t0) / 1000);
+          emit({
+            type: "step",
+            step: "detect",
+            status: "active",
+            message: `Analyzing shot boundaries — ${detectMessage} (${sec}s elapsed; PySceneDetect is silent — full features may exceed Vercel 300s; use the TS worker for long runs)`,
+          });
+        }, 25_000);
+        let rawSplits: Awaited<ReturnType<typeof detectShotsForIngest>>["splits"];
+        let detectCtx: Awaited<ReturnType<typeof detectShotsForIngest>>["ctx"];
+        try {
+          const r = await detectShotsForIngest(
+            videoPath,
+            detector,
+            inlineCuts ? { inlineExtraBoundaryCuts: inlineCuts } : undefined,
+          );
+          rawSplits = r.splits;
+          detectCtx = r.ctx;
+        } finally {
+          clearInterval(detectHeartbeat);
+        }
         const splits = clipDetectedSplitsToWindow(rawSplits, timeline);
         if (splits.length === 0) {
           emit({

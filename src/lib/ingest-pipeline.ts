@@ -127,12 +127,18 @@ export async function runCommand(
     const proc = spawn(command, args);
     let stdout = "";
     let stderr = "";
+    let settled = false;
+    const done = (err: Error | null, code: number | null) => {
+      if (settled) return;
+      settled = true;
+      if (err) reject(err);
+      else if (code === 0) resolve({ stdout, stderr });
+      else reject(new Error(stderr || `${command} exited with code ${code}`));
+    };
     proc.stdout.on("data", (d) => (stdout += d.toString()));
     proc.stderr.on("data", (d) => (stderr += d.toString()));
-    proc.on("close", (code) => {
-      if (code === 0) resolve({ stdout, stderr });
-      else reject(new Error(stderr || `${command} exited with code ${code}`));
-    });
+    proc.on("error", (err) => done(err, null));
+    proc.on("close", (code) => done(null, code));
   });
 }
 

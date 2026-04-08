@@ -149,11 +149,28 @@ export async function ingestFilmHandler(req: Request, res: Response) {
     });
     const t0 = Date.now();
     const inlineCuts = parseInlineBoundaryCuts(body.extraBoundaryCuts);
-    const { splits: rawSplits, ctx: detectCtx } = await detectShotsForIngest(
-      videoPath,
-      detector,
-      inlineCuts ? { inlineExtraBoundaryCuts: inlineCuts } : undefined,
-    );
+    const detectHeartbeat = setInterval(() => {
+      const sec = Math.floor((Date.now() - t0) / 1000);
+      emit({
+        type: "step",
+        step: "detect",
+        status: "active",
+        message: `Detecting shots — ${detectLabel} (${sec}s elapsed; PySceneDetect has no progress bar — long films can take many minutes)`,
+      });
+    }, 25_000);
+    let rawSplits: Awaited<ReturnType<typeof detectShotsForIngest>>["splits"];
+    let detectCtx: Awaited<ReturnType<typeof detectShotsForIngest>>["ctx"];
+    try {
+      const r = await detectShotsForIngest(
+        videoPath,
+        detector,
+        inlineCuts ? { inlineExtraBoundaryCuts: inlineCuts } : undefined,
+      );
+      rawSplits = r.splits;
+      detectCtx = r.ctx;
+    } finally {
+      clearInterval(detectHeartbeat);
+    }
     const splits = clipDetectedSplitsToWindow(rawSplits, timeline);
     if (splits.length === 0) {
       emit({
