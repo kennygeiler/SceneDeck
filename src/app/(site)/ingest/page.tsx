@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { PipelineViz } from "@/components/ingest/pipeline-viz";
 import { TmdbTitleSearch } from "@/components/ingest/tmdb-title-search";
+import { normalizeS3SourceReuseInput } from "@/lib/s3-source-reuse";
 
 type IngestPhase = "form" | "uploading" | "processing";
 
@@ -210,6 +211,12 @@ export default function IngestPage() {
   async function handleStart() {
     if (!filmTitle || !director || !year) return;
 
+    const yearNum = parseInt(year, 10);
+    if (!Number.isFinite(yearNum)) {
+      setUploadError("Enter a valid release year (e.g. 1968).");
+      return;
+    }
+
     const startParsed = tryParseOptionalTimelineBound(ingestTimelineStart, "start");
     if (!startParsed.ok) {
       setUploadError(startParsed.message);
@@ -235,7 +242,7 @@ export default function IngestPage() {
     uploadAbortRef.current = ac;
     const { signal } = ac;
 
-    const trimmedReuse = reuseSourceKey.trim();
+    const trimmedReuse = normalizeS3SourceReuseInput(reuseSourceKey);
 
     if (trimmedReuse) {
       setPhase("uploading");
@@ -515,9 +522,9 @@ export default function IngestPage() {
               ) : null}
             </div>
             <p className="mt-2 font-mono text-[10px] leading-relaxed text-[var(--color-text-tertiary)]">
-              Paste the <code className="text-[var(--color-text-secondary)]">s3Key</code> from the upload presign response (Network tab) or click
-              <span className="text-[var(--color-text-secondary)]"> Use last uploaded source </span>
-              after one normal upload in this browser. When this field is non-empty, Start skips the file upload and re-mints a GET URL for the worker.
+              Paste the object key (<code className="text-[var(--color-text-secondary)]">s3Key</code>), a full presigned S3 URL, or a JSON blob from the Network response.
+              Click <span className="text-[var(--color-text-secondary)]">Use last uploaded source</span> after one normal upload in this browser. If this field has
+              text, Start skips PUT upload and only re-mints a GET URL (Vercel and worker must use the same bucket/credentials as the upload).
             </p>
           </div>
 
@@ -708,7 +715,7 @@ export default function IngestPage() {
           videoPath={videoPath}
           filmTitle={filmTitle}
           director={director}
-          year={parseInt(year)}
+          year={parseInt(year, 10)}
           concurrency={concurrency}
           workerUrl={workerUrl}
           ingestStartSec={ingestTimelineForRun.ingestStartSec}
