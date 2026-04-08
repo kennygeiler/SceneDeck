@@ -3,7 +3,12 @@ import { access, constants, mkdir, readFile, mkdtemp, rm } from "node:fs/promise
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { FFMPEG_SPAWN_ENOENT_HINT, getFfprobePath, getFfmpegPath } from "./ffmpeg-bin";
+import {
+  envWithFfmpegBinariesOnPath,
+  FFMPEG_SPAWN_ENOENT_HINT,
+  getFfprobePath,
+  getFfmpegPath,
+} from "./ffmpeg-bin";
 import { uploadToS3, buildS3Key } from "./s3";
 import { acquireToken } from "./rate-limiter";
 import {
@@ -123,9 +128,10 @@ export function clipDetectedSplitsToWindow(
 export async function runCommand(
   command: string,
   args: string[],
+  spawnEnv?: NodeJS.ProcessEnv,
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(command, args);
+    const proc = spawn(command, args, spawnEnv ? { env: spawnEnv } : undefined);
     let stdout = "";
     let stderr = "";
     let settled = false;
@@ -237,15 +243,19 @@ export async function detectShots(
     ? ["detect-adaptive", "-t", "3.0"]
     : ["detect-content", "-t", "27.0"];
 
-  await runCommand(scenedetectBin, [
-    "-i", videoPath,
-    ...(detector === "content" ? ["-d", "4"] : []),
-    ...detectorArgs,
-    "list-scenes",
-    "-o", tempDir,
-    "-f", "shots",
-    "-q",
-  ]);
+  await runCommand(
+    scenedetectBin,
+    [
+      "-i", videoPath,
+      ...(detector === "content" ? ["-d", "4"] : []),
+      ...detectorArgs,
+      "list-scenes",
+      "-o", tempDir,
+      "-f", "shots",
+      "-q",
+    ],
+    envWithFfmpegBinariesOnPath(),
+  );
 
   const csv = await readFile(csvPath, "utf-8").catch(() => "");
   await rm(tempDir, { recursive: true, force: true });
