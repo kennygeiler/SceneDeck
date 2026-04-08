@@ -1,24 +1,22 @@
 import type { NextConfig } from "next";
 
-/** Only API routes that import ingest-pipeline, ffmpeg-bin, or object-detection (ffmpeg/ffprobe). */
-const FFMPEG_FFPROBE_TRACE_INCLUDES = [
+/** Only API routes that import ingest-pipeline, ffmpeg-bin, or object-detection (ffmpeg; probing uses same binary). */
+const FFMPEG_TRACE_INCLUDES = [
   "./node_modules/ffmpeg-static/**",
-  "./node_modules/ffprobe-static/**",
   "./node_modules/.pnpm/**/ffmpeg-static/**",
-  "./node_modules/.pnpm/**/ffprobe-static/**",
 ];
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["ffmpeg-static", "ffprobe-static"],
+  serverExternalPackages: ["ffmpeg-static"],
   /**
-   * Binaries must be traced for routes that spawn ffmpeg/ffprobe.
+   * Binaries must be traced for routes that spawn ffmpeg.
    * Avoid a single glob over all API routes; that copies ffmpeg into every function and exceeds Vercel limits.
    * Picomatch contains-mode: pattern ingest-film matches ingest-film stream too.
    */
   outputFileTracingIncludes: {
-    "/api/ingest-film": [...FFMPEG_FFPROBE_TRACE_INCLUDES],
-    "/api/process-scene": [...FFMPEG_FFPROBE_TRACE_INCLUDES],
-    "/api/detect-objects": [...FFMPEG_FFPROBE_TRACE_INCLUDES],
+    "/api/ingest-film": [...FFMPEG_TRACE_INCLUDES],
+    "/api/process-scene": [...FFMPEG_TRACE_INCLUDES],
+    "/api/detect-objects": [...FFMPEG_TRACE_INCLUDES],
   },
   experimental: {
     serverActions: {

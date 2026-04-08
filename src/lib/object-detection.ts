@@ -7,7 +7,7 @@ import Replicate from "replicate";
 import { eq } from "drizzle-orm";
 
 import { db, schema } from "@/db";
-import { getFfprobePath, getFfmpegPath } from "@/lib/ffmpeg-bin";
+import { getFfmpegPath, probeRasterDimensions } from "@/lib/ffmpeg-bin";
 import { acquireToken } from "@/lib/rate-limiter";
 import type {
   ShotObjectAttributes,
@@ -649,30 +649,7 @@ async function runProcess(command: string, args: string[]) {
 }
 
 async function probeImageDimensions(filePath: string) {
-  const { stdout } = await runProcess(getFfprobePath(), [
-    "-v",
-    "error",
-    "-select_streams",
-    "v:0",
-    "-show_entries",
-    "stream=width,height",
-    "-of",
-    "json",
-    filePath,
-  ]);
-
-  const payload = JSON.parse(stdout) as {
-    streams?: Array<{ width?: number; height?: number }>;
-  };
-  const stream = payload.streams?.[0];
-  const width = Number(stream?.width);
-  const height = Number(stream?.height);
-
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-    throw new Error(`Could not determine frame dimensions for ${filePath}.`);
-  }
-
-  return { width, height };
+  return probeRasterDimensions(filePath);
 }
 
 async function extractFrameImage(

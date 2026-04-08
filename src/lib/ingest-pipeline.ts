@@ -6,8 +6,8 @@ import path from "node:path";
 import {
   envWithFfmpegBinariesOnPath,
   FFMPEG_SPAWN_ENOENT_HINT,
-  getFfprobePath,
   getFfmpegPath,
+  probeVideoDurationSec,
 } from "./ffmpeg-bin";
 import { uploadToS3, buildS3Key } from "./s3";
 import { acquireToken } from "./rate-limiter";
@@ -261,13 +261,7 @@ export async function detectShots(
   await rm(tempDir, { recursive: true, force: true });
 
   if (!csv.trim()) {
-    const { stdout } = await runCommand(getFfprobePath(), [
-      "-v", "error",
-      "-show_entries", "format=duration",
-      "-of", "default=noprint_wrappers=1:nokey=1",
-      videoPath,
-    ]);
-    const duration = parseFloat(stdout.trim()) || 0;
+    const duration = await probeVideoDurationSec(videoPath);
     return [{ start: 0, end: roundTime(duration), index: 0 }];
   }
 
@@ -281,16 +275,6 @@ export async function detectShots(
       return { start: roundTime(start), end: roundTime(end), index: i };
     })
     .filter((s): s is DetectedSplit => s !== null);
-}
-
-async function probeVideoDurationSec(videoPath: string): Promise<number> {
-  const { stdout } = await runCommand(getFfprobePath(), [
-    "-v", "error",
-    "-show_entries", "format=duration",
-    "-of", "default=noprint_wrappers=1:nokey=1",
-    videoPath,
-  ]);
-  return parseFloat(stdout.trim()) || 0;
 }
 
 function endpointsFromSplits(splits: DetectedSplit[]): number[] {
