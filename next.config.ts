@@ -1,10 +1,8 @@
 import type { NextConfig } from "next";
 
 /** Only API routes that import ingest-pipeline, ffmpeg-bin, or object-detection (ffmpeg; probing uses same binary). */
-const FFMPEG_TRACE_INCLUDES = [
-  "./node_modules/ffmpeg-static/**",
-  "./node_modules/.pnpm/**/ffmpeg-static/**",
-];
+/** Do not add `./node_modules/.pnpm/**` — Vercel rejects traces rooted in pnpm's symlinked store. */
+const FFMPEG_TRACE_INCLUDES = ["./node_modules/ffmpeg-static/**"];
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["ffmpeg-static"],
