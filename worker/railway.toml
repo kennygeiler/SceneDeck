@@ -1,0 +1,17 @@
+# MetroVision ingest worker — use this file for the Railway **worker** service only.
+#
+# In Railway: Service → Settings → set **Root Directory** to `worker`, then either:
+# - Set **Config as Code** path to `worker/railway.toml`, or
+# - Leave defaults if Railway picks up this file from the service root.
+#
+# Forces Railpack (Node) instead of the broken monorepo Dockerfile in this folder.
+
+[build]
+builder = "RAILPACK"
+watchPatterns = ["worker/**", "src/lib/**", "src/db/**", "src/types/**"]
+
+[deploy]
+startCommand = "npm start"
+healthcheckPath = "/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"

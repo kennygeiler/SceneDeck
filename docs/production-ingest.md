@@ -2,6 +2,23 @@
 
 Heavy ingest (FFmpeg, PySceneDetect, long SSE) must not rely on Vercel serverless alone. Use a **long-running TS worker** and point the Next app at it.
 
+## Railway: deploy the real worker (not the Next.js site)
+
+If opening your **Railway public URL** shows the **MetroVision marketing/UI**, that service is running the **wrong app** (e.g. repo root / Next). The ingest worker is the small Express app under **`worker/`** and should show **JSON** at `/`, not HTML.
+
+Do this **once** for the **worker** service:
+
+1. **Settings → Source:** same GitHub repo and branch you use for Vercel (usually `main`).
+2. **Settings → Root Directory:** `worker` (folder that contains `worker/package.json` and `worker/src/server.ts`).
+3. **Settings → Config as Code (optional but recommended):** set the file path to **`worker/railway.toml`** so builds use **Railpack** and `npm start` (avoids the repo’s `worker/Dockerfile`, which is not set up for this monorepo layout).
+4. **Settings → Deploy:** start command should be **`npm start`** (overridden by `railway.toml` if the config file is active).
+5. **Redeploy** the service, then verify in a browser:
+   - `https://<railway-host>/` → `{"service":"metrovision-worker","status":"ok"}`
+   - `https://<railway-host>/health` → JSON with `metrovision-worker`
+6. Copy that origin into Vercel as **`NEXT_PUBLIC_WORKER_URL`** (no path). Redeploy Vercel after changing `NEXT_PUBLIC_*`.
+
+**Auto-deploy:** ensure this service is set to deploy on pushes to your branch; narrow **watch paths** can skip builds when only `src/app/` changes—`worker/railway.toml` includes `worker/**` and shared `src/lib/**` / `src/db/**` so worker-related commits still trigger a deploy.
+
 ## Required for reliable prod ingest
 
 1. **Set `INGEST_WORKER_URL`** (server-only, preferred) or **`NEXT_PUBLIC_WORKER_URL`** on Vercel to the worker **origin** only, e.g. `https://your-worker.railway.app` — no path, no trailing `/api`.
