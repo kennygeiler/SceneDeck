@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import type { Request, Response } from "express";
 
 import { db, schema } from "./db.js";
-import { getFfmpegPath } from "../../src/lib/ffmpeg-bin.js";
+import { getFfmpegPath, probeVideoDurationSec } from "../../src/lib/ffmpeg-bin.js";
 import {
   detectShotsForIngest,
   classifyShot,
@@ -20,6 +20,7 @@ import {
   clipDetectedSplitsToWindow,
   prepareIngestTimelineAnalysisMedia,
   offsetDetectedSplits,
+  resolveIngestAbsoluteWindow,
 } from "../../src/lib/ingest-pipeline.js";
 import {
   parseInlineBoundaryCuts,
@@ -69,6 +70,53 @@ async function resolveVideo(videoUrl: string): Promise<string> {
   console.log(`[worker] Download complete: ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 
   return localPath;
+}
+
+/** True when the window is shorter than (almost) the whole probed file — worth skipping full remux for HTTP. */
+function isStrictSubRangeOfProbedDuration(
+  durationSec: number,
+  w: { absStart: number; absEnd: number },
+): boolean {
+  if (!(durationSec > 0) || !Number.isFinite(durationSec)) return false;
+  return !(w.absStart <= 0.001 && w.absEnd >= durationSec - 0.05);
+}
+
+/**
+ * Local path: validate and return. HTTP(S): full remux to disk unless timeline is a strict sub-range of probed
+ * duration — then return the URL so segment extract + per-shot FFmpeg use ranged/streaming input (no full copy).
+ */
+async function resolveWorkerIngestSource(
+  raw: string,
+  timeline: { startSec?: number; endSec?: number },
+): Promise<string> {
+  if (!raw.startsWith("http://") && !raw.startsWith("https://")) {
+    await access(raw, constants.R_OK);
+    return raw;
+  }
+
+  let durationSec = 0;
+  try {
+    durationSec = await probeVideoDurationSec(raw);
+  } catch {
+    durationSec = 0;
+  }
+
+  let absWin: ReturnType<typeof resolveIngestAbsoluteWindow> = null;
+  try {
+    absWin = resolveIngestAbsoluteWindow(timeline, durationSec);
+  } catch {
+    absWin = null;
+  }
+
+  if (absWin != null && isStrictSubRangeOfProbedDuration(durationSec, absWin)) {
+    console.log(
+      "[worker] Timeline sub-range vs probed duration — skipping full-file remux; using URL for segment + seeks",
+      { absStart: absWin.absStart, absEnd: absWin.absEnd, durationSec },
+    );
+    return raw;
+  }
+
+  return resolveVideo(raw);
 }
 
 export async function ingestFilmHandler(req: Request, res: Response) {
@@ -141,7 +189,7 @@ export async function ingestFilmHandler(req: Request, res: Response) {
       step: "detect",
       status: "active",
       message: rawSource.startsWith("http")
-        ? "Preparing video (FFmpeg is copying from your URL to the worker; large files can take several minutes with no shot count yet)…"
+        ? "Preparing HTTP source (probing duration; timeline ingest may skip copying the full file)…"
         : "Preparing video file…",
     });
     const prepStarted = Date.now();
@@ -152,17 +200,17 @@ export async function ingestFilmHandler(req: Request, res: Response) {
         step: "detect",
         status: "active",
         message: rawSource.startsWith("http")
-          ? `Still preparing video — download/remux in progress (${sec}s). Proxies need periodic bytes; this stays alive.`
+          ? `Still preparing source (${sec}s) — full remux only when needed; otherwise streaming segment from URL…`
           : `Still opening video file… (${sec}s)`,
       });
     }, 8_000);
     let videoPath: string;
     try {
-      videoPath = await resolveVideo(body.videoPath ?? body.videoUrl);
+      videoPath = await resolveWorkerIngestSource(rawSource, timeline);
     } finally {
       clearInterval(prepHeartbeat);
     }
-    console.log(`[worker] Video resolved: ${videoPath}`);
+    console.log(`[worker] Video resolved: ${videoPath.slice(0, 120)}${videoPath.length > 120 ? "…" : ""}`);
 
     const sourceVideoPath = videoPath;
     const timelinePlan = await prepareIngestTimelineAnalysisMedia(sourceVideoPath, timeline);
