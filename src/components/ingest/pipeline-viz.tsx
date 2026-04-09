@@ -126,9 +126,17 @@ const framingChipColor = (slug: string) => getFramingColor(slug);
 
 const getWorkerColor = (w: number) => WORKER_COLORS[w % WORKER_COLORS.length];
 
-/** Align with `normalizeWorkerOrigin` in `ingest-worker-delegate` (origin only, no `/api`). */
+/** Align with `normalizeWorkerOrigin` — always **origin** so `/api/ingest-film/stream` is not doubled. */
 function normalizeWorkerOriginClient(raw: string): string {
-  let s = raw.trim().replace(/\/+$/, "");
+  const t = raw.trim().replace(/\/+$/, "");
+  if (/^https?:\/\//i.test(t)) {
+    try {
+      return new URL(t).origin;
+    } catch {
+      /* fall through */
+    }
+  }
+  let s = t;
   if (s.endsWith("/api")) s = s.slice(0, -4).replace(/\/+$/, "");
   return s;
 }

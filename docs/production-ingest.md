@@ -13,7 +13,7 @@ Heavy ingest (FFmpeg, PySceneDetect, long SSE) must not rely on Vercel serverles
 
 Vercel’s route that **proxies** SSE to the worker can hit **duration / buffering / idle** limits. For reliable multi‑minute detect:
 
-1. Set **`NEXT_PUBLIC_WORKER_URL`** on Vercel to the worker **origin** (same value you use server-side).
+1. Set **`NEXT_PUBLIC_WORKER_URL`** on Vercel to the worker **origin** only (e.g. `https://your-service.up.railway.app`). If you paste a full path like `…/api/ingest-film/stream`, it is normalized to **origin** automatically — do not manually double the path.
 2. Set **`NEXT_PUBLIC_INGEST_SSE_DIRECT=1`** on Vercel and **redeploy** (client bundle reads this at build time).
 3. On the **worker**, allow your app origin in CORS: set **`ALLOWED_ORIGINS`** to a comma-separated list including your production URL (e.g. `https://your-app.vercel.app`), **or** set **`ALLOW_VERCEL_SUBDOMAINS=1`** for any `*.vercel.app` preview/production.
 4. In the browser DevTools → Network, confirm **`POST …/api/ingest-film/stream`** goes to the **worker host**, not `your-app.vercel.app`.

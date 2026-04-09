@@ -10,10 +10,19 @@ const PROXY_TIMEOUT_MS = 890_000;
 
 /**
  * Worker env should be **origin only** (e.g. `https://metrovision-worker.fly.dev`).
- * Strips trailing slashes and a mistaken trailing `/api` (else ingest would hit `/api/api/ingest-film/stream`).
+ * Accepts pasted full URLs like `…/api/ingest-film/stream` and reduces to **origin** so callers
+ * don't double-append `/api/ingest-film/stream` (that yields Next's HTML 404 during ingest).
  */
 export function normalizeWorkerOrigin(raw: string): string {
-  let s = raw.trim().replace(/\/+$/, "");
+  const t = raw.trim().replace(/\/+$/, "");
+  if (/^https?:\/\//i.test(t)) {
+    try {
+      return new URL(t).origin;
+    } catch {
+      /* fall through */
+    }
+  }
+  let s = t;
   if (s.endsWith("/api")) {
     s = s.slice(0, -4).replace(/\/+$/, "");
   }
