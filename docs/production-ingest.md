@@ -2,6 +2,8 @@
 
 Heavy ingest (FFmpeg, PySceneDetect, long SSE) must not rely on Vercel serverless alone. Use a **long-running TS worker** and point the Next app at it.
 
+**Boundary env vars, dual PyScene verification, and gold eval writeup:** [pipeline-analysis.md](./pipeline-analysis.md).
+
 ## Railway: deploy the real worker (not the Next.js site)
 
 If opening your **Railway public URL** shows the **MetroVision marketing/UI**, that service is running the **wrong app** (e.g. default `next start` from repo root). The ingest worker is the Express app under **`worker/`** and should show **JSON** at `/`, not HTML.
