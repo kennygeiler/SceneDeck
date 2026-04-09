@@ -1,6 +1,9 @@
 import { access, constants, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
+import { pipeline as streamPipeline } from "node:stream/promises";
 
 import { eq } from "drizzle-orm";
 import type { Request, Response } from "express";
@@ -73,8 +76,44 @@ async function resolveVideo(videoUrl: string): Promise<string> {
   await mkdir(downloadDir, { recursive: true });
   const localPath = path.join(downloadDir, `${Date.now()}-film.mp4`);
 
-  console.log("[worker] Downloading video via FFmpeg remux...");
   const t0 = Date.now();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      console.log(`[worker] Downloading video via HTTP stream (attempt ${attempt + 1}/2)...`);
+      const res = await fetch(videoUrl, {
+        redirect: "follow",
+        signal: AbortSignal.timeout(180_000),
+      });
+      if (!res.ok) {
+        const body = (await res.text().catch(() => "")).slice(0, 280);
+        throw new Error(`HTTP ${res.status} while downloading source video. ${body}`.trim());
+      }
+      if (!res.body) {
+        throw new Error("Source video response had no body.");
+      }
+
+      await streamPipeline(
+        Readable.fromWeb(res.body as any),
+        createWriteStream(localPath),
+      );
+      console.log(
+        `[worker] Download complete (HTTP stream): ${((Date.now() - t0) / 1000).toFixed(1)}s`,
+      );
+      return localPath;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const retryable =
+        /ECONNRESET|ETIMEDOUT|timed out|terminated|network|fetch failed|aborted/i.test(msg);
+      if (!retryable || attempt === 1) {
+        console.warn(
+          `[worker] HTTP stream download failed (${msg}). Falling back to FFmpeg remux...`,
+        );
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 500 + Math.random() * 500));
+    }
+  }
+
   await runCommand(getFfmpegPath(), [
     "-y",
     "-threads",
@@ -85,7 +124,7 @@ async function resolveVideo(videoUrl: string): Promise<string> {
     "copy",
     localPath,
   ]);
-  console.log(`[worker] Download complete: ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+  console.log(`[worker] Download complete (FFmpeg fallback): ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 
   return localPath;
 }
