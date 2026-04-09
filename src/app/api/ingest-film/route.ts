@@ -10,6 +10,7 @@ import {
   extractAndUpload,
   classifyShot,
   processInParallel,
+  resolveGeminiClassifyParallelism,
   sanitize,
   roundTime,
   parseIngestTimelineFromBody,
@@ -112,7 +113,8 @@ export async function POST(request: Request) {
       return extractAndUpload(videoPath, split, filmSlug);
     });
 
-    const classifyResults = await processInParallel(splits, concurrency, async (split) => {
+    const classifyParallelism = resolveGeminiClassifyParallelism(concurrency);
+    const classifyResults = await processInParallel(splits, classifyParallelism, async (split) => {
       return classifyShot(videoPath, split, body.filmTitle, body.director, body.year, castList);
     });
     const classifications = classifyResults.map((r) => r.classification);

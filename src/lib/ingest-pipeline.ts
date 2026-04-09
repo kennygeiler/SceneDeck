@@ -859,8 +859,22 @@ export async function extractAndUpload(
 // ---------------------------------------------------------------------------
 // Step 3: Classify with Gemini (OPTIMIZED)
 // - Smaller clips: 320px, max 10s, higher CRF
-// - Supports batch classification (multiple shots per call)
+// - Each shot spawns FFmpeg (libx264); cap parallelism to avoid EAGAIN / filter init failures.
 // ---------------------------------------------------------------------------
+
+/**
+ * Parallel Gemini classifies each run FFmpeg for a subclip — too many at once exhausts CPU/FDs.
+ * Override: `METROVISION_CLASSIFY_CONCURRENCY` (1–32). Default caps at 6 unless env set.
+ */
+export function resolveGeminiClassifyParallelism(formConcurrency: number): number {
+  const raw = process.env.METROVISION_CLASSIFY_CONCURRENCY?.trim();
+  if (raw) {
+    const n = Number(raw);
+    if (Number.isFinite(n) && n >= 1 && n <= 32) return Math.floor(n);
+  }
+  const suggested = Math.max(2, Math.round(formConcurrency * 2));
+  return Math.min(suggested, 6);
+}
 
 function fallbackClassification(): ClassifiedShot {
   return {
@@ -1013,7 +1027,16 @@ async function geminiGenerateClassification(
     throw new Error(`Gemini API error: ${response.status} ${errText.slice(0, 200)}`);
   }
 
-  const result = await response.json();
+  const bodyText = await response.text();
+  let result: unknown;
+  try {
+    result = JSON.parse(bodyText) as unknown;
+  } catch {
+    console.warn(
+      `[classify] Gemini HTTP body is not valid JSON (truncated proxy?): ${bodyText.slice(0, 500)}`,
+    );
+    return null;
+  }
   return parseGeminiClassificationJson(result);
 }
 
@@ -1033,9 +1056,30 @@ async function classifyShotWithGemini(
   const clipFile = path.join(tempDir, "clip.mp4");
 
   await runCommand(getFfmpegPath(), [
-    "-y", "-ss", String(split.start), "-t", String(clipDuration),
-    "-i", videoPath, "-c:v", "libx264", "-crf", "32",
-    "-vf", "scale=320:trunc(ow/a/2)*2", "-r", "12", "-an", clipFile,
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-y",
+    "-ss",
+    String(split.start),
+    "-t",
+    String(clipDuration),
+    "-i",
+    videoPath,
+    "-threads",
+    "1",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "ultrafast",
+    "-crf",
+    "32",
+    "-vf",
+    "scale=320:-2",
+    "-r",
+    "12",
+    "-an",
+    clipFile,
   ]);
 
   try {

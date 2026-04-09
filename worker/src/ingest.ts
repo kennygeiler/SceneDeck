@@ -11,6 +11,7 @@ import {
   detectShotsForIngest,
   classifyShot,
   processInParallel,
+  resolveGeminiClassifyParallelism,
   extractLocally,
   uploadAssets,
   sanitize,
@@ -346,12 +347,12 @@ export async function ingestFilmHandler(req: Request, res: Response) {
       duration: (Date.now() - t2) / 1000,
     });
 
-    const classifyConcurrency = Math.min(concurrency * 3, 15);
+    const classifyConcurrency = resolveGeminiClassifyParallelism(concurrency);
     emit({
       type: "step",
       step: "classify",
       status: "active",
-      message: `Classifying ${splits.length} shots (${classifyConcurrency} workers)...`,
+      message: `Classifying ${splits.length} shots (${classifyConcurrency} parallel; set METROVISION_CLASSIFY_CONCURRENCY to raise cap)...`,
     });
     const t3 = Date.now();
     const yearNum = Number(body.year);

@@ -30,6 +30,7 @@ Vercel’s route that **proxies** SSE to the worker can hit **duration / bufferi
 
 ## Operational notes
 
+- **Classify parallelism:** each shot runs **FFmpeg (libx264)** then **Gemini**. Default cap is **6** concurrent classifies (`resolveGeminiClassifyParallelism`) to avoid `Resource temporarily unavailable` / filter init failures on small workers. Raise with **`METROVISION_CLASSIFY_CONCURRENCY`** (e.g. `10`) on larger hosts.
 - **Neon + S3 + Gemini** must be present in both Vercel and the worker env where ingest runs (worker needs `DATABASE_URL`, keys, etc.).
 - **Idle timeouts:** the app emits periodic SSE during prep/detect so proxies are less likely to close the stream; if drops persist, confirm worker logs and Vercel function duration limits.
 

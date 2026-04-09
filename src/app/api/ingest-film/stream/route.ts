@@ -11,6 +11,7 @@ import {
   uploadAssets,
   classifyShot,
   processInParallel,
+  resolveGeminiClassifyParallelism,
   sanitize,
   roundTime,
   parseIngestTimelineFromBody,
@@ -277,8 +278,8 @@ export async function POST(request: Request) {
 
         // Step 3: Classify with Gemini (parallel, higher concurrency)
         // Gemini 2.5 Flash supports high RPM — use up to 15 concurrent
-        const classifyConcurrency = Math.min(concurrency * 3, 15);
-        emit({ type: "step", step: "classify", status: "active", message: `Classifying ${splits.length} shots (${classifyConcurrency} workers)...` });
+        const classifyConcurrency = resolveGeminiClassifyParallelism(concurrency);
+        emit({ type: "step", step: "classify", status: "active", message: `Classifying ${splits.length} shots (${classifyConcurrency} parallel)...` });
         const t3 = Date.now();
         const classifyResults = await processInParallel(splits, classifyConcurrency, async (split, worker) => {
           emit({ type: "shot", step: "classify", index: split.index, total: splits.length, worker, status: "start" });
