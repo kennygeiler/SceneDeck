@@ -21,8 +21,8 @@ pnpm check:taxonomy      # src/lib/taxonomy.ts vs pipeline/taxonomy.py (AC-02)
 pnpm test                # Vitest (unit tests; CI runs this too)
 
 # TS Ingest Worker (Express, runs separately)
-cd worker && pnpm dev   # Start worker dev server (tsx watch)
-cd worker && pnpm build # `tsc --noEmit` (worker imports `../src/lib/*` at runtime via `tsx`)
+cd worker && pnpm dev   # Start worker dev server (`node --import tsx/esm --watch`)
+cd worker && pnpm build # `tsc --noEmit` (worker imports `../../src/lib/*` at runtime via tsx loader)
 
 # Python pipeline
 cd pipeline
