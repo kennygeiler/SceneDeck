@@ -110,6 +110,34 @@ const PACING = {
   red: { color: "#d65c6b", bg: "rgba(214,92,107,0.08)", label: "Taking longer than expected. If I'm red for a while, something got messed up. Sorry!" },
 };
 
+/** Split error string for UI: short summary vs collapsible troubleshooting (see appendIngestErrorDetails). */
+const INGEST_ERR_DETAIL_SEP = "\n---\n";
+
+function appendIngestErrorDetails(summary: string, details: string): string {
+  return `${summary.trim()}${INGEST_ERR_DETAIL_SEP}${details.trim()}`;
+}
+
+function splitIngestErrorDisplay(message: string): { summary: string; details: string | null } {
+  const parts = message.split(INGEST_ERR_DETAIL_SEP);
+  if (parts.length >= 2) {
+    return {
+      summary: parts[0]!.trim(),
+      details: parts.slice(1).join(INGEST_ERR_DETAIL_SEP).trim(),
+    };
+  }
+  return { summary: message.trim(), details: null };
+}
+
+const INGEST_NETWORK_TROUBLESHOOT = `Common causes: offline or flaky network, VPN/firewall/proxy blocking this site, or a browser extension (ad blocker) blocking fetch. Try another network or a private window.
+
+If it happens immediately: DevTools → Network → retry ingest → inspect POST /api/ingest-film/stream (status, blocked, CORS).
+
+If it happens after Detect starts: the connection may have been reset (timeout, sleep, mobile handoff). On Vercel set INGEST_WORKER_URL (or NEXT_PUBLIC_WORKER_URL) to your TS worker origin; check Vercel and worker logs.`;
+
+const INGEST_STREAM_END_TROUBLESHOOT = `On Vercel, set INGEST_WORKER_URL or NEXT_PUBLIC_WORKER_URL to your TS worker base URL so Next proxies to a long-running process.
+
+Without a worker, narrow the timeline window or use a shorter test clip.`;
+
 // ---------------------------------------------------------------------------
 // Styles
 // ---------------------------------------------------------------------------
@@ -615,8 +643,10 @@ export function PipelineViz({
           if (s.result || s.error) return s;
           return {
             ...s,
-            error:
-              "Connection closed before ingest finished (timeout, worker restart, or network). Set INGEST_WORKER_URL or NEXT_PUBLIC_WORKER_URL to your TS worker base URL so Next proxies ingest (recommended). On Vercel-only runs, narrow the timeline window or use a shorter test clip.",
+            error: appendIngestErrorDetails(
+              "Connection closed before ingest finished (timeout, worker restart, or network).",
+              INGEST_STREAM_END_TROUBLESHOOT,
+            ),
           };
         });
       } catch (err) {
@@ -624,13 +654,7 @@ export function PipelineViz({
         const e = err as Error;
         let message = (e?.message ?? String(e)).trim() || "Request failed";
         if (/failed to fetch|network\s*error|load failed|networkerror|connection.*refused|aborted/i.test(message)) {
-          message = `${message}
-
-Common causes: offline or flaky network, VPN/firewall/proxy blocking ${typeof window !== "undefined" ? window.location.origin : ""}, or a browser extension (ad blocker) blocking fetch. Try another network or a private window.
-
-If this happens right away: open DevTools → Network, retry ingest, and inspect POST /api/ingest-film/stream (status, blocked, CORS).
-
-If it happens after detect starts: the connection may have been reset (host sleep, timeout, or mobile network). Confirm INGEST_WORKER_URL on Vercel and check Vercel + Railway logs.`;
+          message = appendIngestErrorDetails(message, INGEST_NETWORK_TROUBLESHOOT);
         }
         setState((s) => ({ ...s, error: message }));
       }
@@ -663,6 +687,9 @@ If it happens after detect starts: the connection may have been reset (host slee
       : errorDbPartial
         ? `${errorDbPartial.shotCount} shots`
         : "";
+
+  const errorPlainParts =
+    state.error && !errorDbPartial ? splitIngestErrorDisplay(state.error) : null;
 
   const overallPct = state.totalShots > 0
     ? ((extracted / state.totalShots) * 30 + (classified / state.totalShots) * 50 + (written / state.totalShots) * 20)
@@ -1042,11 +1069,23 @@ If it happens after detect starts: the connection may have been reset (host slee
                   </p>
                 </details>
               </>
-            ) : (
-              <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-[var(--color-text-secondary)]">
-                {state.error}
-              </p>
-            )}
+            ) : errorPlainParts ? (
+              <>
+                <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-[var(--color-text-secondary)]">
+                  {errorPlainParts.summary}
+                </p>
+                {errorPlainParts.details ? (
+                  <details className="mt-4">
+                    <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+                      Troubleshooting
+                    </summary>
+                    <p className="mt-3 whitespace-pre-line text-xs leading-relaxed text-[var(--color-text-tertiary)]">
+                      {errorPlainParts.details}
+                    </p>
+                  </details>
+                ) : null}
+              </>
+            ) : null}
           </div>
         ) : null}
       </div>
