@@ -7,10 +7,10 @@ describe("resolveGeminiClassifyParallelism", () => {
     vi.unstubAllEnvs();
   });
 
-  it("defaults to at most 6 for high form concurrency", () => {
+  it("defaults to at most 4 for high form concurrency", () => {
     vi.unstubAllEnvs();
-    expect(resolveGeminiClassifyParallelism(5)).toBe(6);
-    expect(resolveGeminiClassifyParallelism(100)).toBe(6);
+    expect(resolveGeminiClassifyParallelism(5)).toBe(4);
+    expect(resolveGeminiClassifyParallelism(100)).toBe(4);
     expect(resolveGeminiClassifyParallelism(2)).toBe(4);
   });
 

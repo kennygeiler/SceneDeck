@@ -20,6 +20,7 @@ import {
   mergeBoundaryCutSources,
   shouldRunPysceneEnsemble,
 } from "./boundary-ensemble";
+import { extractFirstJsonObject } from "./gemini-json-extract";
 import {
   getGeminiAdjudicateModel,
   getGeminiClassifyModel,
@@ -864,7 +865,7 @@ export async function extractAndUpload(
 
 /**
  * Parallel Gemini classifies each run FFmpeg for a subclip — too many at once exhausts CPU/FDs.
- * Override: `METROVISION_CLASSIFY_CONCURRENCY` (1–32). Default caps at 6 unless env set.
+ * Override: `METROVISION_CLASSIFY_CONCURRENCY` (1–32). Default caps at 4 unless env set (Railway/small VMs: fewer parallel FFmpeg encodes).
  */
 export function resolveGeminiClassifyParallelism(formConcurrency: number): number {
   const raw = process.env.METROVISION_CLASSIFY_CONCURRENCY?.trim();
@@ -873,7 +874,7 @@ export function resolveGeminiClassifyParallelism(formConcurrency: number): numbe
     if (Number.isFinite(n) && n >= 1 && n <= 32) return Math.floor(n);
   }
   const suggested = Math.max(2, Math.round(formConcurrency * 2));
-  return Math.min(suggested, 6);
+  return Math.min(suggested, 4);
 }
 
 function fallbackClassification(): ClassifiedShot {
@@ -979,11 +980,27 @@ function parseGeminiClassificationJson(result: unknown): ClassifiedShot | null {
   }
   if (!fullText.trim()) fullText = parts?.[0]?.text ?? "";
   fullText = fullText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-  const jsonMatch = fullText.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) return null;
 
   try {
-    return JSON.parse(jsonMatch[0]) as ClassifiedShot;
+    const t = fullText.trim();
+    const direct = JSON.parse(t) as unknown;
+    if (direct && typeof direct === "object") {
+      if (!Array.isArray(direct)) {
+        return direct as ClassifiedShot;
+      }
+      const first = (direct as unknown[])[0];
+      if (first && typeof first === "object" && !Array.isArray(first)) {
+        return first as ClassifiedShot;
+      }
+    }
+  } catch {
+    /* try balanced-object extraction */
+  }
+
+  const extracted = extractFirstJsonObject(fullText);
+  if (!extracted) return null;
+  try {
+    return JSON.parse(extracted) as ClassifiedShot;
   } catch {
     return null;
   }
@@ -1055,7 +1072,7 @@ async function classifyShotWithGemini(
   const clipDuration = Math.min(split.end - split.start, 10);
   const clipFile = path.join(tempDir, "clip.mp4");
 
-  await runCommand(getFfmpegPath(), [
+  const classifyFfmpegArgs = [
     "-hide_banner",
     "-loglevel",
     "error",
@@ -1075,12 +1092,30 @@ async function classifyShotWithGemini(
     "-crf",
     "32",
     "-vf",
-    "scale=320:-2",
+    "scale=320:trunc(ih*320/iw/2)*2:flags=fast_bilinear",
+    "-pix_fmt",
+    "yuv420p",
     "-r",
     "12",
     "-an",
     clipFile,
-  ]);
+  ];
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await runCommand(getFfmpegPath(), classifyFfmpegArgs);
+      break;
+    } catch (e) {
+      const lastFfmpegErr = e as Error;
+      const msg = lastFfmpegErr.message;
+      const retryable =
+        /Resource temporarily unavailable|Failed to configure output pad|Error reinitializing filters|EAGAIN/i.test(
+          msg,
+        );
+      if (!retryable || attempt === 1) throw lastFfmpegErr;
+      await new Promise((r) => setTimeout(r, 400 + Math.random() * 500));
+    }
+  }
 
   try {
     const clipBuffer = await readFile(clipFile);
