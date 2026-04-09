@@ -37,6 +37,8 @@ type FrameState = {
   classifyDuration?: number;
 };
 
+type DbSnapshot = { filmId: string; shotCount: number; sceneCount: number };
+
 type PipelineState = {
   steps: StepInfo[];
   frames: FrameState[];
@@ -45,6 +47,8 @@ type PipelineState = {
   startTime: number;
   result: { filmId: string; filmTitle: string; shotCount: number; sceneCount: number } | null;
   error: string | null;
+  /** Latest counts from DB while SSE may be stalled (poll live-status). */
+  dbSnapshot: DbSnapshot | null;
 };
 
 const STEP_DEFS: { id: StepId; label: string }[] = [
@@ -345,6 +349,7 @@ export function PipelineViz({
     startTime: Date.now(),
     result: null,
     error: null,
+    dbSnapshot: null,
   });
 
   const [elapsed, setElapsed] = useState(0);
@@ -447,6 +452,45 @@ export function PipelineViz({
     },
     [onComplete, onError],
   );
+
+  useEffect(() => {
+    setState((s) => ({ ...s, dbSnapshot: null }));
+  }, [videoPath, filmTitle, year, ingestStartSec, ingestEndSec]);
+
+  useEffect(() => {
+    if (state.result) return undefined;
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const r = await fetch(
+          `/api/ingest-film/live-status?title=${encodeURIComponent(filmTitle)}&year=${encodeURIComponent(String(year))}`,
+        );
+        if (!r.ok || cancelled) return;
+        const data = (await r.json()) as
+          | { found?: boolean; filmId?: string; shotCount?: number; sceneCount?: number; error?: string };
+        const filmId = data.filmId;
+        if (cancelled || !data.found || typeof filmId !== "string") return;
+        const shotCount = typeof data.shotCount === "number" ? data.shotCount : 0;
+        const sceneCount = typeof data.sceneCount === "number" ? data.sceneCount : 0;
+        setState((prev) => {
+          if (prev.result) return prev;
+          return {
+            ...prev,
+            dbSnapshot: { filmId, shotCount, sceneCount },
+          };
+        });
+      } catch {
+        /* ignore */
+      }
+    };
+    void poll();
+    const id = window.setInterval(poll, 12_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [filmTitle, year, state.result]);
 
   useEffect(() => {
     if (state.result || state.error) return;
@@ -566,6 +610,13 @@ If it happens after detect starts: the connection may have been reset (host slee
   const activeStep = state.steps.find((s) => s.status === "active");
   const isDetecting = activeStep?.id === "detect" || (activeStep?.id === "lookup" && state.totalShots === 0);
 
+  const showStreamStaleHint =
+    state.dbSnapshot !== null &&
+    state.dbSnapshot.shotCount > 0 &&
+    !state.result &&
+    elapsed >= 12 &&
+    state.totalShots === 0;
+
   const overallPct = state.totalShots > 0
     ? ((extracted / state.totalShots) * 30 + (classified / state.totalShots) * 50 + (written / state.totalShots) * 20)
     : 0;
@@ -662,6 +713,31 @@ If it happens after detect starts: the connection may have been reset (host slee
             )}
           </div>
         </div>
+
+        {showStreamStaleHint && state.dbSnapshot ? (
+          <div
+            className="rounded-[var(--radius-lg)] border px-4 py-3 text-sm leading-relaxed text-[var(--color-text-secondary)]"
+            style={{ borderColor: "rgba(214, 160, 92, 0.35)", backgroundColor: "rgba(214, 160, 92, 0.06)" }}
+          >
+            <p>
+              The database already shows{" "}
+              <strong className="text-[var(--color-text-primary)] tabular-nums">{state.dbSnapshot.shotCount} shots</strong>
+              {state.dbSnapshot.sceneCount > 0 ? (
+                <>
+                  {" "}
+                  and <span className="tabular-nums">{state.dbSnapshot.sceneCount}</span> scenes
+                </>
+              ) : null}{" "}
+              for this title and year, but this view has not received the shot list yet — the live stream may be stalled while the worker still wrote rows. You can open the film to verify.
+            </p>
+            <Link
+              href={`/film/${state.dbSnapshot.filmId}`}
+              className="mt-2 inline-block font-mono text-xs text-[var(--color-accent-base)] underline-offset-2 hover:underline"
+            >
+              Open film page
+            </Link>
+          </div>
+        ) : null}
 
         {/* ─── Progress bar ─── */}
         <div className="relative h-1 overflow-hidden rounded-full" style={{ backgroundColor: "var(--color-surface-tertiary)" }}>
@@ -881,6 +957,16 @@ If it happens after detect starts: the connection may have been reset (host slee
             <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-[var(--color-text-secondary)]">
               {state.error}
             </p>
+            {state.dbSnapshot && state.dbSnapshot.shotCount > 0 ? (
+              <p className="mt-4 text-sm text-[var(--color-text-secondary)]">
+                The database already lists{" "}
+                <strong className="text-[var(--color-text-primary)] tabular-nums">{state.dbSnapshot.shotCount}</strong>{" "}
+                shots for this film — the error may be from the browser connection only.{" "}
+                <Link href={`/film/${state.dbSnapshot.filmId}`} className="font-mono text-xs text-[var(--color-accent-base)] underline-offset-2 hover:underline">
+                  Open film page
+                </Link>
+              </p>
+            ) : null}
           </div>
         ) : null}
       </div>
