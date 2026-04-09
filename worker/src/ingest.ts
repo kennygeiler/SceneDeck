@@ -7,22 +7,7 @@ import type { Request, Response } from "express";
 
 import { db, schema } from "./db.js";
 import { getFfmpegPath, probeVideoDurationSec } from "../../src/lib/ffmpeg-bin.js";
-import {
-  detectShotsForIngest,
-  classifyShot,
-  processInParallel,
-  resolveGeminiClassifyParallelism,
-  extractLocally,
-  uploadAssets,
-  sanitize,
-  roundTime,
-  runCommand,
-  parseIngestTimelineFromBody,
-  clipDetectedSplitsToWindow,
-  prepareIngestTimelineAnalysisMedia,
-  offsetDetectedSplits,
-  resolveIngestAbsoluteWindow,
-} from "../../src/lib/ingest-pipeline.js";
+import * as ingestPipelineModule from "../../src/lib/ingest-pipeline.js";
 import * as pipelineProvenance from "../../src/lib/pipeline-provenance.js";
 import {
   parseInlineBoundaryCuts,
@@ -44,6 +29,24 @@ import {
 } from "../../src/lib/ingest-run-record.js";
 
 const { buildIngestProvenance, initialReviewStatusForShot } = pipelineProvenance;
+const ingestPipeline = (ingestPipelineModule as { default?: typeof ingestPipelineModule }).default
+  ?? ingestPipelineModule;
+const {
+  detectShotsForIngest,
+  classifyShot,
+  processInParallel,
+  resolveGeminiClassifyParallelism,
+  extractLocally,
+  uploadAssets,
+  sanitize,
+  roundTime,
+  runCommand,
+  parseIngestTimelineFromBody,
+  clipDetectedSplitsToWindow,
+  prepareIngestTimelineAnalysisMedia,
+  offsetDetectedSplits,
+  resolveIngestAbsoluteWindow,
+} = ingestPipeline;
 
 async function resolveVideo(videoUrl: string): Promise<string> {
   if (!videoUrl.startsWith("http")) {
