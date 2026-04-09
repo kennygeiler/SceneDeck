@@ -84,6 +84,16 @@ export async function POST(request: Request) {
     return forwardIngestFilmStreamToWorker(ingestWorker, bodyText);
   }
 
+  if (process.env.VERCEL === "1") {
+    return new Response(
+      JSON.stringify({
+        error:
+          "Interactive ingest on Vercel requires INGEST_WORKER_URL or NEXT_PUBLIC_WORKER_URL pointing at your TS worker origin. Serverless cannot reliably run full FFmpeg/PySceneDetect ingest (see docs/production-ingest.md).",
+      }),
+      { status: 503, headers: { "Content-Type": "application/json; charset=utf-8" } },
+    );
+  }
+
   const filmTitleStr = String(body.filmTitle);
   const directorStr = String(body.director);
   const yearNum = Number(body.year);

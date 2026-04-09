@@ -35,6 +35,7 @@ export type DetectedSplit = {
   index: number;
 };
 
+import { sanitizeClassifiedShot } from "./classification-sanitize";
 import type { ClassifiedShot } from "./types";
 export type { ClassifiedShot } from "./types";
 
@@ -875,7 +876,7 @@ async function classifyShotWithGemini(
     );
     let parsed = await geminiGenerateClassification(base64Video, promptPrimary, primaryModel);
     if (parsed) {
-      return { classification: parsed, usedFallback: false };
+      return { classification: sanitizeClassifiedShot(parsed), usedFallback: false };
     }
 
     const adjudicator = getGeminiAdjudicateModel();
@@ -890,7 +891,7 @@ async function classifyShotWithGemini(
       );
       parsed = await geminiGenerateClassification(base64Video, promptAdj, adjudicator);
       if (parsed) {
-        return { classification: parsed, usedFallback: false };
+        return { classification: sanitizeClassifiedShot(parsed), usedFallback: false };
       }
     }
 
