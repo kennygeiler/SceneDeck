@@ -126,6 +126,26 @@ const framingChipColor = (slug: string) => getFramingColor(slug);
 
 const getWorkerColor = (w: number) => WORKER_COLORS[w % WORKER_COLORS.length];
 
+/** Align with `normalizeWorkerOrigin` in `ingest-worker-delegate` (origin only, no `/api`). */
+function normalizeWorkerOriginClient(raw: string): string {
+  let s = raw.trim().replace(/\/+$/, "");
+  if (s.endsWith("/api")) s = s.slice(0, -4).replace(/\/+$/, "");
+  return s;
+}
+
+/**
+ * When `NEXT_PUBLIC_INGEST_SSE_DIRECT=1` and `NEXT_PUBLIC_WORKER_URL` is set, the browser POSTs the ingest
+ * stream to the worker (avoids Vercel proxy timeouts on long SSE). Worker CORS must allow your site origin.
+ */
+function getIngestStreamFetchUrl(): string {
+  if (process.env.NEXT_PUBLIC_INGEST_SSE_DIRECT !== "1") {
+    return "/api/ingest-film/stream";
+  }
+  const w = process.env.NEXT_PUBLIC_WORKER_URL?.trim();
+  if (!w) return "/api/ingest-film/stream";
+  return `${normalizeWorkerOriginClient(w)}/api/ingest-film/stream`;
+}
+
 // Pacing colors and messages
 const PACING = {
   green: { color: "#5cd69b", bg: "rgba(92,214,155,0.08)", label: "On track — relax and enjoy" },
@@ -618,8 +638,7 @@ export function PipelineViz({
     const abort = new AbortController();
     (async () => {
       try {
-        // Always same-origin: Next proxies to INGEST_WORKER_URL / NEXT_PUBLIC_WORKER_URL when set (see ingest-worker-delegate).
-        const endpoint = "/api/ingest-film/stream";
+        const endpoint = getIngestStreamFetchUrl();
 
         const isHttpSource = /^https?:\/\//i.test(videoPath);
         // S3 / remote URLs must be videoUrl so the server never proxies the file through Next.js JSON/body limits.

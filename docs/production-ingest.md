@@ -9,6 +9,18 @@ Heavy ingest (FFmpeg, PySceneDetect, long SSE) must not rely on Vercel serverles
 3. **On Vercel**, if ingest is not proxied to a worker and **`METROVISION_DELEGATE_INGEST` is not `0`**, `POST /api/ingest-film/stream` returns **503** with a JSON error instead of starting serverless ingest that will likely time out.
 4. **Worker must expose** `GET /health` (JSON) and `POST /api/ingest-film/stream` (SSE), same contract as Next’s proxy.
 
+## Long ingest without Vercel killing the SSE stream
+
+Vercel’s route that **proxies** SSE to the worker can hit **duration / buffering / idle** limits. For reliable multi‑minute detect:
+
+1. Set **`NEXT_PUBLIC_WORKER_URL`** on Vercel to the worker **origin** (same value you use server-side).
+2. Set **`NEXT_PUBLIC_INGEST_SSE_DIRECT=1`** on Vercel and **redeploy** (client bundle reads this at build time).
+3. On the **worker**, allow your app origin in CORS: set **`ALLOWED_ORIGINS`** to a comma-separated list including your production URL (e.g. `https://your-app.vercel.app`), **or** set **`ALLOW_VERCEL_SUBDOMAINS=1`** for any `*.vercel.app` preview/production.
+4. In the browser DevTools → Network, confirm **`POST …/api/ingest-film/stream`** goes to the **worker host**, not `your-app.vercel.app`.
+5. On the **worker host** (Railway / Fly / nginx / Cloudflare): raise **read / idle timeouts** for long SSE (often 15–60+ minutes).
+
+`GET /api/ingest-film/live-status` stays on Next (same-origin); only the **stream** is direct when the flag is on.
+
 ## Verify after deploy
 
 - **Config (optional lock):** `GET /api/health/config`  
