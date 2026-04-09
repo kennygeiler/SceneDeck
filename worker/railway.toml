@@ -4,7 +4,8 @@
 # - Set **Config as Code** path to `worker/railway.toml`, or
 # - Leave defaults if Railway picks up this file from the service root.
 #
-# Forces Railpack (Node) instead of the broken monorepo Dockerfile in this folder.
+# No Dockerfile in worker/ — Railway auto-picks Dockerfile and broke monorepo imports.
+# Optional image: docker build -f docker/metrovision-worker.Dockerfile .
 
 [build]
 builder = "RAILPACK"

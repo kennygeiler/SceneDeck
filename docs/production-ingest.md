@@ -10,7 +10,7 @@ Do this **once** for the **worker** service:
 
 1. **Settings → Source:** same GitHub repo and branch you use for Vercel (usually `main`).
 2. **Settings → Root Directory:** `worker` (folder that contains `worker/package.json` and `worker/src/server.ts`).
-3. **Settings → Config as Code (optional but recommended):** set the file path to **`worker/railway.toml`** so builds use **Railpack** and `npm start` (avoids the repo’s `worker/Dockerfile`, which is not set up for this monorepo layout).
+3. **Settings → Config as Code (optional but recommended):** set the file path to **`worker/railway.toml`** so builds use **Railpack** and `npm start`. There is **no** `worker/Dockerfile` in-repo (it could not see monorepo `src/`). For a manual Docker image from the **repo root**, use **`docker/metrovision-worker.Dockerfile`**.
 4. **Settings → Deploy:** start command should be **`npm start`** (overridden by `railway.toml` if the config file is active).
 5. **Redeploy** the service, then verify in a browser:
    - `https://<railway-host>/` → `{"service":"metrovision-worker","status":"ok"}`
