@@ -6,8 +6,8 @@ Heavy ingest (FFmpeg, PySceneDetect, long SSE) must not rely on Vercel serverles
 
 1. **Set `INGEST_WORKER_URL`** (server-only, preferred) or **`NEXT_PUBLIC_WORKER_URL`** on Vercel to the worker **origin** only, e.g. `https://your-worker.railway.app` — no path, no trailing `/api`.
 2. **Do not set** `METROVISION_DELEGATE_INGEST=0` unless you intentionally run ingest only on Next (not recommended for full films).
-3. **On Vercel**, if neither worker URL is set, `POST /api/ingest-film/stream` returns **503** with a JSON error instead of starting a serverless ingest that will likely time out.
-3. **Worker must expose** `GET /health` (JSON) and `POST /api/ingest-film/stream` (SSE), same contract as Next’s proxy.
+3. **On Vercel**, if ingest is not proxied to a worker and **`METROVISION_DELEGATE_INGEST` is not `0`**, `POST /api/ingest-film/stream` returns **503** with a JSON error instead of starting serverless ingest that will likely time out.
+4. **Worker must expose** `GET /health` (JSON) and `POST /api/ingest-film/stream` (SSE), same contract as Next’s proxy.
 
 ## Verify after deploy
 

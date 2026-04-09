@@ -84,11 +84,15 @@ export async function POST(request: Request) {
     return forwardIngestFilmStreamToWorker(ingestWorker, bodyText);
   }
 
-  if (process.env.VERCEL === "1") {
+  // Default on Vercel: require worker proxy. Opt out with METROVISION_DELEGATE_INGEST=0 (inline at your own risk; timeouts likely).
+  if (
+    process.env.VERCEL === "1" &&
+    process.env.METROVISION_DELEGATE_INGEST !== "0"
+  ) {
     return new Response(
       JSON.stringify({
         error:
-          "Interactive ingest on Vercel requires INGEST_WORKER_URL or NEXT_PUBLIC_WORKER_URL pointing at your TS worker origin. Serverless cannot reliably run full FFmpeg/PySceneDetect ingest (see docs/production-ingest.md).",
+          "Interactive ingest on Vercel requires INGEST_WORKER_URL or NEXT_PUBLIC_WORKER_URL pointing at your TS worker origin. Serverless cannot reliably run full FFmpeg/PySceneDetect ingest (see docs/production-ingest.md). To force inline ingest on Vercel, set METROVISION_DELEGATE_INGEST=0.",
       }),
       { status: 503, headers: { "Content-Type": "application/json; charset=utf-8" } },
     );
