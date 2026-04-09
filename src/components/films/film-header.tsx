@@ -28,6 +28,13 @@ export function FilmHeader({ film, trust }: FilmHeaderProps) {
           film.shotCount,
         )
       : "0";
+
+  const scenesFromDb = film.scenes.filter((s) => s.id !== "ungrouped");
+  const scenesWithShots = scenesFromDb.filter((s) => s.shots.length > 0).length;
+  const sceneRowsWithoutShots = scenesFromDb.length - scenesWithShots;
+  const partialIngestScenes =
+    sceneRowsWithoutShots > 0 && film.sceneCount > 0 && scenesFromDb.length > 0;
+
   return (
     <div className="relative overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border-default)]">
       {/* Backdrop */}
@@ -146,6 +153,15 @@ export function FilmHeader({ film, trust }: FilmHeaderProps) {
               <p className="mt-1 text-2xl font-bold text-[var(--color-text-primary)]">
                 {film.sceneCount}
               </p>
+              {partialIngestScenes ? (
+                <p className="mt-1 max-w-xs text-xs leading-snug text-[#d6a05c]">
+                  {sceneRowsWithoutShots === 1
+                    ? "1 scene row has no shots"
+                    : `${sceneRowsWithoutShots} scene rows have no shots`}
+                  . Ingest inserts scene boundaries for the whole timeline first, then writes shot rows; if
+                  the run stops early (network, timeout, crash), you keep orphan scene records.
+                </p>
+              ) : null}
             </div>
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">

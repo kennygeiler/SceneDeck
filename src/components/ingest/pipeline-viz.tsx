@@ -655,6 +655,15 @@ If it happens after detect starts: the connection may have been reset (host slee
     elapsed >= 12 &&
     state.totalShots === 0;
 
+  const errorDbPartial =
+    state.error && state.dbSnapshot && state.dbSnapshot.shotCount > 0 ? state.dbSnapshot : null;
+  const errorShotsLabel =
+    errorDbPartial && errorDbPartial.shotCount === 1
+      ? "1 shot"
+      : errorDbPartial
+        ? `${errorDbPartial.shotCount} shots`
+        : "";
+
   const overallPct = state.totalShots > 0
     ? ((extracted / state.totalShots) * 30 + (classified / state.totalShots) * 50 + (written / state.totalShots) * 20)
     : 0;
@@ -990,21 +999,54 @@ If it happens after detect starts: the connection may have been reset (host slee
 
         {/* ─── Error ─── */}
         {state.error ? (
-          <div className="rounded-[var(--radius-xl)] border p-6" style={{ backgroundColor: "rgba(214,92,107,0.06)", borderColor: "rgba(214,92,107,0.3)" }}>
-            <h3 className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[#d65c6b]">Pipeline Error</h3>
-            <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-[var(--color-text-secondary)]">
-              {state.error}
-            </p>
-            {state.dbSnapshot && state.dbSnapshot.shotCount > 0 ? (
-              <p className="mt-4 text-sm text-[var(--color-text-secondary)]">
-                The database already lists{" "}
-                <strong className="text-[var(--color-text-primary)] tabular-nums">{state.dbSnapshot.shotCount}</strong>{" "}
-                shots for this film — the error may be from the browser connection only.{" "}
-                <Link href={`/film/${state.dbSnapshot.filmId}`} className="font-mono text-xs text-[var(--color-accent-base)] underline-offset-2 hover:underline">
+          <div
+            className="rounded-[var(--radius-xl)] border p-6"
+            style={
+              errorDbPartial
+                ? {
+                    backgroundColor: "rgba(214, 160, 92, 0.08)",
+                    borderColor: "rgba(214, 160, 92, 0.35)",
+                  }
+                : {
+                    backgroundColor: "rgba(214,92,107,0.06)",
+                    borderColor: "rgba(214,92,107,0.3)",
+                  }
+            }
+          >
+            <h3
+              className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)]"
+              style={{ color: errorDbPartial ? "#d6a05c" : "#d65c6b" }}
+            >
+              {errorDbPartial ? "Live stream ended" : "Pipeline error"}
+            </h3>
+            {errorDbPartial ? (
+              <>
+                <p className="mt-3 text-sm leading-relaxed text-[var(--color-text-secondary)]">
+                  The ingest stream disconnected, but the database already has{" "}
+                  <strong className="text-[var(--color-text-primary)]">{errorShotsLabel}</strong> for this film. The run may
+                  be partial — open the film to inspect what was written.
+                </p>
+                <Link
+                  href={`/film/${errorDbPartial.filmId}`}
+                  className="mt-3 inline-block rounded-[var(--radius-md)] px-4 py-2 text-sm text-[var(--color-text-primary)]"
+                  style={{ backgroundColor: "var(--color-interactive-default)", boxShadow: "var(--shadow-glow)" }}
+                >
                   Open film page
                 </Link>
+                <details className="mt-4">
+                  <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+                    Technical details and troubleshooting
+                  </summary>
+                  <p className="mt-3 whitespace-pre-line text-xs leading-relaxed text-[var(--color-text-tertiary)]">
+                    {state.error}
+                  </p>
+                </details>
+              </>
+            ) : (
+              <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-[var(--color-text-secondary)]">
+                {state.error}
               </p>
-            ) : null}
+            )}
           </div>
         ) : null}
       </div>
