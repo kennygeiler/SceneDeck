@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
+import {
+  sanitizeIngestErrorDetailsText,
+  sanitizeIngestHttpErrorBody,
+} from "@/lib/ingest-error-sanitize";
 import { getFramingDisplayName } from "@/lib/shot-display";
 import { getFramingColor } from "@/lib/timeline-colors";
 import type { FramingSlug } from "@/lib/taxonomy";
@@ -49,6 +53,8 @@ type PipelineState = {
   error: string | null;
   /** Latest counts from DB while SSE may be stalled (poll live-status). */
   dbSnapshot: DbSnapshot | null;
+  /** True after first byte chunk from the ingest SSE body (avoids "stream ended" + stale DB on immediate HTTP errors). */
+  ingestStreamDeliveredBytes: boolean;
 };
 
 const STEP_DEFS: { id: StepId; label: string }[] = [
@@ -471,6 +477,7 @@ export function PipelineViz({
     result: null,
     error: null,
     dbSnapshot: null,
+    ingestStreamDeliveredBytes: false,
   });
 
   const [elapsed, setElapsed] = useState(0);
@@ -644,6 +651,11 @@ export function PipelineViz({
   // SSE
   useEffect(() => {
     const abort = new AbortController();
+    setState((s) => ({
+      ...s,
+      error: null,
+      ingestStreamDeliveredBytes: false,
+    }));
     (async () => {
       try {
         const endpoint = getIngestStreamFetchUrl();
@@ -666,7 +678,7 @@ export function PipelineViz({
         });
         if (!res.ok || !res.body) {
           const errText = await res.text();
-          let msg = errText.trim() || `HTTP ${res.status}`;
+          let msg: string;
           try {
             const j = JSON.parse(errText) as { error?: string; proxyTarget?: string };
             if (typeof j.error === "string") {
@@ -674,9 +686,11 @@ export function PipelineViz({
                 j.proxyTarget && !j.error.includes(j.proxyTarget)
                   ? `${j.error} — target: ${j.proxyTarget}`
                   : j.error;
+            } else {
+              msg = sanitizeIngestHttpErrorBody(res.status, errText);
             }
           } catch {
-            /* keep msg */
+            msg = sanitizeIngestHttpErrorBody(res.status, errText);
           }
           setState((s) => ({ ...s, error: msg }));
           return;
@@ -691,9 +705,14 @@ export function PipelineViz({
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buf = "";
+        let reportedStreamBytes = false;
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
+          if (!reportedStreamBytes && value && value.byteLength > 0) {
+            reportedStreamBytes = true;
+            setState((s) => ({ ...s, ingestStreamDeliveredBytes: true }));
+          }
           buf += decoder.decode(value, { stream: true });
           /** Split on blank line; `\r\n\r\n` is common (RFC 8895 / proxies) — `\n\n` alone misses it. */
           const parts = buf.split(/\r?\n\r?\n/);
@@ -763,7 +782,12 @@ export function PipelineViz({
     state.totalShots === 0;
 
   const errorDbPartial =
-    state.error && state.dbSnapshot && state.dbSnapshot.shotCount > 0 ? state.dbSnapshot : null;
+    state.error &&
+    state.ingestStreamDeliveredBytes &&
+    state.dbSnapshot &&
+    state.dbSnapshot.shotCount > 0
+      ? state.dbSnapshot
+      : null;
   const errorShotsLabel =
     errorDbPartial && errorDbPartial.shotCount === 1
       ? "1 shot"
@@ -776,7 +800,9 @@ export function PipelineViz({
 
   const errorPartialDetailsText =
     state.error && errorDbPartial
-      ? splitIngestErrorDisplay(state.error).details || state.error.trim()
+      ? sanitizeIngestErrorDetailsText(
+          splitIngestErrorDisplay(state.error).details || state.error.trim(),
+        )
       : null;
 
   const overallPct = state.totalShots > 0
@@ -1160,7 +1186,7 @@ export function PipelineViz({
             ) : errorPlainParts ? (
               <>
                 <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-[var(--color-text-secondary)]">
-                  {errorPlainParts.summary}
+                  {sanitizeIngestErrorDetailsText(errorPlainParts.summary)}
                 </p>
                 {errorPlainParts.details ? (
                   <details className="mt-4">
@@ -1168,7 +1194,7 @@ export function PipelineViz({
                       Troubleshooting
                     </summary>
                     <p className="mt-3 whitespace-pre-line text-xs leading-relaxed text-[var(--color-text-tertiary)]">
-                      {errorPlainParts.details}
+                      {sanitizeIngestErrorDetailsText(errorPlainParts.details)}
                     </p>
                   </details>
                 ) : null}
