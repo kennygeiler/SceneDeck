@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "tsx src/server.ts",
+    "start": "node --import tsx/esm src/server.ts",
     "build": "tsc --noEmit",
-    "dev": "tsx watch src/server.ts",
+    "dev": "node --import tsx/esm --watch src/server.ts",
     "db:clear": "pnpm -C .. run db:clear"
   },
   "dependencies": {
