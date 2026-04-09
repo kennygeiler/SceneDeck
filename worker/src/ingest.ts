@@ -134,7 +134,24 @@ export async function ingestFilmHandler(req: Request, res: Response) {
         ? "Preparing video (FFmpeg is copying from your URL to the worker; large files can take several minutes with no shot count yet)…"
         : "Preparing video file…",
     });
-    const videoPath = await resolveVideo(body.videoPath ?? body.videoUrl);
+    const prepStarted = Date.now();
+    const prepHeartbeat = setInterval(() => {
+      const sec = Math.floor((Date.now() - prepStarted) / 1000);
+      emit({
+        type: "step",
+        step: "detect",
+        status: "active",
+        message: rawSource.startsWith("http")
+          ? `Still preparing video — download/remux in progress (${sec}s). Proxies need periodic bytes; this stays alive.`
+          : `Still opening video file… (${sec}s)`,
+      });
+    }, 8_000);
+    let videoPath: string;
+    try {
+      videoPath = await resolveVideo(body.videoPath ?? body.videoUrl);
+    } finally {
+      clearInterval(prepHeartbeat);
+    }
     console.log(`[worker] Video resolved: ${videoPath}`);
 
     const detLabel =
@@ -158,7 +175,7 @@ export async function ingestFilmHandler(req: Request, res: Response) {
         status: "active",
         message: `Detecting shots — ${detectLabel} (${sec}s elapsed; PySceneDetect has no progress bar — long films can take many minutes)`,
       });
-    }, 25_000);
+    }, 8_000);
     let rawSplits: Awaited<ReturnType<typeof detectShotsForIngest>>["splits"];
     let detectCtx: Awaited<ReturnType<typeof detectShotsForIngest>>["ctx"];
     try {

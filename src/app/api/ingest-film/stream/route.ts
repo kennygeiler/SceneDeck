@@ -127,6 +127,19 @@ export async function POST(request: Request) {
             : "Opening uploaded file on the server…",
         });
 
+        const prepStarted = Date.now();
+        const prepHeartbeat = setInterval(() => {
+          const sec = Math.floor((Date.now() - prepStarted) / 1000);
+          emit({
+            type: "step",
+            step: "detect",
+            status: "active",
+            message: inputIsRemote
+              ? `Still preparing source video (${sec}s) — download can take a long time; keep-alive for proxies…`
+              : `Still opening uploaded file… (${sec}s)`,
+          });
+        }, 8_000);
+
         let videoPath: string;
         try {
           const resolved = await resolveIngestVideoToLocalPath(rawInput);
@@ -136,6 +149,8 @@ export async function POST(request: Request) {
           const message = e instanceof Error ? e.message : "Could not open or download source video";
           emit({ type: "error", message });
           return;
+        } finally {
+          clearInterval(prepHeartbeat);
         }
 
         // Step 1: Detect shots

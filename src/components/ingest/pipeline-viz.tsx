@@ -60,6 +60,22 @@ const STEP_DEFS: { id: StepId; label: string }[] = [
   { id: "write", label: "Write" },
 ];
 
+function isStepId(x: string): x is StepId {
+  return STEP_DEFS.some((d) => d.id === (x as StepId));
+}
+
+function stepOrderIndex(id: StepId): number {
+  return STEP_DEFS.findIndex((d) => d.id === id);
+}
+
+/** Prefer the latest active step so the header matches the true phase if an earlier step stayed "active" after a dropped SSE. */
+function rightmostActiveStep(steps: StepInfo[]): StepInfo | undefined {
+  for (let i = steps.length - 1; i >= 0; i--) {
+    if (steps[i].status === "active") return steps[i];
+  }
+  return undefined;
+}
+
 // Benchmark estimates (seconds) — used before real data is available
 // These are rough averages; real ETAs replace them once shots start completing
 const STEP_ESTIMATES: Record<StepId, (totalShots: number, concurrency: number) => number> = {
@@ -361,24 +377,41 @@ export function PipelineViz({
       setState((prev) => {
         const next = { ...prev };
         switch (e.type) {
-          case "step":
-            next.steps = prev.steps.map((s) =>
-              s.id === e.step
-                ? {
-                    ...s,
-                    status: e.status as StepInfo["status"],
-                    duration: (e.duration as number) ?? s.duration,
-                    startedAt: e.status === "active" ? (s.startedAt ?? now) : s.startedAt,
-                    detail:
-                      typeof e.message === "string"
-                        ? e.message
-                        : e.status === "complete"
-                          ? undefined
-                          : s.detail,
-                  }
-                : s,
-            );
+          case "step": {
+            const rawStep = typeof e.step === "string" ? e.step : "";
+            if (!isStepId(rawStep)) break;
+            const stepId = rawStep;
+            const orderIdx = stepOrderIndex(stepId);
+            const incoming = e.status as StepInfo["status"];
+            const msg = typeof e.message === "string" ? e.message : undefined;
+            const dur = typeof e.duration === "number" ? e.duration : undefined;
+
+            next.steps = prev.steps.map((s) => {
+              const sIdx = stepOrderIndex(s.id);
+              if (
+                sIdx >= 0 &&
+                orderIdx >= 0 &&
+                sIdx < orderIdx &&
+                s.status !== "complete"
+              ) {
+                return { ...s, status: "complete" as const, detail: s.detail };
+              }
+              if (s.id !== stepId) return s;
+              return {
+                ...s,
+                status: incoming,
+                duration: dur ?? s.duration,
+                startedAt: incoming === "active" ? (s.startedAt ?? now) : s.startedAt,
+                detail:
+                  msg !== undefined
+                    ? msg
+                    : incoming === "complete"
+                      ? undefined
+                      : s.detail,
+              };
+            });
             break;
+          }
           case "init":
             next.totalShots = e.totalShots as number;
             next.concurrency = (e.concurrency as number) ?? prev.concurrency;
@@ -388,6 +421,11 @@ export function PipelineViz({
               classify: "pending",
               write: "pending",
             }));
+            next.steps = prev.steps.map((s) =>
+              s.id === "detect" && s.status !== "complete"
+                ? { ...s, status: "complete" as const, detail: s.detail }
+                : s,
+            );
             break;
           case "shot": {
             const idx = e.index as number;
@@ -607,7 +645,7 @@ If it happens after detect starts: the connection may have been reset (host slee
   const written = state.frames.filter((f) => f.write === "complete").length;
   const discoveredTypes = new Set(state.frames.map((f) => f.movementType).filter(Boolean));
   const discoveredScenes = new Set(state.frames.map((f) => f.sceneTitle).filter(Boolean));
-  const activeStep = state.steps.find((s) => s.status === "active");
+  const activeStep = rightmostActiveStep(state.steps);
   const isDetecting = activeStep?.id === "detect" || (activeStep?.id === "lookup" && state.totalShots === 0);
 
   const showStreamStaleHint =
