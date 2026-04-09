@@ -15,17 +15,14 @@ const PROXY_TIMEOUT_MS = 890_000;
  */
 export function normalizeWorkerOrigin(raw: string): string {
   const t = raw.trim().replace(/\/+$/, "");
-  if (/^https?:\/\//i.test(t)) {
-    try {
-      return new URL(t).origin;
-    } catch {
-      /* fall through */
-    }
+  const withScheme = /^https?:\/\//i.test(t) ? t : `https://${t}`;
+  try {
+    return new URL(withScheme).origin;
+  } catch {
+    /* fall through */
   }
   let s = t;
-  if (s.endsWith("/api")) {
-    s = s.slice(0, -4).replace(/\/+$/, "");
-  }
+  if (s.endsWith("/api")) s = s.slice(0, -4).replace(/\/+$/, "");
   return s;
 }
 

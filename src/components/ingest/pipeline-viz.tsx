@@ -135,12 +135,11 @@ const getWorkerColor = (w: number) => WORKER_COLORS[w % WORKER_COLORS.length];
 /** Align with `normalizeWorkerOrigin` — always **origin** so `/api/ingest-film/stream` is not doubled. */
 function normalizeWorkerOriginClient(raw: string): string {
   const t = raw.trim().replace(/\/+$/, "");
-  if (/^https?:\/\//i.test(t)) {
-    try {
-      return new URL(t).origin;
-    } catch {
-      /* fall through */
-    }
+  const withScheme = /^https?:\/\//i.test(t) ? t : `https://${t}`;
+  try {
+    return new URL(withScheme).origin;
+  } catch {
+    /* fall through */
   }
   let s = t;
   if (s.endsWith("/api")) s = s.slice(0, -4).replace(/\/+$/, "");

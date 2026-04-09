@@ -18,4 +18,16 @@ describe("normalizeWorkerOrigin", () => {
   it("still trims trailing /api on bare string without URL parse", () => {
     expect(normalizeWorkerOrigin("http://localhost:3100/api")).toBe("http://localhost:3100");
   });
+
+  it("adds https when worker host is configured without scheme", () => {
+    expect(normalizeWorkerOrigin("worker-production-90e4.up.railway.app")).toBe(
+      "https://worker-production-90e4.up.railway.app",
+    );
+  });
+
+  it("adds https and strips paths when scheme is omitted", () => {
+    expect(
+      normalizeWorkerOrigin("worker-production-90e4.up.railway.app/api/ingest-film/stream"),
+    ).toBe("https://worker-production-90e4.up.railway.app");
+  });
 });
