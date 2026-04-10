@@ -12,12 +12,12 @@ import path from "node:path";
 import { mergeInteriorCutSec } from "@/lib/boundary-cut-merge";
 import { evalBoundaryCuts } from "@/lib/boundary-eval";
 import { extractCutsSecFromEvalJson } from "@/lib/eval-cut-json";
+import { probeVideoDurationSec } from "@/lib/ffmpeg-bin";
 import {
   clipDetectedSplitsToWindow,
   detectShotsForIngest,
   offsetDetectedSplits,
   prepareIngestTimelineAnalysisMedia,
-  probeVideoDurationSec,
   roundTime,
   type DetectedSplit,
 } from "@/lib/ingest-pipeline";
@@ -148,6 +148,15 @@ async function main() {
   if (clipEnd === undefined) {
     clipEnd =
       duration > 0 ? duration : Math.max(maxCue + args.pad + 60, args.pad * 4);
+  }
+  // Gold windows (e.g. 0–780) may exceed a short source file; ingest rejects empty segments.
+  if (duration > 0 && clipEnd > duration) {
+    clipEnd = duration;
+  }
+  if (!(clipEnd > clipStart)) {
+    throw new Error(
+      `Refine timeline empty after clipping to media duration (${duration}s): start=${clipStart} end=${clipEnd}`,
+    );
   }
 
   const evBase = evalBoundaryCuts(goldCuts, baselinePred, args.tol);
