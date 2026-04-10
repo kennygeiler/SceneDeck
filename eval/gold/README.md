@@ -6,8 +6,8 @@ Place boundary gold files here so paths stay stable across machines and docs.
 
 Hand cuts from **gold annotate** for **Ran** (1985), `timeOffsetSec: 0`, reference file **`Ran_1985.mp4`**.
 
-- **Interior cuts:** 74 (`cutsSec` entries).
-- **Last cut:** 763.222 s — gold spans **~12.7 minutes**, not 0–720. For `detect:export-cuts` / timeline ingest use **`--start 0 --end 780`** (or higher if your last shot extends past 780 s; end must clear the final shot).
+- **Interior cuts:** 71 (`cutsSec` entries).
+- **Last cut:** 763.222 s — gold spans **~12.7 minutes** (~764 s of annotated timeline), not 0–720. For `detect:export-cuts` / timeline ingest use **`--start 0 --end 780`** (or higher if your last shot extends past 780 s; end must clear the final shot).
 
 **Detect-only eval** (same timebase as `Ran_1985.mp4` from t=0):
 
