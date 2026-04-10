@@ -2,6 +2,8 @@
 
 Use this folder to **record boundary experiments** without relying on memory or chat history.
 
+**Product tuning narrative (sample → gold → predict → score → adjust):** see **[`docs/tuning-flow.md`](../docs/tuning-flow.md)** — maps this folder + CLI to future **in-app per-film tuning**.
+
 ## Quick path (automated ledger line)
 
 From the repo root, after each detect-only experiment:
