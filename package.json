@@ -29,6 +29,7 @@
     "eval:smoke": "tsx scripts/eval-smoke.ts",
     "eval:sweep-tol": "tsx scripts/sweep-eval-tolerance.ts",
     "eval:boundary-deltas": "tsx scripts/eval-boundary-deltas.ts",
+    "eval:boundary-misses": "tsx scripts/eval-boundary-misses.ts",
     "eval:sweep-transnet": "tsx scripts/sweep-transnet-threshold.ts",
     "detect:export-cuts": "tsx scripts/detect-export-cuts.ts"
   },

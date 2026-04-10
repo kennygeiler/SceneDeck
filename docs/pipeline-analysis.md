@@ -149,9 +149,23 @@ Record **`ingest_provenance`** (`pipeline_version`, `taxonomy_hash`, **`boundary
 
 ---
 
-## 6. References
+## 6. Decision point (2026-04-10 — Ran `ranshort`, dense hard-cut gold)
+
+**Context:** On **`ranshort.mov`** with hand gold (**71** interior **`cutsSec`**, **`--end 780`**) and **tolerance 0.5 s**, the best stack observed in lab notes was **PyScene ensemble** with **`METROVISION_BOUNDARY_MERGE_GAP_SEC=0.22`** (**F1 ~0.714**, **recall ~0.63**), with **PyScene on PATH** (avoid **`ffmpeg_scene+ensemble_fallback`**).
+
+**TransNet experiments:** A **threshold × merge-gap sweep** (`npm run eval:sweep-transnet`, thresholds **0.4–0.6**, gaps **0.22 / 0.35**) produced **no configuration that beat ensemble-only** on that clip; merged TransNet peaks did not recover enough **false negatives** to justify more threshold grid search *in isolation*.
+
+**Decision:** Treat **FN analysis** (list every unmatched gold time, scrub video, classify failure mode) as the **next primary loop**, then **local second-pass / alternate cues**, **fusion policy**, and **HITL** — see **`docs/tuning-flow.md`** and **`.planning/ROADMAP.md` Phases 7–11**.
+
+**Tooling:** **`pnpm eval:boundary-misses -- eval/gold/....json eval/predicted/....json [--tol 0.5] [--json]`** — same greedy matching as **`eval:pipeline`**; **`evalBoundaryCuts`** exposes **`unmatchedGoldSec`** and **`unmatchedPredSec`**.
+
+---
+
+## 7. References
 
 - `src/lib/boundary-ensemble.ts` — merge gap, extra cuts file, detector mode string.
+- `src/lib/boundary-eval.ts` — greedy match, F1, unmatched gold/pred arrays.
 - `src/lib/ingest-pipeline.ts` — `detectShotsForIngest`, `detectShotsEnsemble`, FFmpeg scene helpers.
-- `scripts/eval-pipeline.ts` — boundary precision / recall / F1 implementation.
+- `scripts/eval-pipeline.ts` — boundary precision / recall / F1 CLI.
+- `scripts/eval-boundary-misses.ts` — FN/FP cut listing CLI.
 - `AGENTS.md` — quick eval commands and artifact storage.

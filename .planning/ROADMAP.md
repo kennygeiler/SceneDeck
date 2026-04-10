@@ -4,7 +4,7 @@
 
 This milestone delivers phased hardening and alignment work traced to `.planning/codebase/CONCERNS.md` (2026-04-07). Early phases fix **truth in docs and constraints**, then **correctness and schema integrity**, **security boundaries**, **rate limits and platform fit**, **fragile modules**, and finally **tests plus observability** so regressions surface before production.
 
-**Phase plans (1–5)** live under `.planning/milestones/v1.0-phases/`; matching `.planning/phases/01–05/` directories hold `ARCHIVED.md` pointers so tooling sees the phase layout. **Phase 6** uses `.planning/phases/06-tests-observability/` for active plans.
+**Phase plans (1–5)** live under `.planning/milestones/v1.0-phases/`; matching `.planning/phases/01–05/` directories hold `ARCHIVED.md` pointers so tooling sees the phase layout. **Phase 6** uses `.planning/phases/06-tests-observability/` for active plans. **Phases 7–11** are the **shot-boundary reliability** track (FN analysis → local refinement → fusion → HITL → eval corpus); see phase detail sections below.
 
 **Related plans**
 
@@ -20,6 +20,11 @@ This milestone delivers phased hardening and alignment work traced to `.planning
 - [x] **Phase 4: Rate limits & heavy-work boundaries** — Worker/RAG/agent Gemini limiting; semantic search fallback; `process-scene` stance vs AC-01/AC-20
 - [x] **Phase 5: Fragile modules** — Taxonomy TS/Python parity; D3 and large client components
 - [ ] **Phase 6: Tests & observability** — Baseline automated tests, CI, structured logging
+- [ ] **Phase 7: Shot boundary FN analysis** — List gold cuts with no predicted match within tolerance (CLI: `eval:boundary-misses`)
+- [ ] **Phase 8: Shot boundary local refinement** — Second-pass detection on FN windows
+- [ ] **Phase 9: Shot boundary fusion policy** — Consensus and prune auxiliary detector peaks
+- [ ] **Phase 10: Shot boundary HITL** — In-app review queue for per-film tuning
+- [ ] **Phase 11: Shot boundary eval corpus** — Multi-film gold and F1 calibration targets
 
 ## Phase Details
 
@@ -167,11 +172,61 @@ Plans:
 - [ ] 06-02: Add GitHub Actions (or chosen CI) for `pnpm lint`, `pnpm build`, and tests
 - [ ] 06-03: Structured logging or observability spike for API and worker failure paths
 
+### Phase 7: Shot boundary FN analysis — list gold cuts with no predicted match within tolerance
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 6
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 7 to break down)
+
+### Phase 8: Shot boundary local refinement — second-pass detection on FN windows
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 7
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 8 to break down)
+
+### Phase 9: Shot boundary fusion policy — consensus and prune auxiliary detector peaks
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 8
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 9 to break down)
+
+### Phase 10: Shot boundary HITL — in-app review queue for per-film tuning
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 9
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 10 to break down)
+
+### Phase 11: Shot boundary eval corpus — multi-film gold and F1 calibration targets
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 10
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 11 to break down)
+
 ---
 
 ## Progress
 
-**Execution order:** 1 → 2 → … → 6 (decimal insertions e.g. 3.1 sort between 3 and 4 if added)
+**Execution order:** 1 → 2 → … → 6 → 7 → … → 11 (decimal insertions e.g. 3.1 sort between 3 and 4 if added)
 
 | Phase | Name | Plans Complete | Status | Completed |
 |-------|------|----------------|--------|-----------|
@@ -181,3 +236,8 @@ Plans:
 | 4 | Rate limits & heavy-work boundaries | 4/4 | Complete | 2026-04-07 |
 | 5 | Fragile modules | 2/2 | Complete | 2026-04-07 |
 | 6 | Tests & observability | 0/3 | Not started | — |
+| 7 | Shot boundary FN analysis | 0/TBD | Not planned | — |
+| 8 | Shot boundary local refinement | 0/TBD | Not planned | — |
+| 9 | Shot boundary fusion policy | 0/TBD | Not planned | — |
+| 10 | Shot boundary HITL | 0/TBD | Not planned | — |
+| 11 | Shot boundary eval corpus | 0/TBD | Not planned | — |

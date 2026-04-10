@@ -4,11 +4,22 @@ This document **logs the intended tuning workflow** so operators (and future app
 
 ---
 
+## Decision point (2026-04-10 — Ran `ranshort`, gold 71 interior cuts, tol 0.5 s)
+
+**Recorded choice:** After **TransNet threshold × merge-gap sweeps** did **not** improve on **PyScene ensemble + merge gap 0.22** (best **F1 ~0.714**, **R ~0.63**), the next engineering investment is **false-negative–centric**: **enumerate missed gold times**, then **local second-pass / alternate cues** and **fusion / HITL** — **not** further TransNet threshold tuning on this clip alone.
+
+**Roadmap:** GSD **Phases 7–11** in **`.planning/ROADMAP.md`** structure that path (FN list → local refinement → fusion → in-app HITL → multi-film corpus).
+
+**Phase 7 (implemented):** **`pnpm eval:boundary-misses -- eval/gold/....json eval/predicted/....json [--tol 0.5] [--json]`** prints every **FN** (unmatched gold) and **FP** (unmatched pred), same greedy matching as **`eval:pipeline`**. **`evalBoundaryCuts`** also returns **`unmatchedGoldSec`** / **`unmatchedPredSec`** for programmatic use.
+
+---
+
 ## Immediate next step (Ran / current gold)
 
-1. **TransNet (tried 2026-04-10):** Threshold × merge-gap sweep via **`npm run eval:sweep-transnet`** on **`ranshort.mov`** (thresholds **0.4–0.6**, gaps **0.22 / 0.35**) — **no row beat ensemble-only** (**F1 0.714**). See **`eval/runs/2026-04-10-transnet-threshold-sweep.md`** and **`eval/runs/2026-04-10-ran-transnet-merge-comparison.md`**. Next: other titles, wider threshold range, **learned fusion**, or **HITL** on FN.
-2. **Isolate knobs:** Re-run **ensemble only** with default merge gap (no `0.22`) to see how much **gap** alone contributed vs **PyScene vs FFmpeg**.
-3. **Stricter alignment (optional):** Run **`npm run eval:boundary-deltas`** at **`--tol 0.25`** (or **`eval:sweep-tol`**) to see how fragile F1 is when you demand tighter gold–pred agreement.
+1. **FN list:** Run **`eval:boundary-misses`** on your best predicted JSON vs **`eval/gold/gold-ran-2026-04-10.json`**; inspect times and scrub video at those instants to label *why* the detector missed (merge, weak cue, etc.).
+2. **TransNet (baseline done 2026-04-10):** Sweeps in **`eval/runs/2026-04-10-transnet-threshold-sweep.md`** — keep TransNet as an **optional** extra-cut source; do not assume it fixes this gold without per-miss analysis.
+3. **Isolate knobs (still useful):** Re-run **ensemble only** with default merge gap to separate **gap** vs **detector** effects.
+4. **Stricter alignment (optional):** **`eval:boundary-deltas`** / **`eval:sweep-tol`** at **`--tol 0.25`** to stress-test localization.
 
 Use the **same** gold file and **same** source video timebase for every comparison.
 
@@ -21,7 +32,7 @@ Use the **same** gold file and **same** source video timebase for every comparis
 | **1. Sample** | Bound CPU/time; stable eval window | `ingestStartSec` / `ingestEndSec` on ingest; `detect:export-cuts --start/--end` | User picks **start/end** or **preset lengths** (e.g. first N min); store **window** on a **tuning session** |
 | **2. Human gold** | Ground-truth cut instants on **film timeline** | **`/eval/gold-annotate`**, export JSON; or `eval/gold/*.json` in repo | Same UI path; persist as **`eval_artifacts`** (`kind=gold`) linked to **`filmId`** + **sessionId** |
 | **3. Auto predict** | Same detector policy as production | **`npm run detect:export-cuts`** on worker-capable host with **PATH** + env | **Server job** (worker or app route): run **`detectShotsForIngest`** only; store **`eval_artifacts`** (`kind=predicted`) + **provenance** (`boundaryLabel`, merge gap, detector env) |
-| **4. Score** | F1 + timing bias | **`npm run eval:pipeline`**, **`npm run eval:boundary-deltas`** | API or edge function: **`evalBoundaryCuts`** + delta stats; return **P/R/F1**, **tp/fp/fn**, **mean \|pred−gt\|** on matched pairs |
+| **4. Score** | F1 + timing bias + miss lists | **`npm run eval:pipeline`**, **`npm run eval:boundary-deltas`**, **`npm run eval:boundary-misses`** | API: **`evalBoundaryCuts`** (includes **`unmatchedGoldSec`**, **`unmatchedPredSec`**) + delta stats |
 | **5. Adjust** | One knob per iteration | Env: **`METROVISION_BOUNDARY_MERGE_GAP_SEC`**, **`METROVISION_BOUNDARY_DETECTOR`**, **`extraBoundaryCuts`**, TransNet file | **Tuning profile** per film or per user: named presets (e.g. *Dense cuts*, *Default*); **diff** against last run |
 | **6. Log** | Audit trail for product + support | **`eval/runs/ledger.jsonl`**, **`eval/runs/*.json`**, **`2026-04-10-ran-boundary-timing.md`** | **`tuning_runs`** table or **`eval_artifacts`** rows + **summary JSON**; UI **history** timeline |
 
@@ -55,6 +66,7 @@ For **productization**, each run should record (minimum):
 | Detect-only (no DB) | **`npm run detect:export-cuts`** — `scripts/detect-export-cuts.ts` |
 | F1 | **`npm run eval:pipeline`** — `scripts/eval-pipeline.ts` |
 | Matched-pair timing | **`npm run eval:boundary-deltas`** — `scripts/eval-boundary-deltas.ts` |
+| FN / FP cut lists | **`npm run eval:boundary-misses`** — `scripts/eval-boundary-misses.ts` |
 | Operator ledger | **`eval/runs/ledger.jsonl`**, **`eval/runs/*.json`**, **`eval/runs/*-boundary-timing.md`** |
 
 ---
@@ -73,3 +85,4 @@ For **productization**, each run should record (minimum):
 | Date | Note |
 |------|------|
 | 2026-04-10 | Initial tuning-flow doc; Ran eval path documented in **`eval/runs/`** and **`eval/gold/README.md`**. |
+| 2026-04-10 | Decision point (TransNet sweep vs ensemble); Phases 7–11 on roadmap; **`eval:boundary-misses`** + **`unmatchedGoldSec`/`unmatchedPredSec`** on **`evalBoundaryCuts`**. |

@@ -15,6 +15,8 @@ describe("evalBoundaryCuts", () => {
     expect(r.falsePositives).toBe(0);
     expect(r.falseNegatives).toBe(0);
     expect(r.f1).toBe(1);
+    expect(r.unmatchedGoldSec).toEqual([]);
+    expect(r.unmatchedPredSec).toEqual([]);
   });
 
   it("counts misses", () => {
@@ -23,5 +25,7 @@ describe("evalBoundaryCuts", () => {
     expect(r.falsePositives).toBe(1);
     expect(r.falseNegatives).toBe(1);
     expect(r.f1).toBe(0);
+    expect(r.unmatchedGoldSec).toEqual([10]);
+    expect(r.unmatchedPredSec).toEqual([50]);
   });
 });

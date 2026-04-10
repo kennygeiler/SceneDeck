@@ -12,6 +12,10 @@ export type BoundaryEvalResult = {
   f1: number;
   toleranceSec: number;
   matchedPairs: Array<{ gt: number; pred: number; deltaSec: number }>;
+  /** Gold cut times (normalized) with no predicted match within tolerance. */
+  unmatchedGoldSec: number[];
+  /** Predicted cut times (normalized) with no gold match within tolerance. */
+  unmatchedPredSec: number[];
 };
 
 /** Sort, dedupe (merge within tiny epsilon), drop non-finite. */
@@ -51,6 +55,8 @@ export function evalBoundaryCuts(
       f1: 1,
       toleranceSec: tol,
       matchedPairs: [],
+      unmatchedGoldSec: [],
+      unmatchedPredSec: [],
     };
   }
 
@@ -64,6 +70,8 @@ export function evalBoundaryCuts(
       f1: 0,
       toleranceSec: tol,
       matchedPairs: [],
+      unmatchedGoldSec: [],
+      unmatchedPredSec: [...pred],
     };
   }
 
@@ -77,6 +85,8 @@ export function evalBoundaryCuts(
       f1: 0,
       toleranceSec: tol,
       matchedPairs: [],
+      unmatchedGoldSec: [...gt],
+      unmatchedPredSec: [],
     };
   }
 
@@ -110,6 +120,9 @@ export function evalBoundaryCuts(
   const rec = tp / gt.length;
   const f1 = prec + rec > 0 ? (2 * prec * rec) / (prec + rec) : 0;
 
+  const unmatchedGoldSec = gt.filter((g) => !usedG.has(g));
+  const unmatchedPredSec = pred.filter((p) => !usedP.has(p));
+
   return {
     truePositives: tp,
     falsePositives: fp,
@@ -119,5 +132,7 @@ export function evalBoundaryCuts(
     f1,
     toleranceSec: tol,
     matchedPairs,
+    unmatchedGoldSec,
+    unmatchedPredSec,
   };
 }
