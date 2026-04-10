@@ -1,0 +1,42 @@
+{
+  "runId": "ran-ranshort-s3",
+  "label": "Ran ranshort.mov — baseline detect-export (remote Paperspace)",
+  "createdAt": "2026-04-10T01:36:32.308Z",
+  "videoPath": "/home/paperspace/videos/ranshort.mov",
+  "goldPath": "eval/gold/gold-ran-2026-04-10.json",
+  "ingestWindow": { "startSec": 0, "endSec": 780 },
+  "command": "npm run detect:export-cuts -- /home/paperspace/videos/ranshort.mov --start 0 --end 780 --gold eval/gold/gold-ran-2026-04-10.json --tol 0.5 --out eval/predicted/ran-detect-from-s3.mov.json --ledger --run-id ran-ranshort-s3",
+  "environment": {
+    "METROVISION_BOUNDARY_DETECTOR": "(unset — defaults to pyscenedetect_cli in code, but CLI missing)",
+    "METROVISION_BOUNDARY_MERGE_GAP_SEC": "(unset — effective 0.35)",
+    "METROVISION_EXTRA_BOUNDARY_CUTS_JSON": "(unset)"
+  },
+  "boundary": {
+    "boundaryLabel": "ffmpeg_scene",
+    "usedEnsemble": false,
+    "resolvedDetector": "adaptive",
+    "mergeGapSec": 0.35,
+    "extraCutsMerged": 0
+  },
+  "counts": {
+    "goldInteriorCuts": 71,
+    "predInteriorCuts": 37,
+    "shots": 38
+  },
+  "metrics": {
+    "toleranceSec": 0.5,
+    "precision": 0.7567567567567568,
+    "recall": 0.39436619718309857,
+    "f1": 0.5185185185185185,
+    "tp": 28,
+    "fp": 9,
+    "fn": 43
+  },
+  "predictedOutputPath": "eval/predicted/ran-detect-from-s3.mov.json",
+  "failureMode": "low recall (under-segmentation vs gold)",
+  "notes": [
+    "PySceneDetect CLI was not available on PATH — ingest used FFmpeg scene fallback (see boundaryLabel).",
+    "Last predicted shot ends ~442.95s in this export; gold cuts exist up to 763.22s. If the source file is shorter than the gold timebase, FN count is inflated for cuts after EOF — confirm duration with ffprobe when debugging recall."
+  ],
+  "nextExperimentId": "ran-ranshort-merge-gap-022"
+}

@@ -45,6 +45,7 @@ Match `--start` / `--end` to the segment encoded in that gold file (runtime / la
 
 ## Related
 
-- `pnpm detect:export-cuts` — boundary detection only (no DB/Gemini); see `scripts/detect-export-cuts.ts`.
+- **`NEXT-RUN.md`** — copy-paste command for the **next** boundary experiment after each logged baseline.
+- `pnpm detect:export-cuts` / `npm run detect:export-cuts` — see `scripts/detect-export-cuts.ts`.
 - `pnpm eval:pipeline` — compare any two gold/predicted JSON files.
 - `docs/pipeline-analysis.md` — env vars and interpretation.
