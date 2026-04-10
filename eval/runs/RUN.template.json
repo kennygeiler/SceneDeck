@@ -4,9 +4,9 @@
   "year": 1985,
   "segment": "first 12m (0–720s film-absolute)",
   "videoSource": "/absolute/or/relative/path/to/source.mp4",
-  "goldPath": "eval/gold/ran-first-12m.json",
+  "goldPath": "eval/gold/gold-ran-2026-04-10.json",
   "commandsRun": [
-    "METROVISION_BOUNDARY_MERGE_GAP_SEC=0.35 METROVISION_BOUNDARY_DETECTOR=pyscenedetect_ensemble_pyscene pnpm detect:export-cuts -- ./Ran.mkv --start 0 --end 720 --gold eval/gold/ran-first-12m.json --tol 0.5 --out eval/predicted/ran-detect-001.json --ledger --run-id ran-1985-2026-04-10-gap035-ensemble --film-title Ran"
+    "METROVISION_BOUNDARY_MERGE_GAP_SEC=0.35 METROVISION_BOUNDARY_DETECTOR=pyscenedetect_ensemble_pyscene pnpm detect:export-cuts -- ./Ran.mkv --start 0 --end 720 --gold eval/gold/gold-ran-2026-04-10.json --tol 0.5 --out eval/predicted/ran-detect-001.json --ledger --run-id ran-1985-2026-04-10-gap035-ensemble --film-title Ran"
   ],
   "environment": {
     "METROVISION_BOUNDARY_DETECTOR": "pyscenedetect_ensemble_pyscene",

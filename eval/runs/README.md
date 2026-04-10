@@ -6,12 +6,16 @@ Use this folder to **record boundary experiments** without relying on memory or 
 
 From the repo root, after each detect-only experiment:
 
+**Ran gold file (repo convention):** after copying from your machine, use `eval/gold/gold-ran-2026-04-10.json` (see `eval/gold/README.md`).
+
 ```bash
-pnpm detect:export-cuts -- /path/to/video.mp4 --start 0 --end 720 \
-  --gold eval/gold/your-gold.json --tol 0.5 \
+pnpm detect:export-cuts -- /path/to/Ran.mkv --start 0 --end 720 \
+  --gold eval/gold/gold-ran-2026-04-10.json --tol 0.5 \
   --out eval/predicted/run-label.json \
   --ledger --run-id your-run-id --film-title "Ran"
 ```
+
+Match `--start` / `--end` to the segment encoded in that gold file (runtime / last shot end in the JSON).
 
 - **`ledger.jsonl`**: one JSON object per line (append-only). Safe to `tail` or import into a spreadsheet.
 - **`RUN.template.json`**: copy to a dated filename and fill for richer narrative + command history.
