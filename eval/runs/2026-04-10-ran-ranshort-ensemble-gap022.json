@@ -1,0 +1,42 @@
+{
+  "runId": "ran-ranshort-ensemble-gap022",
+  "label": "Ran ranshort.mov — PyScene ensemble + merge gap 0.22",
+  "createdAt": "2026-04-10T02:45:00.000Z",
+  "videoPath": "/home/paperspace/videos/ranshort.mov",
+  "goldPath": "eval/gold/gold-ran-2026-04-10.json",
+  "ingestWindow": { "startSec": 0, "endSec": 780 },
+  "command": "PATH=\"$HOME/.local/bin:$PATH\" METROVISION_BOUNDARY_DETECTOR=pyscenedetect_ensemble_pyscene METROVISION_BOUNDARY_MERGE_GAP_SEC=0.22 npm run detect:export-cuts -- /home/paperspace/videos/ranshort.mov --start 0 --end 780 --gold eval/gold/gold-ran-2026-04-10.json --tol 0.5 --out eval/predicted/ran-detect-ensemble-gap022.json --ledger --run-id ran-ranshort-ensemble-gap022 --film-title Ran",
+  "environment": {
+    "METROVISION_BOUNDARY_DETECTOR": "pyscenedetect_ensemble_pyscene",
+    "METROVISION_BOUNDARY_MERGE_GAP_SEC": "0.22",
+    "PATH_note": "scenedetect installed via pip --user → ~/.local/bin must precede PATH for Node spawn"
+  },
+  "boundary": {
+    "boundaryLabel": "pyscenedetect_ensemble_pyscene",
+    "usedEnsemble": true,
+    "resolvedDetector": "ensemble",
+    "mergeGapSec": 0.22,
+    "extraCutsMerged": 0
+  },
+  "counts": {
+    "goldInteriorCuts": 71,
+    "predInteriorCuts": 55,
+    "shots": 56
+  },
+  "metrics": {
+    "toleranceSec": 0.5,
+    "precision": 0.8181818181818182,
+    "recall": 0.6338028169014085,
+    "f1": 0.7142857142857142,
+    "tp": 45,
+    "fp": 10,
+    "fn": 26
+  },
+  "predictedOutputPath": "eval/predicted/ran-detect-ensemble-gap022.json",
+  "compareToRunId": "ran-ranshort-s3",
+  "deltaVsBaselineFfmpeg": {
+    "baselineF1": 0.5185185185185185,
+    "f1": 0.7142857142857142,
+    "note": "Baseline used ffmpeg_scene fallback (no scenedetect on PATH)."
+  }
+}
