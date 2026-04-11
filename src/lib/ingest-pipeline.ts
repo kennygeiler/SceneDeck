@@ -18,7 +18,7 @@ import {
   clusterCutTimes,
   loadExtraBoundaryCuts,
   mergeBoundaryCutSources,
-  shouldRunPysceneEnsemble,
+  shouldRunPysceneEnsembleForMode,
 } from "./boundary-ensemble";
 import {
   fuseBoundaryCutStreams,
@@ -596,10 +596,14 @@ function mergeEndpointsLikeEnsemble(
   duration: number,
   extraCuts: number[],
   fusionPolicy: BoundaryFusionPolicy = "merge_flat",
+  mergeGapSec?: number,
 ): DetectedSplit[] {
   const d =
     duration > 0 ? duration : Math.max(0, ...pointList, 0);
-  const eps = boundaryMergeEpsilonSec();
+  const eps =
+    mergeGapSec != null && Number.isFinite(mergeGapSec) && mergeGapSec > 0
+      ? mergeGapSec
+      : boundaryMergeEpsilonSec();
   const interior = [...new Set(pointList.map(roundTime))].filter(
     (t) => t > 0 && t < d,
   );
@@ -713,6 +717,14 @@ export type DetectShotsForIngestOptions = {
    * (film-absolute) are relativized into segment-local times before merging with detector output.
    */
   segmentFilmWindow?: IngestAbsoluteWindow | null;
+  /**
+   * Per-call boundary policy (Phase 10). When set, overrides `METROVISION_BOUNDARY_DETECTOR` and
+   * `METROVISION_BOUNDARY_MERGE_GAP_SEC` for this detection only — no `process.env` mutation.
+   */
+  boundaryOverrides?: {
+    boundaryDetector?: string;
+    mergeGapSec?: number;
+  };
 };
 
 /** Phase D: dual PySceneDetect + NMS, optional `METROVISION_EXTRA_BOUNDARY_CUTS_JSON`. */
@@ -720,7 +732,13 @@ export async function detectShotsEnsemble(
   videoPath: string,
   extraCuts: number[],
   fusionPolicy: BoundaryFusionPolicy = "merge_flat",
+  mergeGapSec?: number,
 ): Promise<DetectedSplit[]> {
+  const eps =
+    mergeGapSec != null && Number.isFinite(mergeGapSec) && mergeGapSec > 0
+      ? mergeGapSec
+      : boundaryMergeEpsilonSec();
+
   if (!(await getScenedetectReachable())) {
     const splits = await detectShotsWithFfmpegScene(videoPath);
     const duration = await probeVideoDurationSec(videoPath);
@@ -730,6 +748,7 @@ export async function detectShotsEnsemble(
       duration,
       extraCuts,
       fusionPolicy,
+      eps,
     );
   }
 
@@ -743,7 +762,6 @@ export async function detectShotsEnsemble(
     duration > 0
       ? duration
       : Math.max(0, ...pointList);
-  const eps = boundaryMergeEpsilonSec();
   const interior = [...new Set(pointList.map(roundTime))].filter(
     (t) => t > 0 && t < d,
   );
@@ -794,8 +812,23 @@ export async function detectShotsForIngest(
   const tagSuffix = boundaryExtraTag(fileCuts.length, inlineCuts.length);
   const fusionPolicy = options?.boundaryFusionPolicy ?? "merge_flat";
 
-  if (shouldRunPysceneEnsemble()) {
-    const splits = await detectShotsEnsemble(videoPath, extra, fusionPolicy);
+  const mergeGap =
+    options?.boundaryOverrides?.mergeGapSec != null &&
+    Number.isFinite(options.boundaryOverrides.mergeGapSec) &&
+    options.boundaryOverrides.mergeGapSec > 0
+      ? options.boundaryOverrides.mergeGapSec
+      : boundaryMergeEpsilonSec();
+  const modeStr =
+    options?.boundaryOverrides?.boundaryDetector?.trim() || boundaryModeFromEnv();
+  const useEnsemble = shouldRunPysceneEnsembleForMode(modeStr);
+
+  if (useEnsemble) {
+    const splits = await detectShotsEnsemble(
+      videoPath,
+      extra,
+      fusionPolicy,
+      mergeGap,
+    );
     return {
       splits,
       ctx: {
@@ -816,7 +849,7 @@ export async function detectShotsForIngest(
       duration > 0
         ? duration
         : Math.max(0, ...endpointsFromSplits(splits));
-    const eps = boundaryMergeEpsilonSec();
+    const eps = mergeGap;
     const interior = [...new Set(endpointsFromSplits(splits).map(roundTime))].filter(
       (t) => t > 0 && t < d,
     );
@@ -843,7 +876,7 @@ export async function detectShotsForIngest(
     splits = splitsFromBoundaries(uniq);
   }
 
-  const mode = boundaryModeFromEnv();
+  const mode = modeStr;
   const baseLabel = !pysceneCliAvailable
     ? "ffmpeg_scene"
     : mode === "pyscenedetect_cli"

@@ -53,6 +53,22 @@ export default async function FilmDetailPage({ params }: Props) {
       {/* Film Header */}
       <FilmHeader film={film} trust={filmTrust} />
 
+      {film.boundaryCutPresetName ? (
+        <p className="text-sm text-[var(--color-text-secondary)]">
+          Boundary cut preset:{" "}
+          <span className="font-mono text-[var(--color-text-tertiary)]">
+            {film.boundaryCutPresetName}
+          </span>
+          .{" "}
+          <Link
+            href="/tuning/workspace"
+            className="text-[var(--color-text-accent)] underline"
+          >
+            Tuning workspace
+          </Link>
+        </p>
+      ) : null}
+
       {/* Full Film Timeline */}
       <section>
         <h2

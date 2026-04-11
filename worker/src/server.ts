@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import { boundaryDetectHandler } from "./boundary-detect.js";
 import { ingestFilmHandler } from "./ingest.js";
 
 const app = express();
@@ -53,6 +54,9 @@ app.get("/health", (_req, res) => {
 
 // SSE streaming ingestion endpoint
 app.post("/api/ingest-film/stream", ingestFilmHandler);
+
+// Phase 10: detect-only with DB boundary preset (JSON response)
+app.post("/api/boundary-detect", boundaryDetectHandler);
 
 app.listen(PORT, () => {
   console.log(`[worker] MetroVision worker listening on port ${PORT}`);

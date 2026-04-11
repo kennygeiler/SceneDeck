@@ -1282,6 +1282,16 @@ export async function getFilmById(
 
   if (!filmRow) return null;
 
+  let boundaryCutPresetName: string | null = null;
+  if (filmRow.boundaryCutPresetId) {
+    const [bp] = await db
+      .select({ name: schema.boundaryCutPresets.name })
+      .from(schema.boundaryCutPresets)
+      .where(eq(schema.boundaryCutPresets.id, filmRow.boundaryCutPresetId))
+      .limit(1);
+    boundaryCutPresetName = bp?.name ?? null;
+  }
+
   const sceneRows = await db
     .select()
     .from(schema.scenes)
@@ -1363,6 +1373,8 @@ export async function getFilmById(
     shotCount: allShots.length,
     totalDuration: allShots.reduce((sum, s) => sum + s.duration, 0),
     scenes,
+    boundaryCutPresetId: filmRow.boundaryCutPresetId ?? null,
+    boundaryCutPresetName,
   };
 }
 

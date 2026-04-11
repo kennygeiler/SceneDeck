@@ -266,6 +266,9 @@ export type FilmWithDetails = {
   shotCount: number;
   totalDuration: number;
   scenes: SceneWithShots[];
+  /** Worker ingest uses this preset when `boundaryCutPresetId` is not passed on the request. */
+  boundaryCutPresetId: string | null;
+  boundaryCutPresetName: string | null;
 };
 
 /** Shots in this film that have at least one human verification row. */

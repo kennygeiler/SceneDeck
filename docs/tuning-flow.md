@@ -2,6 +2,8 @@
 
 This document **logs the intended tuning workflow** so operators (and future app UX) can repeat it: **sample window → human cuts → auto detect → metrics → adjust → re-run**. It complements **`eval/runs/STATUS.md`** (canonical baseline, **CEMENTED** production row, improvement tiers) and the in-app **`/tuning`** hub, plus **`eval/runs/README.md`** (append-only ledger) and **`eval/runs/*.json`** (structured run snapshots).
 
+**Execution plan:** GSD **Phase 10** — [`.planning/phases/10-shot-boundary-cut-eval-and-tuning-product/`](../.planning/phases/10-shot-boundary-cut-eval-and-tuning-product/) (`10-RESEARCH.md`, `10-01-PLAN.md`, `10-02-PLAN.md`, `10-VALIDATION.md`). Locked product choices: **global** boundary presets, **gold editable with history**, **no cost caps v1**, **cut tuning only** (classification unchanged).
+
 ---
 
 ## Decision point (2026-04-10 — Ran `ranshort`, gold 71 interior cuts, tol 0.5 s)
@@ -30,11 +32,11 @@ Use the **same** gold file and **same** source video timebase for every comparis
 | Stage | Purpose | CLI / repo today | Target in-app (product) |
 |-------|---------|------------------|-------------------------|
 | **1. Sample** | Bound CPU/time; stable eval window | `ingestStartSec` / `ingestEndSec` on ingest; `detect:export-cuts --start/--end` | User picks **start/end** or **preset lengths** (e.g. first N min); store **window** on a **tuning session** |
-| **2. Human gold** | Ground-truth cut instants on **film timeline** | **`/eval/gold-annotate`**, export JSON; or `eval/gold/*.json` in repo | Same UI path; persist as **`eval_artifacts`** (`kind=gold`) linked to **`filmId`** + **sessionId** |
-| **3. Auto predict** | Same detector policy as production | **`npm run detect:export-cuts`** on worker-capable host with **PATH** + env; optional **`npm run detect:refine-fn-windows`** (second pass on FN windows — expensive) | **Server job** (worker or app route): run **`detectShotsForIngest`** only; store **`eval_artifacts`** (`kind=predicted`) + **provenance** (`boundaryLabel`, merge gap, detector env) |
-| **4. Score** | F1 + timing bias + miss lists | **`npm run eval:pipeline`**, **`npm run eval:boundary-deltas`**, **`npm run eval:boundary-misses`** (add **`--markdown --out eval/runs/....md`** to log FN/FP) | API: **`evalBoundaryCuts`** (includes **`unmatchedGoldSec`**, **`unmatchedPredSec`**) + delta stats |
-| **5. Adjust** | One knob per iteration | Env: **`METROVISION_BOUNDARY_MERGE_GAP_SEC`**, **`METROVISION_BOUNDARY_DETECTOR`**, **`extraBoundaryCuts`**, TransNet file; **`detect-export-cuts --fusion-policy`** (`merge_flat` \| `auxiliary_near_primary` \| `pairwise_min_sources`) when merging extras; refinement CLI merges extra cuts with same epsilon | **Tuning profile** per film or per user: named presets (e.g. *Dense cuts*, *Default*); **diff** against last run |
-| **6. Log** | Audit trail for product + support | **`eval/runs/ledger.jsonl`**, **`eval/runs/*.json`**, **`2026-04-10-ran-boundary-timing.md`** | **`tuning_runs`** table or **`eval_artifacts`** rows + **summary JSON**; UI **history** timeline |
+| **2. Human gold** | Ground-truth cut instants on **film timeline** | **`/eval/gold-annotate`**, export JSON; or `eval/gold/*.json` in repo | **`eval_gold_revisions`** via **`POST /api/eval-gold-revisions`** (append-only history); **`/eval/gold-annotate`** still valid |
+| **3. Auto predict** | Same detector policy as production | **`npm run detect:export-cuts`** on worker-capable host with **PATH** + env; optional **`npm run detect:refine-fn-windows`** (second pass on FN windows — expensive) | Worker **`POST /api/boundary-detect`** with **`presetId`** → JSON **`cutsSec`** (uses **`detectShotsForIngest` + `boundaryOverrides`**) |
+| **4. Score** | F1 + timing bias + miss lists | **`npm run eval:pipeline`**, **`npm run eval:boundary-deltas`**, **`npm run eval:boundary-misses`** (add **`--markdown --out eval/runs/....md`** to log FN/FP) | **`POST /api/boundary-eval-runs`** (persists **`boundary_eval_runs`**) + same **`evalBoundaryCuts`** math |
+| **5. Adjust** | One knob per iteration | Env: **`METROVISION_BOUNDARY_MERGE_GAP_SEC`**, **`METROVISION_BOUNDARY_DETECTOR`**, **`extraBoundaryCuts`**, TransNet file; **`detect-export-cuts --fusion-policy`** (`merge_flat` \| `auxiliary_near_primary` \| `pairwise_min_sources`) when merging extras; refinement CLI merges extra cuts with same epsilon | **Global** **`boundary_cut_presets`** rows; duplicate/edit JSON in workspace or API |
+| **6. Log** | Audit trail for product + support | **`eval/runs/ledger.jsonl`**, **`eval/runs/*.json`**, **`2026-04-10-ran-boundary-timing.md`** | **`boundary_eval_runs`** + gold revision chain; CLI ledger still optional |
 
 ---
 
@@ -62,7 +64,7 @@ For **productization**, each run should record (minimum):
 |-------|----------|
 | Human cuts UI | **`/eval/gold-annotate`** — `src/app/(site)/eval/gold-annotate/page.tsx` |
 | Artifact API | **`/api/eval/artifacts`** — `src/app/api/eval/artifacts/**` |
-| DB | **`eval_artifacts`** — `src/db/schema.ts` |
+| DB | **`eval_artifacts`**, **`boundary_cut_presets`**, **`eval_gold_revisions`**, **`boundary_eval_runs`** — `src/db/schema.ts` |
 | Detect-only (no DB) | **`npm run detect:export-cuts`** — `scripts/detect-export-cuts.ts` (**`--fusion-policy`**, **`--extra-cuts`**) |
 | Fusion policies (primary + auxiliary cuts) | **`src/lib/boundary-fusion.ts`** — `fuseBoundaryCutStreams`; wired in **`detectShotsForIngest`** |
 | FN-window refinement | **`npm run detect:refine-fn-windows`** — `scripts/detect-refine-fn-windows.ts` (`--gold`, `--pred`, `--pad`, **`--max-windows`**) |
@@ -73,6 +75,15 @@ For **productization**, each run should record (minimum):
 | Operator ledger | **`eval/runs/ledger.jsonl`**, **`eval/runs/*.json`**, **`eval/runs/*-boundary-timing.md`** |
 
 ---
+
+## Operator quickstart (in-app + worker)
+
+1. **Migrate:** apply **`drizzle/0009_boundary_cut_tuning.sql`** (or `pnpm db:push`). Run **`pnpm db:seed`** to insert default preset **`cemented-ran-2026-04-11`**.
+2. **Presets:** open **`/tuning/workspace`** — list/duplicate global presets; expand JSON to verify `boundaryDetector` + `mergeGapSec`.
+3. **Gold:** add revisions via **`POST /api/eval-gold-revisions`** or continue using **`/eval/gold-annotate`**; history per film at **`GET /api/eval-gold-revisions?filmId=`**.
+4. **Predict:** on the worker host, **`POST /api/boundary-detect`** with `{ "videoPath": "/local/path.mp4", "presetId": "<uuid>" }` (optional `startSec`/`endSec`). Copy `cutsSec` from JSON.
+5. **Score:** **`POST /api/boundary-eval-runs`** with `goldRevisionId`, `presetId`, `predictedCutsSec`, `toleranceSec` — persists P/R/F1 + miss lists. List runs: **`GET /api/boundary-eval-runs?filmId=`**.
+6. **Ingest:** **`PATCH /api/films/{id}/boundary-cut-preset`** with `{ "boundaryCutPresetId": "<uuid>" }` so worker ingest uses that preset when the request does not pass `boundaryCutPresetId`. Set **`NEXT_PUBLIC_WORKER_URL`** so the tuning UI can call **`/api/boundary-detect`**.
 
 ## Product principles (short)
 
@@ -90,3 +101,4 @@ For **productization**, each run should record (minimum):
 | 2026-04-10 | Initial tuning-flow doc; Ran eval path documented in **`eval/runs/`** and **`eval/gold/README.md`**. |
 | 2026-04-10 | Decision point (TransNet sweep vs ensemble); Phases 7–11 on roadmap; **`eval:boundary-misses`** + **`unmatchedGoldSec`/`unmatchedPredSec`** on **`evalBoundaryCuts`**. |
 | 2026-04-10 | Phase 7–8 execution: **`eval-cut-json`**, **`eval:boundary-misses --markdown/--out`**, **`detect:refine-fn-windows`**, **`mergeInteriorCutSec`**. |
+| 2026-04-11 | **Phase 10** planned: global presets, gold revision history, eval runs, worker preset path — `.planning/phases/10-shot-boundary-cut-eval-and-tuning-product/`. |

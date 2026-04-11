@@ -136,3 +136,20 @@ export function evalBoundaryCuts(
     unmatchedPredSec,
   };
 }
+
+/** Interior hard-cut instants between consecutive shots (excludes 0 and `durationSec`). */
+export function interiorCutSecFromSplits(
+  splits: Array<{ start: number; end: number }>,
+  durationSec: number,
+): number[] {
+  const d =
+    Number.isFinite(durationSec) && durationSec > 0
+      ? durationSec
+      : Math.max(0, ...splits.map((s) => s.end), 0);
+  const set = new Set<number>();
+  for (let i = 0; i < splits.length - 1; i++) {
+    const t = Math.round(splits[i]!.end * 1000) / 1000;
+    if (t > 0 && t < d) set.add(t);
+  }
+  return [...set].sort((a, b) => a - b);
+}

@@ -1,9 +1,30 @@
 import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { films } from "@/db/schema";
+import { boundaryCutPresets, films } from "@/db/schema";
+import {
+  DEFAULT_BOUNDARY_CUT_PRESET_CONFIG,
+  DEFAULT_BOUNDARY_CUT_PRESET_SLUG,
+} from "@/lib/boundary-cut-preset";
 
 async function main() {
+  const [presetRow] = await db
+    .select({ id: boundaryCutPresets.id })
+    .from(boundaryCutPresets)
+    .where(eq(boundaryCutPresets.slug, DEFAULT_BOUNDARY_CUT_PRESET_SLUG))
+    .limit(1);
+
+  if (!presetRow) {
+    await db.insert(boundaryCutPresets).values({
+      name: "Cemented (Ran baseline)",
+      slug: DEFAULT_BOUNDARY_CUT_PRESET_SLUG,
+      description:
+        "Matches eval/runs/STATUS.md CEMENTED row — ensemble + merge gap 0.22.",
+      config: DEFAULT_BOUNDARY_CUT_PRESET_CONFIG,
+    });
+    console.info("Seed: inserted default boundary_cut_presets row.");
+  }
+
   const existing = await db
     .select({ id: films.id })
     .from(films)

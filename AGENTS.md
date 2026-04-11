@@ -59,7 +59,8 @@ Stack: Next.js 15 App Router (TypeScript, Tailwind CSS 4, shadcn/ui) on Vercel, 
 
 ```
 # Core Schema & Data
-src/db/schema.ts                      -- 9 Drizzle tables (films, scenes, shots, shotMetadata, shotSemantic, verifications, shotEmbeddings, shotObjects, pipelineJobs)
+src/db/schema.ts                      -- Drizzle tables including boundary tuning: `boundary_cut_presets`, `eval_gold_revisions`, `boundary_eval_runs`, plus core ingest tables
+src/db/boundary-tuning-queries.ts     -- Presets, gold revisions, eval runs, film preset assignment
 src/db/index.ts                       -- Singleton Drizzle client (import db from here)
 src/db/queries.ts                     -- Database query functions
 src/lib/taxonomy.ts                   -- Composition taxonomy constants + types (framing, depth, blocking, …)
@@ -75,6 +76,8 @@ src/app/(site)/verify/page.tsx        -- HITL verification queue
 src/app/(site)/visualize/page.tsx     -- D3 visualization dashboard
 src/app/(site)/ingest/page.tsx        -- Film ingest UI
 src/app/(site)/tuning/page.tsx        -- Boundary tuning hub (canonical env + eval links)
+src/app/(site)/tuning/workspace/page.tsx -- Interactive cut tuning (presets, gold history, eval)
+src/lib/boundary-cut-preset.ts        -- Preset JSON ↔ `detectShotsForIngest` options (no env mutation)
 src/app/(site)/export/page.tsx        -- JSON/CSV export + citation block
 
 # Landing / trust / demo (composition wedge)
@@ -106,7 +109,8 @@ src/components/visualize/pacing-heatmap.tsx
 
 # TS Ingest Worker
 worker/src/server.ts                  -- Express server entry
-worker/src/ingest.ts                  -- Film ingest SSE handler (delegates to `src/lib/ingest-pipeline.ts` + app schema)
+worker/src/boundary-detect.ts         -- POST `/api/boundary-detect` — detect-only JSON using DB preset + `detectShotsForIngest`
+worker/src/ingest.ts                  -- Film ingest SSE handler (delegates to `src/lib/ingest-pipeline.ts` + app schema; optional `boundaryCutPresetId` / film-linked preset)
 worker/src/s3.ts                      -- S3 upload utilities (legacy; pipeline uses `src/lib/s3.ts` via ingest-pipeline)
 worker/src/db.ts                      -- Drizzle client; schema from `src/db/schema.ts`
 
@@ -148,6 +152,7 @@ vitest.config.ts                      -- Unit tests (`src/lib/__tests__/`)
 - **Visual similarity (Phase D):** Table `shot_image_embeddings` (768-d CLIP via Replicate). **`pnpm db:embeddings:image`** requires **`REPLICATE_API_TOKEN`**, public **`NEXT_PUBLIC_SITE_URL`** (so `/api/s3` thumbnail URLs resolve), and optional **`REPLICATE_CLIP_EMBEDDING_MODEL`**. **`GET /api/shots/[id]/similar-visual`** returns nearest neighbors by cosine distance.
 - **TransNet cuts → ingest:** In `pipeline/.venv`, `pip install -r requirements-transnet.txt`, then `python -m pipeline.transnet_cuts /path/film.mp4 -o cuts.json`. **Worker / ingest JSON** accepts **`extraBoundaryCuts`: number[]** (merged with **`METROVISION_EXTRA_BOUNDARY_CUTS_JSON`**). Prefer **`METROVISION_BOUNDARY_DETECTOR=pyscenedetect_ensemble_pyscene`** so PyScene and TransNet cuts fuse via NMS.
 - **Eval (gold vs predicted):** Human writes **`eval/gold/<film>.json`** (`cutsSec`, optional `shots` with `framing` / `shotSize`). Ran hand-cut convention: **`eval/gold/gold-ran-2026-04-10.json`** (copy from local machine into repo; see **`eval/gold/README.md`**). Predicted boundaries: **`pnpm eval:export-film -- <filmId>`** (from DB) or **`pnpm detect:export-cuts -- <videoPath>`** (detect-only, no DB/Gemini; optional **`--fusion-policy`** `merge_flat` \| `auxiliary_near_primary` \| `pairwise_min_sources`, `--extra-cuts`, `--gold`, `--ledger`, timeline `--start`/`--end`). **FN-window second pass:** **`pnpm detect:refine-fn-windows -- <videoPath> --gold ... --pred ...`** (optional **`--pad`**, **`--max-windows`**, **`--out`**; stderr shows baseline vs refined F1). **`pnpm eval:pipeline -- eval/gold/foo.json eval/predicted/foo.json --tol 0.5 --slots`** prints precision/recall/F1 and optional slot accuracy. **Canonical Ran baseline + benchmark targets:** **`eval/runs/STATUS.md`** (section **CEMENTED**). **In-app boundary tuning hub:** **`/tuning`**. Run log: **`eval/runs/README.md`** / **`ledger.jsonl`**. Per-film **tuning flow** (CLI → product): **`docs/tuning-flow.md`**. Matched-pair **|pred−gt|** stats: **`npm run eval:boundary-deltas`**. **FN/FP cut lists** (same match as F1): **`pnpm eval:boundary-misses -- eval/gold/foo.json eval/predicted/foo.json [--tol 0.5] [--json] [--markdown] [--out PATH]`**. TransNet × merge-gap grid: **`npm run eval:sweep-transnet`** (see **`eval/runs/2026-04-10-transnet-threshold-sweep.md`**). **`/eval/gold-annotate`** can **save gold/predicted JSON to Postgres** (`eval_artifacts`); retrieval is **`GET /api/eval/artifacts/<id>?t=<token>`** (token shown once on create). See **`METROVISION_EVAL_ARTIFACT_ADMIN_SECRET`** under Production hardening.
+- **Boundary cut presets (Phase 10):** Global rows in `boundary_cut_presets`; worker **`POST /api/boundary-detect`** returns `cutsSec`; Next **`GET|POST /api/boundary-presets`**, **`GET|POST /api/eval-gold-revisions`**, **`GET|POST /api/boundary-eval-runs`**, **`PATCH /api/films/[id]/boundary-cut-preset`**. Ingest uses **`boundaryOverrides`** on `detectShotsForIngest` when a preset is loaded (body `boundaryCutPresetId` or film’s `boundary_cut_preset_id`).
 - **Gemini (AC-07):** `acquireToken()` from `src/lib/rate-limiter.ts` (~130 RPM token bucket) runs before Gemini HTTP calls in `ingest-pipeline.ts` (used by Next ingest stream **and** the Express worker), `object-detection.ts` (enrichment), and `src/app/api/rag/route.ts` where it calls Gemini.
 - **Semantic search:** `src/db/queries.ts` `searchShots` uses pgvector when `shot_embeddings` has data; otherwise or on failure it falls back to ILIKE. Logs are prefixed **`[searchShots]`** — monitor in production; run `pnpm db:embeddings` to populate vectors after ingest.
 - **Canonical long-running ingest:** Use the **Express worker** (`worker/`, SSE) or **Python pipeline** (`pipeline/`) for film-scale jobs. **`/api/process-scene`** is **off on Vercel**; **`/api/ingest-film/stream`** still targets a full Node host with local `videoPath` and is not a substitute for the worker on small serverless timeouts.

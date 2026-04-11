@@ -4,7 +4,7 @@
 
 This milestone delivers phased hardening and alignment work traced to `.planning/codebase/CONCERNS.md` (2026-04-07). Early phases fix **truth in docs and constraints**, then **correctness and schema integrity**, **security boundaries**, **rate limits and platform fit**, **fragile modules**, and finally **tests plus observability** so regressions surface before production.
 
-**Phase plans (1–5)** live under `.planning/milestones/v1.0-phases/`; matching `.planning/phases/01–05/` directories hold `ARCHIVED.md` pointers so tooling sees the phase layout. **Phase 6** (tests, CI, structured logging) is **complete**. **Phases 7–11** are the **shot-boundary reliability** track (FN analysis → local refinement → fusion → HITL → eval corpus). **Phases 7–9** have **RESEARCH.md**, **VALIDATION.md**, and numbered **PLAN.md** files under `.planning/phases/`; **Phase 9** is **implemented** in app code (`boundary-fusion.ts`, `detect-export-cuts --fusion-policy`). **10–11** remain unplanned until `/gsd-plan-phase`.
+**Phase plans (1–5)** live under `.planning/milestones/v1.0-phases/`; matching `.planning/phases/01–05/` directories hold `ARCHIVED.md` pointers so tooling sees the phase layout. **Phase 6** (tests, CI, structured logging) is **complete**. **Phases 7–11** are the **shot-boundary reliability** track (FN analysis → local refinement → fusion → HITL → eval corpus). **Phases 7–9** have **RESEARCH.md**, **VALIDATION.md**, and numbered **PLAN.md** files under `.planning/phases/`; **Phase 9** is **implemented** in app code (`boundary-fusion.ts`, `detect-export-cuts --fusion-policy`). **Phase 10** is **planned** (global cut presets, gold revision history, eval runs, worker preset overrides — see `.planning/phases/10-shot-boundary-cut-eval-and-tuning-product/`). **Phase 11** remains multi-film corpus until planned.
 
 **Related plans**
 
@@ -24,7 +24,7 @@ This milestone delivers phased hardening and alignment work traced to `.planning
 - [x] **Phase 7: Shot boundary FN analysis** — List gold cuts with no predicted match within tolerance (CLI: `eval:boundary-misses`)
 - [x] **Phase 8: Shot boundary local refinement** — Second-pass detection on FN windows
 - [x] **Phase 9: Shot boundary fusion policy** — Consensus and prune auxiliary detector peaks (`src/lib/boundary-fusion.ts`, `detect-export-cuts --fusion-policy`, `detectShotsForIngest.boundaryFusionPolicy`; benchmarks in `eval/runs/STATUS.md`)
-- [ ] **Phase 10: Shot boundary HITL** — In-app review queue for per-film tuning
+- [ ] **Phase 10: Shot boundary cut eval and tuning product** — Global boundary presets, versioned gold, eval runs (F1 + misses), worker detect with preset; UI on `/tuning`; classification out of scope
 - [ ] **Phase 11: Shot boundary eval corpus** — Multi-film gold and F1 calibration targets
 
 ## Phase Details
@@ -214,15 +214,20 @@ Plans:
 - [x] 09-01: `src/lib/boundary-fusion.ts` + Vitest (`fuseBoundaryCutStreams`, `BoundaryFusionPolicy`)
 - [x] 09-02: `detect-export-cuts --fusion-policy`, docs (`pipeline-analysis`, `tuning-flow`, `AGENTS`), optional offline fusion sweep script (deferred — use `detect-export-cuts` + `--extra-cuts`)
 
-### Phase 10: Shot boundary HITL — in-app review queue for per-film tuning
+### Phase 10: Shot boundary cut eval and tuning product
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Let operators **self-tune shot boundaries** end-to-end: pick a **global boundary preset**, maintain **hand gold with full revision history**, run **predicted cuts** on the same timebase, inspect **P/R/F1** and **FN/FP**, iterate, then **apply** the preset to **ingest** (film-linked preset or documented env handoff). **Classification / Gemini slots stay global and unchanged** in this phase.
+
+**Requirements**: REQ-BT-01 — global presets + schema; REQ-BT-02 — gold revisions + eval run persistence + worker preset path; REQ-BT-03 — tuning workspace UI + docs (see `10-VALIDATION.md`).
+
 **Depends on:** Phase 9
-**Plans:** 0 plans
+
+**Plans:** 2 plans under [`.planning/phases/10-shot-boundary-cut-eval-and-tuning-product/`](phases/10-shot-boundary-cut-eval-and-tuning-product/)
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 10 to break down)
+
+- [ ] 10-01: DB presets + gold revisions + eval run API + worker detect with preset override
+- [ ] 10-02: Tuning workspace UI + optional `films.boundaryCutPresetId` + doc quickstart
 
 ### Phase 11: Shot boundary eval corpus — multi-film gold and F1 calibration targets
 
@@ -253,5 +258,5 @@ Plans:
 | 7 | Shot boundary FN analysis | 2/2 | Complete | 2026-04-10 |
 | 8 | Shot boundary local refinement | 2/2 | Complete | 2026-04-10 |
 | 9 | Shot boundary fusion policy | 2/2 | Complete | 2026-04-10 |
-| 10 | Shot boundary HITL | 0/TBD | Not planned | — |
+| 10 | Shot boundary cut eval and tuning product | 0/2 | Planned | — |
 | 11 | Shot boundary eval corpus | 0/TBD | Not planned | — |

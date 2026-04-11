@@ -131,6 +131,15 @@ export default function TuningPage() {
           <ul className="list-inside list-disc space-y-2 text-sm text-[var(--color-text-secondary)]">
             <li>
               <Link
+                href="/tuning/workspace"
+                className="text-[var(--color-text-accent)] underline-offset-4 hover:underline"
+              >
+                Tuning workspace
+              </Link>{" "}
+              — global presets, gold history, worker detect, eval runs
+            </li>
+            <li>
+              <Link
                 href="/eval/gold-annotate"
                 className="text-[var(--color-text-accent)] underline-offset-4 hover:underline"
               >

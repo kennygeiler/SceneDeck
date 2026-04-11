@@ -24,6 +24,9 @@ MetroVision (SceneDeck) is a platform for structured camera movement analysis at
 ### Active
 
 - [ ] **REQ-QA-01** — Automated tests and CI cover critical API and worker paths (taxonomy parity covered by REQ-TAX-01).
+- [ ] **REQ-BT-01** — Global **`boundary_cut_presets`** (JSON config) + migration/seed aligned with **CEMENTED** boundary defaults. *(Phase 10, 10-01)*
+- [ ] **REQ-BT-02** — **Gold revision history**, **boundary eval run** persistence + scoring API, worker **detect job** applying preset without relying on global env alone. *(Phase 10, 10-01)*
+- [ ] **REQ-BT-03** — **Tuning workspace UI** (`/tuning` extension), optional **`films.boundaryCutPresetId`**, docs quickstart; **classification unchanged**. *(Phase 10, 10-02)*
 
 ### Out of Scope (for this roadmap)
 

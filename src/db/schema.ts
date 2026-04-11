@@ -25,6 +25,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import type { IngestProvenancePayload } from "../lib/pipeline-provenance";
+import type { BoundaryCutPresetConfig } from "../lib/boundary-cut-preset";
 
 /** Append-only log for structural H splits/merges (shot detail HITL). */
 export type HitlAuditEntry = {
@@ -90,6 +91,11 @@ export const films = pgTable("films", {
   sourceUrl: text("source_url"),
   /** Latest full-film ingest metadata (detector, models, taxonomy hash). */
   ingestProvenance: jsonb("ingest_provenance").$type<IngestProvenancePayload | null>(),
+  /** Optional global boundary-cut preset applied on worker ingest when body does not override. */
+  boundaryCutPresetId: uuid("boundary_cut_preset_id").references(
+    () => boundaryCutPresets.id,
+    { onDelete: "set null" },
+  ),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
@@ -380,3 +386,61 @@ export const evalArtifacts = pgTable("eval_artifacts", {
 
 export type EvalArtifact = typeof evalArtifacts.$inferSelect;
 export type NewEvalArtifact = typeof evalArtifacts.$inferInsert;
+
+// ---------------------------------------------------------------------------
+// Phase 10: Boundary cut tuning — global presets, gold revisions, eval runs
+// ---------------------------------------------------------------------------
+
+export const boundaryCutPresets = pgTable("boundary_cut_presets", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").unique(),
+  description: text("description"),
+  config: jsonb("config").$type<BoundaryCutPresetConfig>().notNull(),
+  isArchived: boolean("is_archived").default(false).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const evalGoldRevisions = pgTable("eval_gold_revisions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  filmId: uuid("film_id")
+    .references(() => films.id, { onDelete: "cascade" })
+    .notNull(),
+  /** Inclusive window on film timeline; both null = full source. */
+  windowStartSec: real("window_start_sec"),
+  windowEndSec: real("window_end_sec"),
+  /** Shape: { cutsSec: number[], notes?: string } */
+  payload: jsonb("payload").notNull(),
+  /** Prior revision in the same film/window chain (FK enforced in SQL migration). */
+  replacesRevisionId: uuid("replaces_revision_id"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const boundaryEvalRuns = pgTable("boundary_eval_runs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  filmId: uuid("film_id")
+    .references(() => films.id, { onDelete: "cascade" })
+    .notNull(),
+  goldRevisionId: uuid("gold_revision_id")
+    .references(() => evalGoldRevisions.id, { onDelete: "cascade" })
+    .notNull(),
+  presetId: uuid("preset_id").references(() => boundaryCutPresets.id, {
+    onDelete: "set null",
+  }),
+  predictedPayload: jsonb("predicted_payload").notNull(),
+  toleranceSec: real("tolerance_sec").notNull().default(0.5),
+  metrics: jsonb("metrics").notNull(),
+  unmatchedGoldSec: jsonb("unmatched_gold_sec").notNull(),
+  unmatchedPredSec: jsonb("unmatched_pred_sec").notNull(),
+  provenance: jsonb("provenance"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export type BoundaryCutPreset = typeof boundaryCutPresets.$inferSelect;
+export type NewBoundaryCutPreset = typeof boundaryCutPresets.$inferInsert;
+export type EvalGoldRevision = typeof evalGoldRevisions.$inferSelect;
+export type NewEvalGoldRevision = typeof evalGoldRevisions.$inferInsert;
+export type BoundaryEvalRun = typeof boundaryEvalRuns.$inferSelect;
+export type NewBoundaryEvalRun = typeof boundaryEvalRuns.$inferInsert;

@@ -8,12 +8,16 @@ export function boundaryModeFromEnv(): string {
   );
 }
 
-export function shouldRunPysceneEnsemble(): boolean {
-  const m = boundaryModeFromEnv().toLowerCase();
+export function shouldRunPysceneEnsembleForMode(mode: string): boolean {
+  const m = mode.trim().toLowerCase();
   return (
     m === "pyscenedetect_ensemble" ||
     m === "pyscenedetect_ensemble_pyscene"
   );
+}
+
+export function shouldRunPysceneEnsemble(): boolean {
+  return shouldRunPysceneEnsembleForMode(boundaryModeFromEnv());
 }
 
 /** JSON array of cut times in seconds, e.g. `[12.4, 45.02]` — merged after NMS with PyScene cuts. */

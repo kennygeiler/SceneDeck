@@ -38,7 +38,7 @@ Use learnings from boundary eval/tuning to support **automation** that can:
 
 | Track | Role |
 |-------|------|
-| **Phase 10 — HITL** | Human confirms gold / accepts a proposed boundary profile before full-film ingest; audit trail for tuning attempts. |
+| **Phase 10 — Cut eval + tuning product** | Global presets, gold **revision history**, eval runs (F1 + misses), worker detect with preset; UI expands `/tuning`; classification out of scope (see `.planning/phases/10-shot-boundary-cut-eval-and-tuning-product/`). |
 | **Phase 11 — Eval corpus** | Second+ gold files + calibration so settings aren’t overfit to Ran; retrieval “similar title” becomes meaningful. |
 | **Future (suggested)** | **Session store + tooling** — normalized `tuning_session` (or `eval_artifacts` extensions), CLI/API hooks (detect-only, eval, misses, capped sweeps), **policy** (stop conditions, cost caps), UI “propose → apply.” Not yet a numbered phase; add after 11 when ready. |
 

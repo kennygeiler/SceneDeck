@@ -5,7 +5,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline as streamPipeline } from "node:stream/promises";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Request, Response } from "express";
 
 import { db, schema } from "./db.js";
@@ -18,6 +18,10 @@ import * as openaiEmbeddingModule from "../../src/lib/openai-embedding.js";
 import * as sceneGroupingModule from "../../src/lib/scene-grouping.js";
 import * as ingestResetModule from "../../src/lib/ingest-reset.js";
 import * as ingestRunRecordModule from "../../src/lib/ingest-run-record.js";
+import {
+  parseBoundaryCutPresetConfig,
+  presetConfigToDetectOptions,
+} from "../../src/lib/boundary-cut-preset.js";
 import { logServerEvent } from "../../src/lib/server-log.js";
 
 const ffmpegBin = (ffmpegBinModule as { default?: typeof ffmpegBinModule }).default
@@ -56,7 +60,11 @@ const {
   resolveIngestAbsoluteWindow,
   beginClassificationDiagBatch,
 } = ingestPipeline;
-const { parseInlineBoundaryCuts, shouldRunPysceneEnsemble } = boundaryEnsemble;
+const {
+  parseInlineBoundaryCuts,
+  shouldRunPysceneEnsembleForMode,
+  mergeBoundaryCutSources,
+} = boundaryEnsemble;
 const { searchTmdbMovieId, fetchTmdbMovieDetails, fetchTmdbCast } = tmdb;
 const { generateTextEmbedding } = openaiEmbedding;
 const { planContiguousScenesByNormalizedTitle } = sceneGrouping;
@@ -280,9 +288,81 @@ export async function ingestFilmHandler(req: Request, res: Response) {
 
     const detLabel =
       detector === "adaptive" ? "Adaptive (default, research)" : "Content (faster, hard cuts)";
-    const detectLabel = shouldRunPysceneEnsemble()
+
+    let presetCfg: ReturnType<typeof parseBoundaryCutPresetConfig> | null = null;
+    let presetDetectOpts: Parameters<typeof detectShotsForIngest>[2] = {};
+    const bodyPresetIdRaw = body.boundaryCutPresetId ?? body.boundaryPresetId;
+    const bodyPresetId =
+      typeof bodyPresetIdRaw === "string" ? bodyPresetIdRaw.trim() : "";
+    const yearNumForPreset = Number(body.year);
+
+    if (bodyPresetId) {
+      const [p] = await db
+        .select()
+        .from(schema.boundaryCutPresets)
+        .where(eq(schema.boundaryCutPresets.id, bodyPresetId))
+        .limit(1);
+      if (p?.config) {
+        presetCfg = parseBoundaryCutPresetConfig(p.config);
+        const po = presetConfigToDetectOptions(presetCfg);
+        presetDetectOpts = {
+          boundaryFusionPolicy: po.boundaryFusionPolicy,
+          boundaryOverrides: po.boundaryOverrides,
+          inlineExtraBoundaryCuts: po.inlineExtraBoundaryCuts,
+        };
+      }
+    } else if (Number.isFinite(yearNumForPreset)) {
+      const [filmRow] = await db
+        .select({ boundaryCutPresetId: schema.films.boundaryCutPresetId })
+        .from(schema.films)
+        .where(
+          and(
+            eq(schema.films.title, body.filmTitle),
+            eq(schema.films.director, body.director),
+            eq(schema.films.year, yearNumForPreset),
+          ),
+        )
+        .limit(1);
+      if (filmRow?.boundaryCutPresetId) {
+        const [p] = await db
+          .select()
+          .from(schema.boundaryCutPresets)
+          .where(eq(schema.boundaryCutPresets.id, filmRow.boundaryCutPresetId))
+          .limit(1);
+        if (p?.config) {
+          presetCfg = parseBoundaryCutPresetConfig(p.config);
+          const po = presetConfigToDetectOptions(presetCfg);
+          presetDetectOpts = {
+            boundaryFusionPolicy: po.boundaryFusionPolicy,
+            boundaryOverrides: po.boundaryOverrides,
+            inlineExtraBoundaryCuts: po.inlineExtraBoundaryCuts,
+          };
+        }
+      }
+    }
+
+    const inlineCuts = parseInlineBoundaryCuts(body.extraBoundaryCuts);
+    const mergedInline = mergeBoundaryCutSources(
+      presetDetectOpts.inlineExtraBoundaryCuts ?? [],
+      inlineCuts,
+    );
+    const detectOptions: Parameters<typeof detectShotsForIngest>[2] = {
+      ...presetDetectOpts,
+      inlineExtraBoundaryCuts: mergedInline.length > 0 ? mergedInline : undefined,
+      segmentFilmWindow: timelinePlan.segmentFilmWindow,
+    };
+
+    const effectiveDetector: "content" | "adaptive" =
+      presetCfg?.detector ?? detector;
+
+    const modeForUi =
+      presetDetectOpts.boundaryOverrides?.boundaryDetector ??
+      process.env.METROVISION_BOUNDARY_DETECTOR ??
+      "pyscenedetect_cli";
+    const detectLabel = shouldRunPysceneEnsembleForMode(String(modeForUi))
       ? "PySceneDetect ensemble (adaptive + content + NMS)"
       : detLabel;
+
     emit({
       type: "step",
       step: "detect",
@@ -290,7 +370,6 @@ export async function ingestFilmHandler(req: Request, res: Response) {
       message: `Detecting shots${segmentHint} — ${detectLabel}`,
     });
     const t0 = Date.now();
-    const inlineCuts = parseInlineBoundaryCuts(body.extraBoundaryCuts);
     const detectHeartbeat = setInterval(() => {
       const sec = Math.floor((Date.now() - t0) / 1000);
       emit({
@@ -305,11 +384,8 @@ export async function ingestFilmHandler(req: Request, res: Response) {
     try {
       const r = await detectShotsForIngest(
         timelinePlan.analysisPath,
-        detector,
-        {
-          inlineExtraBoundaryCuts: inlineCuts,
-          segmentFilmWindow: timelinePlan.segmentFilmWindow,
-        },
+        effectiveDetector,
+        detectOptions,
       );
       rawSplits = r.splits;
       detectCtx = r.ctx;

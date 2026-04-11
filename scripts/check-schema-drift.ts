@@ -30,6 +30,9 @@ const tables: [string, object][] = [
   ["shot_semantic", app.shotSemantic],
   ["shot_embeddings", app.shotEmbeddings],
   ["shot_image_embeddings", app.shotImageEmbeddings],
+  ["boundary_cut_presets", app.boundaryCutPresets],
+  ["eval_gold_revisions", app.evalGoldRevisions],
+  ["boundary_eval_runs", app.boundaryEvalRuns],
 ];
 
 let ok = true;
