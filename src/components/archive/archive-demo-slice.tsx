@@ -45,7 +45,8 @@ export function ArchiveDemoSlice({
           </h2>
           <p className="mt-4 max-w-2xl text-base leading-8 text-[var(--color-text-secondary)]">
             Browse the archive, open a shot with provenance, inspect composition
-            patterns in a single chart, then export with a ready-made citation.
+            patterns in a single chart, export with a ready-made citation, and
+            iterate shot-boundary presets when you are calibrating ingest.
           </p>
 
           <ol className="mt-8 space-y-4 text-sm text-[var(--color-text-secondary)]">
@@ -107,6 +108,26 @@ export function ArchiveDemoSlice({
                   Export
                 </Link>{" "}
                 — JSON/CSV plus a copyable citation block.
+              </span>
+            </li>
+            <li className="flex gap-3">
+              <span className="font-mono text-[var(--color-text-accent)]">05</span>
+              <span>
+                <Link
+                  href="/tuning/workspace"
+                  className="font-medium text-[var(--color-text-primary)] underline-offset-4 hover:underline"
+                >
+                  Tuning workspace
+                </Link>{" "}
+                — presets, gold revisions, worker detect, and boundary eval
+                runs;{" "}
+                <Link
+                  href="/tuning"
+                  className="font-medium text-[var(--color-text-primary)] underline-offset-4 hover:underline"
+                >
+                  boundary profile
+                </Link>{" "}
+                for the cemented Ran baseline and CLI notes.
               </span>
             </li>
           </ol>

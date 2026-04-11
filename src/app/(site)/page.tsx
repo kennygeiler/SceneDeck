@@ -27,6 +27,16 @@ const workflowSteps = [
     description:
       "Browse, visualize patterns across films, and export structured records with citation-ready methodology text.",
   },
+  {
+    step: "03",
+    title: "Tune boundaries",
+    description:
+      "Version global boundary-cut presets in the database, record gold revisions, run detect on the ingest worker, and score predicted cuts in-app—without mutating process env. Assign a preset per film for reproducible worker ingest.",
+    links: [
+      { href: "/tuning/workspace", label: "Tuning workspace" },
+      { href: "/tuning", label: "Cemented profile & evidence" },
+    ],
+  },
 ] as const;
 
 export default async function Home() {
@@ -311,7 +321,8 @@ export default async function Home() {
           </h2>
           <p className="mt-4 max-w-2xl text-base leading-8 text-[var(--color-text-secondary)]">
             A single taxonomy and database surface for composition research,
-            tooling prototypes, and teaching—not a grab-bag of unrelated demos.
+            tooling prototypes, and teaching—including an in-app loop for
+            shot-boundary presets, gold, and eval alongside the CLI workflow.
           </p>
         </div>
 
@@ -339,6 +350,19 @@ export default async function Home() {
               <p className="mt-4 text-base leading-8 text-[var(--color-text-secondary)]">
                 {item.description}
               </p>
+              {"links" in item && item.links ? (
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {item.links.map((l) => (
+                    <Link
+                      key={l.href}
+                      href={l.href}
+                      className="inline-flex h-9 items-center justify-center rounded-full border border-[var(--color-border-default)] px-4 text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-tertiary)] hover:text-[var(--color-text-primary)] sm:text-sm"
+                    >
+                      {l.label}
+                    </Link>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ))}
         </div>
