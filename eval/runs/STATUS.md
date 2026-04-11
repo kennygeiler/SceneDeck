@@ -100,6 +100,7 @@ These match a **~443 s** source; **gold still lists cuts up to ~763 s**, so **FN
 | **FN tooling (Phase 7)** | `eval:boundary-misses`, `unmatchedGoldSec` / `unmatchedPredSec` in `evalBoundaryCuts`. |
 | **Local refine (Phase 8)** | `detect:refine-fn-windows` (second pass on FN windows); script fixed for **`probeVideoDurationSec`** import and **clip end capped to probed duration**. On short clip + first N FN windows, refine did **not** improve F1 (added FP). |
 | **Source alignment** | Confirmed **Ran1243** (~763 s) matches gold extent; **primary** benchmark updated to that run. |
+| **Merge-gap sweep (2026-04-11)** | On Ran1243, **ensemble** metrics unchanged for **gap 0.12–0.45** (same 74 interior cuts); **single** PyScene adaptive/content **worse** F1 — see [`ran1243-merge-gap-sweep-2026-04-11.md`](ran1243-merge-gap-sweep-2026-04-11.md) + [`.log`](ran1243-merge-gap-sweep-2026-04-11.log). |
 
 ---
 

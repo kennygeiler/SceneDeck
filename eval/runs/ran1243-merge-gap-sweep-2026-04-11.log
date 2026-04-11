@@ -1,0 +1,79 @@
+=== Ran1243 merge-gap sweep 2026-04-11T17:01:22+00:00 ===
+source: /tmp/Ran1243.mov | gold: eval/gold/gold-ran-2026-04-10.json | tol: 0.5 | detector: pyscenedetect_ensemble_pyscene
+
+--- run merge_gap=0.18 out=eval/predicted/ran1243-sweep-gap-0_18.json ---
+
+> metrovision@0.1.0 detect:export-cuts
+> tsx scripts/detect-export-cuts.ts /tmp/Ran1243.mov --start 0 --end 780 --gold eval/gold/gold-ran-2026-04-10.json --tol 0.5 --out eval/predicted/ran1243-sweep-gap-0_18.json --fusion-policy merge_flat
+
+[detect-export-cuts] vs gold: P=0.784 R=0.817 F1=0.800 (tol=0.5s) tp=58 fp=16 fn=13
+[detect-export-cuts] wrote /home/paperspace/MetroVision/eval/predicted/ran1243-sweep-gap-0_18.json (74 interior cuts, 75 shots)
+
+--- run merge_gap=0.20 out=eval/predicted/ran1243-sweep-gap-0_20.json ---
+
+> metrovision@0.1.0 detect:export-cuts
+> tsx scripts/detect-export-cuts.ts /tmp/Ran1243.mov --start 0 --end 780 --gold eval/gold/gold-ran-2026-04-10.json --tol 0.5 --out eval/predicted/ran1243-sweep-gap-0_20.json --fusion-policy merge_flat
+
+[detect-export-cuts] vs gold: P=0.784 R=0.817 F1=0.800 (tol=0.5s) tp=58 fp=16 fn=13
+[detect-export-cuts] wrote /home/paperspace/MetroVision/eval/predicted/ran1243-sweep-gap-0_20.json (74 interior cuts, 75 shots)
+
+--- run merge_gap=0.22 out=eval/predicted/ran1243-sweep-gap-0_22.json ---
+
+> metrovision@0.1.0 detect:export-cuts
+> tsx scripts/detect-export-cuts.ts /tmp/Ran1243.mov --start 0 --end 780 --gold eval/gold/gold-ran-2026-04-10.json --tol 0.5 --out eval/predicted/ran1243-sweep-gap-0_22.json --fusion-policy merge_flat
+
+[detect-export-cuts] vs gold: P=0.784 R=0.817 F1=0.800 (tol=0.5s) tp=58 fp=16 fn=13
+[detect-export-cuts] wrote /home/paperspace/MetroVision/eval/predicted/ran1243-sweep-gap-0_22.json (74 interior cuts, 75 shots)
+
+--- run merge_gap=0.24 out=eval/predicted/ran1243-sweep-gap-0_24.json ---
+
+> metrovision@0.1.0 detect:export-cuts
+> tsx scripts/detect-export-cuts.ts /tmp/Ran1243.mov --start 0 --end 780 --gold eval/gold/gold-ran-2026-04-10.json --tol 0.5 --out eval/predicted/ran1243-sweep-gap-0_24.json --fusion-policy merge_flat
+
+[detect-export-cuts] vs gold: P=0.784 R=0.817 F1=0.800 (tol=0.5s) tp=58 fp=16 fn=13
+[detect-export-cuts] wrote /home/paperspace/MetroVision/eval/predicted/ran1243-sweep-gap-0_24.json (74 interior cuts, 75 shots)
+
+--- run merge_gap=0.26 out=eval/predicted/ran1243-sweep-gap-0_26.json ---
+
+> metrovision@0.1.0 detect:export-cuts
+> tsx scripts/detect-export-cuts.ts /tmp/Ran1243.mov --start 0 --end 780 --gold eval/gold/gold-ran-2026-04-10.json --tol 0.5 --out eval/predicted/ran1243-sweep-gap-0_26.json --fusion-policy merge_flat
+
+[detect-export-cuts] vs gold: P=0.784 R=0.817 F1=0.800 (tol=0.5s) tp=58 fp=16 fn=13
+[detect-export-cuts] wrote /home/paperspace/MetroVision/eval/predicted/ran1243-sweep-gap-0_26.json (74 interior cuts, 75 shots)
+
+
+=== Phase 2: wider gaps + single PyScene (same source/gold/tol) 2026-04-11T17:04:19+00:00 ===
+
+> metrovision@0.1.0 detect:export-cuts
+> tsx scripts/detect-export-cuts.ts /tmp/Ran1243.mov --start 0 --end 780 --gold eval/gold/gold-ran-2026-04-10.json --tol 0.5 --out eval/predicted/ran1243-sweep-ensemble-gap035.json --fusion-policy merge_flat
+
+[detect-export-cuts] vs gold: P=0.784 R=0.817 F1=0.800 (tol=0.5s) tp=58 fp=16 fn=13
+[detect-export-cuts] wrote /home/paperspace/MetroVision/eval/predicted/ran1243-sweep-ensemble-gap035.json (74 interior cuts, 75 shots)
+
+
+> metrovision@0.1.0 detect:export-cuts
+> tsx scripts/detect-export-cuts.ts /tmp/Ran1243.mov --start 0 --end 780 --gold eval/gold/gold-ran-2026-04-10.json --tol 0.5 --out eval/predicted/ran1243-sweep-ensemble-gap045.json --fusion-policy merge_flat
+
+[detect-export-cuts] vs gold: P=0.784 R=0.817 F1=0.800 (tol=0.5s) tp=58 fp=16 fn=13
+[detect-export-cuts] wrote /home/paperspace/MetroVision/eval/predicted/ran1243-sweep-ensemble-gap045.json (74 interior cuts, 75 shots)
+
+
+> metrovision@0.1.0 detect:export-cuts
+> tsx scripts/detect-export-cuts.ts /tmp/Ran1243.mov --start 0 --end 780 --detector adaptive --gold eval/gold/gold-ran-2026-04-10.json --tol 0.5 --out eval/predicted/ran1243-sweep-cli-adaptive-gap022.json --fusion-policy merge_flat
+
+[detect-export-cuts] vs gold: P=0.791 R=0.746 F1=0.768 (tol=0.5s) tp=53 fp=14 fn=18
+[detect-export-cuts] wrote /home/paperspace/MetroVision/eval/predicted/ran1243-sweep-cli-adaptive-gap022.json (67 interior cuts, 68 shots)
+
+
+> metrovision@0.1.0 detect:export-cuts
+> tsx scripts/detect-export-cuts.ts /tmp/Ran1243.mov --start 0 --end 780 --detector content --gold eval/gold/gold-ran-2026-04-10.json --tol 0.5 --out eval/predicted/ran1243-sweep-cli-content-gap022.json --fusion-policy merge_flat
+
+[detect-export-cuts] vs gold: P=0.794 R=0.761 F1=0.777 (tol=0.5s) tp=54 fp=14 fn=17
+[detect-export-cuts] wrote /home/paperspace/MetroVision/eval/predicted/ran1243-sweep-cli-content-gap022.json (68 interior cuts, 69 shots)
+
+
+> metrovision@0.1.0 detect:export-cuts
+> tsx scripts/detect-export-cuts.ts /tmp/Ran1243.mov --start 0 --end 780 --gold eval/gold/gold-ran-2026-04-10.json --tol 0.5 --out eval/predicted/ran1243-sweep-ensemble-gap012.json --fusion-policy merge_flat
+
+[detect-export-cuts] vs gold: P=0.784 R=0.817 F1=0.800 (tol=0.5s) tp=58 fp=16 fn=13
+[detect-export-cuts] wrote /home/paperspace/MetroVision/eval/predicted/ran1243-sweep-ensemble-gap012.json (74 interior cuts, 75 shots)
