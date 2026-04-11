@@ -1,134 +1,138 @@
 # External Integrations
 
-**Analysis Date:** 2026-04-07
+**Analysis Date:** 2026-04-11
 
 ## APIs & External Services
 
-**Google Gemini (Generative AI):**
+**Google Gemini (classification / adjudication / optional detection):**
 
-- **Purpose:** Shot/film analysis, chat agent, RAG, object-detection assist, and Python batch classification.
-- **Integration (TypeScript):** HTTP `fetch` to **Google AI Generative Language API** (`https://generativelanguage.googleapis.com/v1beta/models/...`) with `key` query param — see `src/lib/ingest-pipeline.ts`, `src/app/api/rag/route.ts`, `src/lib/object-detection.ts`.
-- **Integration (Python):** `google.genai` client in `pipeline/classify.py` (ensure installed Python package matches this import; `pipeline/requirements.txt` lists `google-generativeai`).
-- **Auth:** `GOOGLE_API_KEY` (primary). `GEMINI_API_KEY` is an alternate in `src/lib/object-detection.ts` when calling Gemini.
+- Used from TypeScript ingest (`src/lib/ingest-pipeline.ts`, `src/lib/object-detection.ts`) with `GOOGLE_API_KEY`; model names from `GEMINI_CLASSIFY_MODEL`, `GEMINI_ADJUDICATE_MODEL` (see `src/lib/pipeline-provenance.ts`).
+- Python pipeline uses `google-generativeai` (`pipeline/requirements.txt`, `pipeline/classify.py`).
+- Rate limiting: `acquireToken()` in `src/lib/rate-limiter.ts` gates Gemini HTTP usage in ingest and RAG paths.
 
 **OpenAI:**
 
-- **Purpose:** Text embeddings (`src/db/embeddings.ts`, `src/db/generate-embeddings.ts`, `src/db/ingest-corpus.ts`), semantic search and RAG (`src/app/api/search/route.ts`, `src/app/api/rag/route.ts`, `src/app/api/v1/search/route.ts`, `src/lib/rag-retrieval.ts`), worker embedding calls (`worker/src/ingest.ts`).
-- **SDK / client:** `openai` npm package.
-- **Auth:** `OPENAI_API_KEY`.
+- Package `openai` — Text embeddings (`src/lib/openai-embedding.ts`, `src/db/generate-embeddings.ts`), semantic search (`src/app/api/search/route.ts`), RAG retrieval context (`src/lib/rag-retrieval.ts` via `src/app/api/rag/route.ts`), corpus ingest (`src/db/ingest-corpus.ts`).
+- Env: `OPENAI_API_KEY`.
 
-**The Movie Database (TMDB):**
+**Anthropic:**
 
-- **Purpose:** Film metadata (posters, credits, etc.) via REST (`src/lib/tmdb.ts`, worker ingest `worker/src/ingest.ts`).
-- **Integration:** `fetch` to `https://api.themoviedb.org/3` with API key query param.
-- **Auth:** `TMDB_API_KEY`.
+- Python dependency `anthropic` in `pipeline/requirements.txt` — available for pipeline LLM flows where implemented.
 
 **Replicate:**
 
-- **Purpose:** Hosted object-detection model (YOLO-style) in `src/lib/object-detection.ts`.
-- **SDK / client:** `replicate` npm package.
-- **Auth:** `REPLICATE_API_TOKEN`. Optional model override: `REPLICATE_YOLO_MODEL`.
+- Package `replicate` — CLIP image embeddings (`src/lib/image-embedding.ts`, `src/db/generate-image-embeddings.ts`); optional YOLO-style model for object detection (`src/lib/object-detection.ts`).
+- Env: `REPLICATE_API_TOKEN`, optional `REPLICATE_CLIP_EMBEDDING_MODEL`, `REPLICATE_YOLO_MODEL`.
 
-**Vercel Blob (legacy / optional):**
+**TMDB (The Movie Database):**
 
-- **Purpose:** Fallback read token paths in `src/lib/object-detection.ts` for blob access.
-- **Auth:** `BLOB_READ_WRITE_TOKEN` or `VERCEL_BLOB_READ_WRITE_TOKEN` (per code comments / ADR direction: prefer S3 for new work; see project docs).
+- `src/lib/tmdb.ts` — Metadata lookup; `TMDB_API_KEY`.
+
+**PySceneDetect (CLI / subprocess):**
+
+- Invoked from Node (`src/lib/ingest-pipeline.ts`, boundary ensemble `src/lib/boundary-ensemble.ts`); binary path `SCENEDETECT_PATH` (default `scenedetect`).
+- Python side uses `scenedetect[opencv]` (`pipeline/requirements.txt`, `pipeline/shot_detect.py`).
+
+**TransNet V2 (optional):**
+
+- Optional install `pipeline/requirements-transnet.txt`; CLI / JSON cuts path `pipeline/transnet_cuts.py`; merges with TS ingest via `METROVISION_EXTRA_BOUNDARY_CUTS_JSON` and related preset / request fields.
+
+**FFmpeg:**
+
+- System or `ffmpeg-static` binary; configuration in `src/lib/ffmpeg-bin.ts`, ingest pipeline `src/lib/ingest-pipeline.ts` (scene sample FPS, thresholds via `METROVISION_FFMPEG_*`).
 
 ## Data Storage
 
 **Databases:**
 
-- **PostgreSQL (Neon)** — Primary datastore; pgvector columns for embeddings defined in `src/db/schema.ts` (`vector(...)` custom type).
-- **Connection:** `DATABASE_URL` (required in `src/db/index.ts`; optional load from `.env.local` via `src/db/load-env.ts`). Drizzle Kit uses the same in `drizzle.config.ts`.
-- **Clients:**
-  - App: `@neondatabase/serverless` + `drizzle-orm/neon-http` (`src/db/index.ts`).
-  - Worker: same stack (`worker/src/db.ts`).
-  - Pipeline: `psycopg2` direct connection (`pipeline/write_db.py`, `pipeline/batch_worker.py`).
+- **Neon Serverless Postgres** — Connection string `DATABASE_URL`; clients `@neondatabase/serverless` with Drizzle (`src/db/index.ts`, `worker/src/db.ts`).
+- **pgvector** — Custom vector columns in `src/db/schema.ts` (768-d shot / image embeddings, 1536-d corpus embeddings, etc.).
 
-**File Storage:**
+**File / object storage:**
 
-- **AWS S3** — Video and media objects; presigned uploads/reads.
-- **SDK:** `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner` in `src/lib/s3.ts` and `worker/src/s3.ts`.
-- **Auth:** `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` (defaults: `us-east-1` in app `src/lib/s3.ts`, `us-east-2` in `worker/src/s3.ts` — align buckets/regions in deployment), `AWS_S3_BUCKET`.
+- **AWS S3** — `src/lib/s3.ts`, `worker/src/s3.ts`; env `AWS_REGION` (defaults differ slightly: app `us-east-1`, worker `us-east-2` in code — align in deployment), `AWS_S3_BUCKET`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`; presigned reads/writes.
 
 **Caching:**
 
-- None as a dedicated external cache (Redis/Memcached not present in application dependencies).
+- No dedicated Redis/cache service in dependencies; in-process rate limiter and Next/server globals for dev DB singleton (`src/db/index.ts`).
 
 ## Authentication & Identity
 
 **End-user auth:**
 
-- **Not used** for public site flows (per `AGENTS.md` / AC-21: no OAuth; public browsing).
+- Product stance: public archive (no login) per `AGENTS.md`.
 
-**API portal / programmatic access:**
+**Operational / API gates:**
 
-- **Database-backed API keys** — `src/lib/api-auth.ts` validates `Authorization: Bearer <key>` against `schema.apiKeys` (hashed keys). Used by versioned REST such as `src/app/api/v1/search/route.ts`. Keys are operator-issued, not env vars. Legacy `?api_key=` is **off by default** (leaks via logs/referrers); set `METROVISION_ALLOW_API_KEY_QUERY=true` only for a controlled migration window.
+- Optional LLM abuse reduction: `METROVISION_LLM_GATE_SECRET` + `rejectIfLlmRouteGated` (`src/lib/llm-route-gate.ts`) on `POST /api/rag` (`src/app/api/rag/route.ts`).
+- Eval artifact admin: `METROVISION_EVAL_ARTIFACT_ADMIN_SECRET` (`src/lib/eval-artifact-gate.ts`, `src/app/api/eval/artifacts/route.ts`).
+- Optional `METROVISION_PROCESS_SCENE_SECRET` and API key patterns documented in `AGENTS.md` for restricted routes.
+
+**Worker CORS:**
+
+- `worker/src/server.ts` — `ALLOWED_ORIGINS`, optional `ALLOW_VERCEL_SUBDOMAINS=1` for `*.vercel.app`.
 
 ## Monitoring & Observability
 
 **Error tracking:**
 
-- Not detected — No Sentry/Datadog SDK in root `package.json`.
+- No Sentry/Datadog SDK detected in root `package.json` / worker `package.json`.
 
 **Logs:**
 
-- Application and worker logging to stdout/stderr (typical for Node on Vercel and long-running worker processes). No structured log shipping configured in-repo.
+- Console logging in worker (`worker/src/server.ts` health fields: `hasGoogleKey`, `hasAws`, `hasDb`, `hasScenedetectPath`) and app code; search prefix patterns documented for DB search (`AGENTS.md` mentions `[searchShots]`).
 
 ## CI/CD & Deployment
 
 **Hosting:**
 
-- **Vercel** — Strongly implied for the Next.js app (`NEXT_PUBLIC_SITE_URL`, default metadata base in `src/app/layout.tsx`).
+- **Vercel** implied for Next.js (`NEXT_PUBLIC_SITE_URL` in CI points at `https://metrovision.vercel.app`); separate long-running **Express worker** for film-scale ingest (Railway or similar mentioned in worker log strings in `worker/src/ingest.ts`).
 
 **CI pipeline:**
 
-- Not detected — No project-owned workflows under `.github/workflows/` at repo root (excluding vendored paths under `node_modules`).
+- **GitHub Actions** — `.github/workflows/ci.yml`, job `verify` on `ubuntu-latest`:
+  - Checkout, **pnpm** 9, **Node** 20, `pnpm install --frozen-lockfile`
+  - `pnpm lint`, `pnpm check:taxonomy`, `pnpm check:schema-drift`, `pnpm test`, `pnpm eval:smoke`
+  - `pnpm build` with placeholder `DATABASE_URL` and `NEXT_PUBLIC_SITE_URL`
+  - `pnpm check:worker` (`tsc --noEmit -p worker/tsconfig.json`)
 
-**Worker deployment:**
-
-- **Express worker** (`worker/src/server.ts`) — Separate deploy target; `PORT` (default `3100`), `ALLOWED_ORIGINS` (comma-separated; defaults include localhost and Vercel app URL).
+**No secondary workflow files required for this audit** — single workflow governs PR/push to `main`/`master`.
 
 ## Environment Configuration
 
-**Required / commonly required variables (names only; never commit values):**
+**Required for core app DB:**
 
-- `DATABASE_URL` — Neon Postgres.
-- `GOOGLE_API_KEY` — Gemini and related server routes.
-- `OPENAI_API_KEY` — Embeddings and hybrid search/RAG.
-- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_S3_BUCKET` — S3.
-- `TMDB_API_KEY` — Metadata enrichment when key present.
-- `NEXT_PUBLIC_WORKER_URL` — Browser calls to ingest worker (`src/app/(site)/ingest/page.tsx`).
-- `NEXT_PUBLIC_SITE_URL` — Canonical site URL for metadata (`src/app/layout.tsx`).
+- `DATABASE_URL` — Required at runtime in `src/db/index.ts` (throws if missing).
 
-**Optional / feature-specific:**
+**Required for full ingest / media:**
 
-- `METROVISION_LLM_GATE_SECRET` — Gates `POST /api/rag` behind header `x-metrovision-llm-gate` when set.
-- `METROVISION_PROCESS_SCENE_SECRET` — Gates `POST /api/process-scene` behind header `x-metrovision-process-scene-secret` when set; route returns `503` on Vercel regardless.
-- `METROVISION_ALLOW_API_KEY_QUERY` — Set `true` only to allow legacy `?api_key=` on v1 REST during migration (default: Bearer only).
-- `SCENEDETECT_PATH` — Custom PySceneDetect binary (`src/lib/ingest-pipeline.ts`, `worker/src/ingest.ts`).
-- `METROVISION_PYTHON_BIN` — Python executable for server-invoked pipeline (`src/app/api/process-scene/route.ts`).
-- `REPLICATE_API_TOKEN`, `REPLICATE_YOLO_MODEL`, `GEMINI_API_KEY` — As above.
-- `PORT`, `ALLOWED_ORIGINS` — Worker.
+- `GOOGLE_API_KEY` — Gemini calls in `src/lib/ingest-pipeline.ts`.
+- AWS S3 variables — As above for uploads and signed URLs.
+
+**Common optional / feature flags:**
+
+- `OPENAI_API_KEY` — Search, RAG, embeddings scripts.
+- `REPLICATE_API_TOKEN` — Image embeddings / optional detection models.
+- `NEXT_PUBLIC_SITE_URL` — Public site base (e.g. thumbnail URLs for Replicate).
+- `NEXT_PUBLIC_WORKER_URL` / `INGEST_WORKER_URL` — Delegate ingest to worker (`src/lib/ingest-worker-delegate.ts`, `src/components/tuning/tuning-workspace.tsx`).
+- Boundary tuning: `METROVISION_BOUNDARY_DETECTOR`, `METROVISION_BOUNDARY_MERGE_GAP_SEC`, `METROVISION_EXTRA_BOUNDARY_CUTS_JSON`, `METROVISION_CLASSIFY_CONCURRENCY`, long-shot review seconds (`src/lib/pipeline-provenance.ts`), stream/remux overrides (`METROVISION_STREAM_REMOTE_VIDEO`, `METROVISION_FORCE_LOCAL_VIDEO_REMUX`).
+- `TMDB_API_KEY` — Film metadata.
+- `PORT` — Worker listen port (default `3100`, `worker/src/server.ts`).
 
 **Secrets location:**
 
-- Local: `.env.local` at repo root (gitignored; loaded by `src/db/load-env.ts` and `pipeline/config.py`). Worker processes should inject the same variables in production.
+- Host environment (Vercel, Railway, local `.env`); never commit values. `src/db/load-env.ts` assists local Drizzle/app loading.
 
 ## Webhooks & Callbacks
 
 **Incoming:**
 
-- Not detected — No Stripe/GitHub-style webhook routes identified as first-party integration endpoints in this audit.
+- Standard Next.js Route Handlers under `src/app/api/**` and Express routes in `worker/src/server.ts` (e.g. ingest SSE, boundary detect). No third-party webhook receivers identified as dedicated subsystems in manifests.
 
 **Outgoing:**
 
-- Not detected — No registered outbound webhook dispatch to third parties; the ingest worker uses **SSE** streaming to clients (internal HTTP pattern, not an external webhook provider).
-
-**Internal queues:**
-
-- **Postgres `batch_jobs`** — Claimed with `FOR UPDATE SKIP LOCKED` in `pipeline/batch_worker.py` (application-level job queue, not BullMQ/Redis).
+- HTTPS calls to Google Generative AI, OpenAI, Replicate; TMDB HTTP API; S3 AWS API.
 
 ---
 
-*Integration audit: 2026-04-07*
+*Integration audit: 2026-04-11*

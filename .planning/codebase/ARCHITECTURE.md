@@ -1,185 +1,183 @@
 # Architecture
 
-**Analysis Date:** 2026-04-07
+**Analysis Date:** 2026-04-11
 
 ## Pattern Overview
 
-**Overall:** Multi-process monorepo — a Next.js 15 App Router application (MetroVision / SceneDeck) as the primary web surface, plus an optional long-running Express worker and a Python batch/CLI pipeline. All processes share the same Neon PostgreSQL database; there is no in-repo Redis or message broker.
+**Overall:** Monorepo with a **Next.js 15 App Router** web application (UI + Route Handlers), a **separate Express worker** for long-running film ingest, and an optional **Python CLI pipeline** that mirrors boundary detection and classification against Postgres. Shared **Drizzle schema** and **domain libraries** in `src/` are consumed by both Next and the worker via relative imports from `worker/`.
 
 **Key Characteristics:**
 
-- **Server-first UI:** Public and app pages under `src/app/(site)/` are React Server Components by default; they import query functions from `src/db/queries.ts` and pass data into client components where interactivity is required.
-- **Colocated API routes:** HTTP and streaming endpoints live beside pages under `src/app/api/**/route.ts` (Route Handlers).
-- **Dual ingest paths:** Interactive ingestion can run inside Next (`src/app/api/ingest-film/stream/route.ts` using `src/lib/ingest-pipeline.ts`) or in the standalone worker (`worker/src/server.ts` → `worker/src/ingest.ts`) for environments where the Next runtime should not run FFmpeg/Gemini-heavy work.
-- **Python for offline batch:** `pipeline/main.py` orchestrates PySceneDetect, clip extraction, Gemini classification, and `pipeline/write_db.py` writes via `psycopg2`; `pipeline/batch_worker.py` polls `batch_jobs` with `FOR UPDATE SKIP LOCKED`.
+- **Server-first UI:** `(site)` pages default to `dynamic = "force-dynamic"` to avoid build-time DB access; data loads in Server Components where possible.
+- **Dual ingest lane:** Interactive ingest can run in **Next** (`src/app/api/ingest-film/stream/route.ts`) or be **proxied** to the worker (`src/lib/ingest-worker-delegate.ts`); production often uses the worker for timeouts and disk/ffmpeg.
+- **Single source of truth:** Postgres (Neon) + `src/db/schema.ts`; `src/db/queries.ts` centralizes read patterns for pages and APIs.
 
 ## Layers
 
-**Presentation (App Router):**
+**Presentation (App Router + React):**
 
-- Purpose: Routing, metadata, layouts, and composition of UI.
-- Location: `src/app/`
-- Contains: `layout.tsx`, `error.tsx`, `not-found.tsx`, route groups `(site)/`, and `api/*/route.ts` handlers.
-- Depends on: `src/components/**`, `src/db/queries.ts`, `src/lib/**` (domain helpers).
-- Used by: Browsers and external API clients hitting `/api/*` and `/api/v1/*`.
+- Purpose: Public pages, layouts, client interactivity where needed.
+- Location: `src/app/`, `src/components/`
+- Contains: Route segments, Server/Client Components, D3 visualizations under `src/components/visualize/`, shadcn-style primitives under `src/components/ui/`.
+- Depends on: `@/db`, `@/lib/*`, `@/components/*`
+- Used by: Browser requests to the Next deployment.
 
-**UI components:**
+**API / Route Handlers:**
 
-- Purpose: Reusable views — films, shots, video overlays, visualizations (D3), verify flows.
-- Location: `src/components/`
-- Contains: Domain folders (`films/`, `shots/`, `video/`, `visualize/`, `verify/`, `layout/`, etc.) and `src/components/ui/` (primitives).
-- Depends on: `src/lib/*` (taxonomy display, utils), hooks in `src/hooks/`.
-- Used by: Pages in `src/app/(site)/`.
+- Purpose: JSON APIs, streaming (SSE), uploads, RAG, v1 search, eval and tuning endpoints.
+- Location: `src/app/api/**/route.ts`
+- Contains: `POST`/`GET` handlers; some routes import heavy stacks (`ffmpeg-static`, ingest) with tracing configured in `next.config.ts`.
+- Depends on: `@/lib/*`, `@/db`
+- Used by: UI, external clients, worker proxy callers.
 
-**Application / domain logic (TypeScript):**
+**Domain & ingest logic (shared TypeScript):**
 
-- Purpose: Taxonomy, ingest orchestration, RAG retrieval helpers, S3, TMDB, rate limiting, export, verification rules, types.
-- Location: `src/lib/`
-- Contains: Cohesive modules such as `src/lib/taxonomy.ts`, `src/lib/ingest-pipeline.ts`, `src/lib/rag-retrieval.ts`, `src/lib/s3.ts`, `src/lib/queue.ts`, `src/lib/types.ts`.
-- Depends on: `src/db/` for persistence helpers where applicable (`@/db` alias).
-- Used by: Route handlers and Server Components.
+- Purpose: Shot detection, Gemini classification, S3, rate limiting, boundary fusion/presets, TMDB, scene grouping, provenance.
+- Location: `src/lib/` (notably `src/lib/ingest-pipeline.ts`, `src/lib/boundary-ensemble.ts`, `src/lib/boundary-fusion.ts`, `src/lib/boundary-cut-preset.ts`, `src/lib/ffmpeg-bin.ts`, `src/lib/s3.ts`, `src/lib/rate-limiter.ts`, `src/lib/taxonomy.ts`)
+- Contains: Pure/domain logic and side-effecting orchestration used by both Next and worker.
+- Depends on: Node APIs, env, external HTTP (Gemini, OpenAI, AWS, TMDB, Replicate as wired by callers).
+- Used by: `src/app/api/*`, `worker/src/ingest.ts`, scripts under `scripts/`.
 
 **Data access:**
 
-- Purpose: Drizzle schema, singleton DB client, SQL-shaped query API, embedding generation scripts.
-- Location: `src/db/`
-- Contains: `src/db/schema.ts` (tables: `films`, `scenes`, `shots`, `shot_metadata`, `shot_semantic`, `verifications`, `shot_embeddings`, `shot_objects`, `pipeline_jobs`, `batch_jobs`, `scene_embeddings`, `film_embeddings`, `corpus_chunks`, `api_keys`), `src/db/index.ts`, `src/db/queries.ts`, `src/db/embeddings.ts`, `src/db/load-env.ts`, maintenance scripts (`generate-embeddings.ts`, `generate-scene-embeddings.ts`, `ingest-corpus.ts`).
-- Depends on: `@neondatabase/serverless` + `drizzle-orm/neon-http` in `src/db/index.ts`.
-- Used by: All Next.js server code that reads or writes the database.
+- Purpose: Drizzle client singleton, schema, typed query helpers, embeddings helpers, boundary-tuning queries.
+- Location: `src/db/index.ts`, `src/db/schema.ts`, `src/db/queries.ts`, `src/db/boundary-tuning-queries.ts`, `src/db/embeddings.ts` (and related), `src/db/load-env.ts`
+- Contains: Table definitions (films, scenes, shots, metadata, vectors, jobs, eval/boundary tables), query functions consumed by routes and pages.
+- Depends on: `@neondatabase/serverless`, `drizzle-orm`, `DATABASE_URL`
+- Used by: Next app and worker (`worker/src/db.ts` re-exports schema from `src/db/schema.ts`).
 
-**Worker (Express):**
+**Long-running worker (Express):**
 
-- Purpose: Dedicated HTTP service for SSE film ingestion without Vercel time limits; mirrors much of the Next ingest flow.
-- Location: `worker/src/`
-- Contains: `worker/src/server.ts`, `worker/src/ingest.ts`, `worker/src/db.ts`, `worker/src/schema.ts`, `worker/src/s3.ts`.
-- Depends on: Same stack family as app (Drizzle + Neon + AWS SDK) but **separate** `package.json` and compiled output; schema is duplicated in `worker/src/schema.ts` relative to `src/db/schema.ts`.
-- Used by: Operators or the frontend when configured to call the worker origin instead of Next ingest routes.
+- Purpose: SSE film ingest and detect-only boundary API with local disk and ffmpeg; avoids serverless limits.
+- Location: `worker/src/server.ts`, `worker/src/ingest.ts`, `worker/src/boundary-detect.ts`, `worker/src/s3.ts`
+- Contains: HTTP server, streaming handler, DB wiring.
+- Depends on: `../../src/lib/*` and `../../src/db/schema.js` (runtime via tsx or bundled output).
+- Used by: Operators / UI when `INGEST_WORKER_URL` or `NEXT_PUBLIC_WORKER_URL` is set; direct `POST` to worker routes.
 
-**Python pipeline:**
+**Python pipeline (offline / batch):**
 
-- Purpose: CLI and batch workers for shot detection, FFmpeg clip extraction, Gemini classification with rate limiting, and direct Postgres writes.
-- Location: `pipeline/`
-- Contains: `pipeline/main.py`, `pipeline/batch_worker.py`, `pipeline/shot_detect.py`, `pipeline/extract_clips.py`, `pipeline/classify.py`, `pipeline/write_db.py`, `pipeline/taxonomy.py`, `pipeline/config.py`, `pipeline/rate_limiter.py`.
-- Depends on: `psycopg2`, local tools (FFmpeg, PySceneDetect paths from config); `DATABASE_URL` (existence only — do not commit values).
-- Used by: CLI operators and `pnpm batch-worker` / `python -m pipeline.batch_worker`.
+- Purpose: PySceneDetect-based detection, clip extraction, Gemini classification, optional TransNet cuts, DB writes — parallel path to TS ingest.
+- Location: `pipeline/main.py`, `pipeline/shot_detect.py`, `pipeline/classify.py`, `pipeline/extract_clips.py`, `pipeline/write_db.py`, `pipeline/batch_worker.py`, `pipeline/taxonomy.py`
+- Contains: CLI entry, Python rate limiting (`pipeline/rate_limiter.py`), taxonomy mirror of `src/lib/taxonomy.ts` (must stay in sync).
+- Depends on: Python venv, ffmpeg, env for Gemini/DB; optional TransNet (`pipeline/transnet_cuts.py`).
+- Used by: `python -m pipeline.main` (and root `pnpm batch-worker` → `python3 -m pipeline.batch_worker`).
+
+**Tooling & eval (Node scripts):**
+
+- Purpose: Boundary F1 eval, export predicted cuts, sweeps, schema/taxonomy checks — no UI.
+- Location: `scripts/*.ts` (invoked via `package.json` scripts), reads/writes under `eval/`.
+- Depends on: `src/lib/*` for shared eval/boundary math where applicable.
+- Used by: CI (`pnpm eval:smoke`), local research.
 
 ## Data Flow
 
-**Browse / detail pages (read path):**
+**Browse / detail pages:**
 
-1. User requests a route under `src/app/(site)/` (e.g. `src/app/(site)/browse/page.tsx`).
-2. The Server Component calls functions in `src/db/queries.ts` (e.g. `getAllFilms`, `getAllShots`, `searchShots`).
-3. `queries.ts` uses `db` from `src/db/index.ts` with `schema` from `src/db/schema.ts` to run Drizzle selects/joins.
-4. Serialized props flow into client components (e.g. `src/components/films/film-browser.tsx`, `src/components/shots/shot-browser.tsx`).
+1. Request hits a Server Component page under `src/app/(site)/` (e.g. `src/app/(site)/film/[id]/page.tsx`, `src/app/(site)/shot/[id]/page.tsx`).
+2. Page calls functions in `src/db/queries.ts` using `db` from `src/db/index.ts`.
+3. Response HTML streams to the client; interactive islands use Client Components (e.g. `src/components/video/shot-player.tsx`).
 
-**Ingest (Next SSE path):**
+**Search / RAG:**
 
-1. Client posts to `src/app/api/ingest-film/stream/route.ts` with film metadata and a **local** `videoPath` (server-side filesystem).
-2. The handler opens a `ReadableStream` and emits SSE progress events.
-3. Steps invoke `src/lib/ingest-pipeline.ts` (`detectShots`, `extractLocally`, `uploadAssets`, `classifyShot`, `processInParallel`) and TMDB helpers from `src/lib/tmdb.ts`.
-4. Rows are written via Drizzle in the same route file (e.g. film upsert, shot and metadata inserts) using `src/db/index.ts`.
+1. UI or API calls `src/app/api/search/route.ts` or `src/app/api/rag/route.ts`.
+2. Search uses pgvector paths in `src/db/queries.ts` when embeddings exist; RAG composes retrieval + LLM (rate-limited via `src/lib/rate-limiter.ts`).
 
-**Ingest (Express worker path):**
+**Film ingest (happy path with delegation):**
 
-1. Client or proxy POSTs to `worker` `POST /api/ingest-film/stream` handled by `worker/src/ingest.ts`.
-2. Same conceptual pipeline (detect → extract → classify → S3 → DB) with implementation inside the worker package.
-3. Database access goes through `worker/src/db.ts` and `worker/src/schema.ts`.
+1. Client posts JSON to Next `POST /api/ingest-film/stream` (`src/app/api/ingest-film/stream/route.ts`).
+2. If `resolveIngestWorkerProxyTarget()` in `src/lib/ingest-worker-delegate.ts` returns an origin, the handler forwards the body to `POST {origin}/api/ingest-film/stream` on the worker and streams SSE back.
+3. Worker `worker/src/ingest.ts` resolves video (path or download), calls `detectShotsForIngest`, parallel `classifyShot`, extraction/upload from `src/lib/ingest-pipeline.ts`, persists via Drizzle (`worker/src/db.ts`), records stages via `src/lib/ingest-run-record.ts` / `ingest_runs` table.
 
-**Python batch pipeline:**
+**Film ingest (same process on Next):**
 
-1. `pipeline/batch_worker.py` claims a row from `batch_jobs` using `SKIP LOCKED`.
-2. Processing uses `detect_shots`, `extract_clips`, `classify_shot`, and `write_to_db` in `pipeline/write_db.py`.
-3. Taxonomy validation runs in Python via `pipeline/taxonomy.py` before inserts (aligned with TS taxonomy in `src/lib/taxonomy.ts` conceptually).
+1. Same route without worker URL runs pipeline inline in the Route Handler (same `src/lib/ingest-pipeline.ts` entry points), subject to `maxDuration` and hosting limits.
 
-**RAG (optional LLM Q&A):**
+**Boundary tuning / eval (product + DB):**
 
-1. `src/app/api/rag/route.ts` accepts a `query`, retrieves context via `src/lib/rag-retrieval.ts`, then calls Gemini with `acquireToken()` from `src/lib/rate-limiter.ts`.
+1. Presets and revisions: Next APIs under `src/app/api/boundary-presets/`, `src/app/api/eval-gold-revisions/`, `src/app/api/boundary-eval-runs/`, `src/app/api/films/[id]/boundary-cut-preset/route.ts` backed by `src/db/boundary-tuning-queries.ts` and tables in `src/db/schema.ts` (`boundaryCutPresets`, `evalGoldRevisions`, `boundaryEvalRuns`).
+2. Worker detect-only: `POST /api/boundary-detect` in `worker/src/boundary-detect.ts` returns JSON cuts using preset + `detectShotsForIngest` options.
+3. Offline eval: `scripts/eval-pipeline.ts` compares `eval/gold/*.json` to `eval/predicted/*.json` (see `eval/gold/README.md`).
 
-**Postgres-backed job queue (TypeScript):**
+**Python pipeline CLI:**
 
-1. `src/lib/queue.ts` inserts and claims rows in `pipeline_jobs` via optimistic locking patterns (find queued → update if still queued).
-2. Intended for staged work (`detect`, `extract`, `classify`, `embed`) without Redis.
+1. `pipeline/main.py` loads video, runs `detect_shots` / `detect_and_export`, optionally `extract_clips`, `classify_shot`, then `write_to_db` against Postgres — independent of Next request cycle.
 
 **State Management:**
 
-- **Server state:** Postgres via Drizzle; no global Redux/store in the architecture doc scope.
-- **Client state:** Local React state in `"use client"` components and hooks (e.g. `src/hooks/use-realtime-detection.ts` for object detection UX).
+- **Server state:** Postgres via Drizzle; no global Redux store. **URL/search params** drive filters on browse/visualize pages where applicable.
+- **Client state:** React `useState` / local component state for players, forms, tuning UI (`src/components/tuning/tuning-workspace.tsx`, `src/components/eval/gold-annotate-workspace.tsx`).
 
 ## Key Abstractions
 
-**Taxonomy:**
+**Ingest pipeline orchestration:**
 
-- Purpose: Single source of slug types and allowed values for composition and shot metadata (TS).
-- Examples: `src/lib/taxonomy.ts`, mirrored in `pipeline/taxonomy.py` for Python writes.
-- Pattern: String literal unions / branded slugs in TS; validation functions in Python before SQL.
+- Purpose: End-to-end shot boundaries, clip extraction, S3 upload, Gemini classification, parallelism.
+- Examples: `src/lib/ingest-pipeline.ts`, consumed by `worker/src/ingest.ts`, `src/app/api/ingest-film/stream/route.ts`
+- Pattern: Exported functions (`detectShotsForIngest`, `classifyShot`, `processInParallel`, …) + `ProgressEvent` stream type for SSE.
 
-**Query layer:**
+**Boundary detection configuration:**
 
-- Purpose: Encapsulate complex joins, filters, search, and export shapes away from pages and API routes.
-- Examples: `src/db/queries.ts` (large module aggregating film/shot/verification/visualization queries).
-- Pattern: Export named async functions; import `db` and `schema` from `@/db`.
+- Purpose: Merge PyScene modes, optional extra cuts, fusion policies, DB-backed presets.
+- Examples: `src/lib/boundary-ensemble.ts`, `src/lib/boundary-fusion.ts`, `src/lib/boundary-cut-preset.ts`, `worker/src/boundary-detect.ts`
+- Pattern: Env + JSON preset → options for `detectShotsForIngest`.
 
-**Ingest pipeline module:**
+**Taxonomy as types + allowed slugs:**
 
-- Purpose: Shared steps for shot detection (spawned processes), S3 upload, Gemini classification, parallelism.
-- Examples: `src/lib/ingest-pipeline.ts` (Next); parallel logic in `worker/src/ingest.ts`.
-- Pattern: Progress callbacks / SSE `ProgressEvent` union type in `src/lib/ingest-pipeline.ts`.
+- Purpose: Single composition vocabulary for DB columns and prompts.
+- Examples: `src/lib/taxonomy.ts`, `pipeline/taxonomy.py`
+- Pattern: TypeScript string union types tied to schema columns; Python mirror for the pipeline (`pnpm check:taxonomy`).
 
-**Media URLs:**
+**Query layer for UI/API:**
 
-- Purpose: Normalize storage URLs for the browser (S3 proxy vs legacy blob references).
-- Examples: `src/lib/s3.ts`, `src/app/api/s3/route.ts`; URL rewriting helpers inside `src/db/queries.ts` (e.g. `proxyBlobUrl`).
+- Purpose: Reusable selects/joins, search, export shapes, visualization rows.
+- Examples: `src/db/queries.ts`, `src/lib/viz-shot-map.ts` (viz row mapping)
+- Pattern: Drizzle builder API, exported functions per feature area.
 
 ## Entry Points
 
 **Next.js application:**
 
-- Location: `package.json` scripts — `next dev`, `next build`, `next start`.
-- Triggers: Vercel or local `pnpm dev`.
-- Responsibilities: Full UI, most API routes, server-side ingest when `videoPath` is accessible to the Node process.
+- Location: `next.config.ts`, `src/app/layout.tsx`, `src/app/(site)/layout.tsx`
+- Triggers: Vercel/Node `pnpm dev` / `pnpm start`
+- Responsibilities: SSR/SSG boundaries, Route Handlers under `src/app/api/`, static assets.
 
 **Worker HTTP server:**
 
-- Location: `worker/src/server.ts` (dev: `worker/package.json` → `tsx watch src/server.ts`).
-- Triggers: Manual start on configured `PORT` (default from code: `3100`).
-- Responsibilities: CORS-enabled JSON + SSE ingest endpoint `POST /api/ingest-film/stream`, health at `/health`.
+- Location: `worker/src/server.ts`
+- Triggers: `cd worker && pnpm dev` or `pnpm start` after `pnpm build` in `worker/`
+- Responsibilities: CORS, `POST /api/ingest-film/stream`, `POST /api/boundary-detect`, `GET /health`.
 
-**Python CLI:**
+**Python pipeline:**
 
-- Location: `pipeline/main.py` (`argparse` subcommands for review export and full pipeline).
-- Triggers: `python main.py` from `pipeline/` with appropriate flags.
-- Responsibilities: Offline processing and review artifact generation under configured output dirs (`pipeline/config.py`).
+- Location: `pipeline/main.py`, `pipeline/batch_worker.py`
+- Triggers: `python main.py` from `pipeline/` (with venv), or root npm script for batch worker
+- Responsibilities: CLI-driven detect/classify/write.
 
-**Python batch worker:**
+**CLI eval / maintenance:**
 
-- Location: `pipeline/batch_worker.py` — `python -m pipeline.batch_worker` or root script `pnpm batch-worker`.
-- Triggers: Long-running process polling `batch_jobs`.
-- Responsibilities: Bulk ingestion aligned with batch job rows.
-
-**Database scripts:**
-
-- Location: `src/db/generate-embeddings.ts`, `src/db/generate-scene-embeddings.ts`, `src/db/ingest-corpus.ts`; invoked via `package.json` (`db:embeddings`, `embeddings:scenes`, `corpus:ingest`).
-- Triggers: Operator CLI with `tsx`.
-- Responsibilities: Backfill embeddings and corpus chunks.
+- Location: `scripts/eval-pipeline.ts`, `scripts/export-film-eval.ts`, `scripts/detect-export-cuts.ts`, `scripts/check-schema-drift.ts`, `scripts/check-taxonomy-parity.ts`, `scripts/clear-app-data.ts`
+- Triggers: `pnpm eval:*`, `pnpm detect:*`, `pnpm check:*`, `pnpm db:clear`
+- Responsibilities: Offline analysis, DB hygiene, parity checks.
 
 ## Error Handling
 
-**Strategy:** Per-route and per-layer; no single global error middleware in Next (no `middleware.ts` detected at repo root). API routes return `Response` with JSON bodies and appropriate status codes. Streaming routes catch errors and emit structured error events where implemented.
+**Strategy:** Return `Response` with appropriate HTTP status from Route Handlers; worker uses Express `res.status` + JSON/SSE error events; library code throws `Error` for validation failures caught at route boundaries.
 
 **Patterns:**
 
-- Route Handlers: `try/catch` with `NextResponse` or `new Response(JSON.stringify({ error: ... }), { status })` (see ingest and agent routes).
-- Express worker: Errors propagate from async handler; SSE streams should close gracefully on failure (implementations in `worker/src/ingest.ts`).
-- Python: `psycopg2` context managers in `pipeline/write_db.py`; batch worker handles shutdown via signals in `pipeline/batch_worker.py`.
+- Ingest stream: `ProgressEvent` with `type: "error"` from `src/lib/ingest-pipeline.ts`; proxy failures wrapped in `src/lib/ingest-worker-delegate.ts` (`proxyFailureResponse`).
+- JSON parse / validation: Early `400` responses in routes (e.g. `src/app/api/ingest-film/stream/route.ts`).
 
 ## Cross-Cutting Concerns
 
-**Logging:** `console` in worker (`worker/src/server.ts`) and typical Next server logging; no unified structured logger module detected in `src/`.
+**Logging:** `console` with prefixed tags (e.g. `[classify]`, `[worker]`); structured server logging helpers in `src/lib/server-log.ts` where used.
 
-**Validation:** Taxonomy slug checks in Python (`pipeline/write_db.py` + `pipeline/taxonomy.ts`); request body checks in individual `route.ts` files; `src/lib/validation-rules.ts` for domain rules where used.
+**Validation:** Request body parsing in Route Handlers and worker handlers; timeline parsing via `parseIngestTimelineFromBody` in `src/lib/ingest-pipeline.ts`.
 
-**Authentication:** Public site; API key model for external API (`api_keys` table in `src/db/schema.ts`, usage via `src/lib/api-auth.ts` on v1 routes). No NextAuth/session layer in architecture scope.
+**Authentication:** No end-user auth (public site). **API keys** for v1 API (`src/db/schema.ts` `apiKeys`, routes under `src/app/api/v1/`). Optional **gates** for LLM/process routes documented in `AGENTS.md` (env-based secrets on headers).
+
+**Rate limiting:** `src/lib/rate-limiter.ts` (`acquireToken`) before Gemini (and related) calls in TS; Python `pipeline/rate_limiter.py` for parity.
 
 ---
 
-*Architecture analysis: 2026-04-07*
+*Architecture analysis: 2026-04-11*

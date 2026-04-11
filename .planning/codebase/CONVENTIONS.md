@@ -1,145 +1,150 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-04-07
+**Analysis Date:** 2026-04-11
 
 ## Naming Patterns
 
 **Files:**
 
-- React components and pages: **kebab-case** filenames (e.g. `film-card.tsx`, `shot-browser.tsx`, `metadata-overlay.tsx`) under `src/components/` and `src/app/`.
-- Library and server modules: **kebab-case** (e.g. `rag-retrieval.ts`, `shot-display.ts`, `load-env.ts`) under `src/lib/` and `src/db/`.
-- Python pipeline modules: **snake_case** filenames (e.g. `main.py`, `classify.py`) under `pipeline/`.
-- Worker (Express) TypeScript: **kebab-case** or descriptive single names under `worker/src/` (e.g. `server.ts`, `ingest.ts`).
+- Use **kebab-case** for file names (e.g. `film-browser.tsx`, `boundary-cut-preset.ts`, `metadata-overlay.tsx`). Aligns with `AGENTS.md`.
+- Route segments follow App Router conventions; public marketing/browse routes live under the `(site)` route group in `src/app/(site)/`.
 
-**Functions:**
+**Functions and variables:**
 
-- Use **camelCase** for functions and variables (e.g. `getAllFilms`, `renderMarkdown`, `toGeminiContents`).
-- React components are **PascalCase** named exports (e.g. `export function FilmCard` in `src/components/films/film-card.tsx`).
+- Use **camelCase** for functions, methods, and variables.
 
-**Variables:**
+**React components:**
 
-- **camelCase** for locals and parameters; **UPPER_SNAKE** only where conventional for env-backed constants (not required project-wide).
+- Use **PascalCase** for component names and their defining functions (e.g. `FilmBrowser`, `BrowsePage`).
 
 **Types:**
 
-- **PascalCase** for types and interfaces (e.g. `FilmCardProps`, request body types in `src/app/api/rag/route.ts`).
-- Prefer `type` for object shapes and props; use `interface` where the codebase already does for clarity or extension.
+- Use **PascalCase** for types and interfaces (e.g. `BrowsePageProps`, `ShotSizeSlug`).
+- Prefer `type` for object shapes where the codebase already does; import taxonomy slugs as types from `src/lib/taxonomy.ts`.
+
+**Constants / enums:**
+
+- Taxonomy and shared slugs live as constants in `src/lib/taxonomy.ts` (TypeScript) and must stay in sync with `pipeline/taxonomy.py` (run `pnpm check:taxonomy`).
+
+## Framework and UI (AGENTS.md alignment)
+
+**Next.js App Router:**
+
+- Use the **App Router only** (no Pages Router).
+- Prefer **Server Components** for data fetching; add `"use client"` only when the file needs browser-only APIs or interactive state.
+- Do **not** call `buttonVariants()` from `@/components/ui/button` inside Server Components — that module is client-only. Extract a small client child or use plain `className` strings.
+
+**Styling:**
+
+- Use **Tailwind CSS 4** utility classes. Design tokens live in `src/styles/tokens.css` (OKLCH, dark cinematic theme).
+- Base UI primitives live under `src/components/ui/` (shadcn-style, Radix underneath).
+
+**Data and display:**
+
+- Import the Drizzle client only from `src/db/index.ts` as `db` (AC-04). Prefer the query builder: `db.select().from().where()`.
+- For human-readable taxonomy labels, use `src/lib/shot-display.ts` — avoid duplicating display-name maps elsewhere.
 
 ## Code Style
 
 **Formatting:**
 
-- No committed **Prettier** config at repo root (`.prettierrc*` not present). Style is enforced primarily by **ESLint** and team consistency.
-- TypeScript **strict mode** is enabled in both `tsconfig.json` (Next app) and `worker/tsconfig.json`.
+- No repository-root **Prettier** config detected; rely on ESLint-driven consistency and team/editor defaults.
 
 **Linting:**
 
-- **ESLint 9** flat config in `eslint.config.mjs`.
+- Root ESLint uses the **flat config** in `eslint.config.mjs`.
 - Extends `next/core-web-vitals` and `next/typescript` via `@eslint/eslintrc` `FlatCompat`.
-- Global ignores: `.next/**`, `out/**`, `build/**`, `next-env.d.ts`.
-- Run: `pnpm lint` (maps to `eslint` in root `package.json`).
+- **Ignored paths** (not linted by root ESLint): `.next/`, `out/`, `build/`, `next-env.d.ts`, `.claude/`, `.cursor/`, `.planning/`, `.kiln/`, **`worker/**`**, **`pipeline/**`**. The Express worker is type-checked separately (`pnpm check:worker`).
 
-**TypeScript compiler:**
+**TypeScript:**
 
-- App: `tsconfig.json` — `strict: true`, `moduleResolution: "bundler"`, `jsx: "preserve"`, Next plugin, `noEmit: true`.
-- Worker: `worker/tsconfig.json` — `strict: true`, `outDir: "dist"`, `rootDir: "src"`, emits JS for Node.
+- Root `tsconfig.json`: **`strict`: true**, `noEmit`: true, `moduleResolution`: `"bundler"`, `jsx`: `"preserve"` for Next.
+- Root TypeScript **`exclude`** includes `worker` — the worker uses `worker/tsconfig.json` for its own compile scope.
+
+**Run lint:**
+
+```bash
+pnpm lint
+```
 
 ## Import Organization
 
-**Order (typical in this codebase):**
+**Observed pattern (app and tests):**
 
-1. Next.js or Node built-ins (e.g. `import Image from "next/image"`).
-2. Blank line.
-3. Internal imports via `@/` alias (`@/db/queries`, `@/components/...`, `@/lib/...`).
+1. **Node built-ins** — use the `node:` prefix where used (e.g. `import path from "node:path"` in `scripts/eval-smoke.ts`).
+2. **External packages** — e.g. `next`, `vitest`.
+3. **Blank line** between dependency groups.
+4. **Internal imports** — either `@/...` (preferred in `src/app` and `src/components`) or **relative** `../` from tests in `src/lib/__tests__/` to the module under test.
 
 **Path aliases:**
 
-- `@/*` → `./src/*` (see `tsconfig.json`). Matches shadcn aliases in `components.json`: `components`, `utils`, `ui`, `lib`, `hooks` → `@/components`, `@/lib/utils`, etc.
+- `@/*` maps to `./src/*` in `tsconfig.json`. Vitest mirrors this in `vitest.config.ts` (`resolve.alias`).
 
-**Type-only imports:**
-
-- Use `import type { ... }` when importing only types (e.g. `src/components/films/film-card.tsx`).
+**Example (Server Component page):** `src/app/(site)/browse/page.tsx` — `next` / types first, then `@/components/...`, `@/db/queries`, `@/lib/...`.
 
 ## Error Handling
 
-**Patterns:**
+**API routes (`src/app/api/**/route.ts`):**
 
-- **Fail fast on missing configuration:** throw `Error` when required env is absent (e.g. `src/db/index.ts` for `DATABASE_URL`; Gemini callers in `src/lib/ingest-pipeline.ts` for `GOOGLE_API_KEY` where required).
-- **Route handlers:** wrap `POST`/`GET` in `try/catch`; return `Response.json({ error }, { status })` for client errors (400) and opaque or generic messages for 500 where appropriate.
-- **Streaming / SSE:** errors inside the stream use `console.error` and structured events where applicable (see worker ingest SSE in `worker/src/ingest.ts`).
-- **Non-fatal sub-operations:** empty `catch` blocks with a comment when failure must not abort the main flow (e.g. RAG retrieval in the same route).
+- Validate input early; return **JSON error bodies** with appropriate **HTTP status** (400 for bad input, 401/403 when gated, 500 for unexpected failures).
+- Use **`NextResponse.json`** or **`Response.json`** consistently within a route; many handlers wrap logic in `try/catch` and map errors to a stable `{ error: string }` shape (see e.g. `src/app/api/eval/artifacts/route.ts`).
+- Prefer small helpers for repeated error messages (e.g. `evalArtifactDbErrorMessage` in eval artifact routes).
 
-**eslint and `any`:**
+**Ingest / LLM routes:**
 
-- Prefer typed shapes; when interacting with loosely typed external JSON, use narrow casts or `Record<string, unknown>`. If `any` is unavoidable, use a targeted disable next to the cast.
+- Rate-limit external model calls with `acquireToken()` from `src/lib/rate-limiter.ts` before Gemini (or equivalent) HTTP usage — required by AC-07 (`AGENTS.md`).
+
+**Client vs server:**
+
+- Do not leak secrets or raw upstream HTML bodies to clients; sanitization helpers live in modules such as `src/lib/ingest-error-sanitize.ts` (covered by unit tests).
 
 ## Logging
 
-**Framework:** Node/`console` only (no dedicated logging library detected in root `package.json`).
+**Structured server logging:**
 
-**Patterns:**
+- Use `logServerEvent` from `src/lib/server-log.ts` for JSON lines with `level`, `event`, `service`, and optional fields (see `src/lib/__tests__/server-log.test.ts`).
 
-- `console.error` for operational errors in API routes and stream handlers.
-- Do not log secrets or full request bodies containing credentials.
+**Search / DB:**
+
+- `searchShots` and related DB code may log with a **`[searchShots]`** prefix — keep that convention when extending query code (`AGENTS.md`).
 
 ## Comments
 
 **When to comment:**
 
-- File-level or section banners for domain modules (e.g. block comments at top of `src/lib/taxonomy.ts`).
-- Large client components sometimes use ASCII section dividers (e.g. `src/components/ingest/pipeline-viz.tsx`).
-- Explain **why** for non-obvious control flow (e.g. non-fatal RAG failure, streaming behavior).
+- Use comments for non-obvious invariants, pipeline/env semantics, and constraint references (e.g. AC-XX). Avoid restating what the code already says.
 
-**JSDoc/TSDoc:**
+**Top-of-file / script headers:**
 
-- JSDoc-style blocks used for helper functions where the contract is non-obvious (e.g. non-trivial parsers in `src/lib/ingest-pipeline.ts`). Not required on every exported symbol.
+- Long-running or CI scripts may include a short module doc (e.g. `scripts/eval-smoke.ts`).
 
-## Function Design
+**JSDoc / TSDoc:**
+
+- Not required project-wide; use where it clarifies public library APIs or tricky generics.
+
+## Function and Module Design
 
 **Size:**
 
-- Prefer focused functions; long route handlers may use nested helpers (same file) to keep streaming logic readable.
+- Prefer focused functions; very large route files should still keep validation, orchestration, and side effects visually separable.
 
 **Parameters:**
 
-- Object parameters for structured input (`Request`, destructured body types).
-
-**Return values:**
-
-- App Router handlers return `Response` or `Response.json`.
-- Query/helpers return typed data or `null` for missing rows where appropriate.
-
-## Module Design
+- Use explicit options objects for complex call sites (common in ingest and boundary detection).
 
 **Exports:**
 
-- Named exports for components (`export function FilmCard`) and utilities; default exports appear where Next.js or config expects them (`next.config.ts`, `eslint.config.mjs`, `postcss.config.mjs`).
+- Colocate feature code under `src/components/<domain>/`, `src/lib/`, `src/db/`. No mandatory barrel files; import from the defining module.
 
-**Barrel files:**
+**Worker package:**
 
-- No heavy `index.ts` barrel pattern required; import from concrete paths (`@/components/films/film-card`).
+- `worker/` is ESM (`"type": "module"` in `worker/package.json`). It imports shared app code from `../../src/lib/*` at runtime via `tsx` — keep shared modules worker-safe (no accidental Next-only imports).
 
-## Next.js App Router Conventions
+## Python pipeline (brief)
 
-- **Server Components** by default for pages in `src/app/(site)/` that fetch data (e.g. `src/app/(site)/page.tsx` importing `getAllFilms` from `@/db/queries`).
-- **Client Components:** first statement `"use client";` then React imports (e.g. `src/components/shots/shot-browser.tsx`).
-- **Route segments:** API routes under `src/app/api/**/route.ts`; use `export const runtime = "nodejs"` and `export const dynamic = "force-dynamic"` when needed (see `src/app/api/rag/route.ts`).
-
-## Styling
-
-- **Tailwind CSS 4** with PostCSS plugin `@tailwindcss/postcss` (`postcss.config.mjs`).
-- Global tokens and theme: `src/styles/globals.css` (per `components.json`), design tokens in `src/styles/tokens.css` (referenced in project docs).
-- Use `cn()` from `src/lib/utils.ts` (clsx + tailwind-merge) for conditional classes.
-
-## Python (pipeline)
-
-- Dependencies in `pipeline/requirements.txt`; entry via `python main.py` (per `AGENTS.md`).
-- No project-level pytest/unittest usage detected in `pipeline/*.py` at analysis time.
-
-## Worker package
-
-- Separate package in `worker/` with its own `package.json` and `tsconfig.json`; not fully unified with root ESLint config (worker has no `lint` script in `worker/package.json`). When editing worker code, keep **strict** TypeScript and match existing Express patterns in `worker/src/server.ts` and `worker/src/ingest.ts`.
+- Mirror taxonomy in `pipeline/taxonomy.py` with `src/lib/taxonomy.ts`.
+- Rate-limit Gemini usage in Python as in TS (AC-07).
 
 ---
 
-*Convention analysis: 2026-04-07*
+*Convention analysis: 2026-04-11*

@@ -1,206 +1,199 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-04-07
+**Analysis Date:** 2026-04-11
 
 ## Directory Layout
 
 ```
-SceneDeck/
-├── src/                      # Next.js app source (App Router)
-│   ├── app/                  # Routes, layouts, Route Handlers
-│   ├── components/           # React UI by domain + ui primitives
-│   ├── db/                   # Drizzle schema, client, queries, scripts
-│   ├── hooks/                # Client hooks
-│   ├── lib/                  # Domain logic, integrations, types
-│   └── styles/               # Global CSS and design tokens
-├── worker/                   # Standalone Express ingest service (own package.json)
-│   └── src/
-├── pipeline/                 # Python CLI + batch worker
-├── drizzle/                  # Drizzle Kit migrations (generated output)
-├── public/                   # Static assets
-├── package.json              # Root Next app (name: metrovision)
-├── tsconfig.json             # path alias @/* → ./src/*
-├── drizzle.config.ts         # Drizzle Kit → schema at src/db/schema.ts
-├── next.config.ts            # Next.js config (if present)
-├── components.json           # shadcn/ui config
-└── pnpm-workspace.yaml       # Workspace definition (worker may be excluded)
+MetroVision/
+├── src/                    # Next.js app: App Router, components, shared lib, db
+│   ├── app/                # Routes: (site) pages + api/ Route Handlers
+│   ├── components/         # React UI by domain + ui/ primitives
+│   ├── db/                 # Drizzle schema, queries, seeds, embeddings scripts
+│   ├── lib/                # Domain logic shared with worker and scripts
+│   └── styles/             # Global CSS, tokens
+├── worker/                 # Express ingest worker (pnpm workspace package)
+│   └── src/                # server.ts, ingest.ts, boundary-detect.ts, db.ts, s3.ts
+├── pipeline/               # Python CLI: detect, classify, extract, write_db
+├── scripts/                # TS CLI: eval, detect export, checks, clear data
+├── eval/                   # Gold/predicted JSON, fixtures, run logs (operational)
+├── drizzle/                # SQL migrations + Drizzle Kit meta
+├── public/                 # Static assets
+├── .github/workflows/      # CI (lint, taxonomy, schema, test, eval smoke, build)
+├── package.json            # Root scripts and Next app dependencies
+├── pnpm-workspace.yaml     # workspace: root + worker
+├── next.config.ts          # Next config, ffmpeg trace includes
+├── tsconfig.json           # paths: @/* → src/* ; worker excluded from root emit
+├── vitest.config.ts        # Unit tests
+└── AGENTS.md               # Operator commands and architecture TL;DR
 ```
 
 ## Directory Purposes
 
 **`src/app/`:**
 
-- Purpose: All Next.js routes and API endpoints.
-- Contains: Root `layout.tsx`, `src/app/(site)/` group for marketing and app pages, `src/app/api/**/route.ts` for HTTP.
-- Key files: `src/app/layout.tsx`, `src/app/(site)/layout.tsx`, `src/app/icon.tsx`, `src/app/error.tsx`, `src/app/not-found.tsx`.
-
-**`src/app/(site)/`:**
-
-- Purpose: Shared `SiteShell` layout for main UX pages.
-- Contains: One folder per route (`page.tsx`, optional `loading.tsx`).
-- Key files: `src/app/(site)/layout.tsx`, `src/app/(site)/page.tsx`, `src/app/(site)/browse/page.tsx`, `src/app/(site)/film/[id]/page.tsx`, `src/app/(site)/shot/[id]/page.tsx`, `src/app/(site)/visualize/page.tsx`, `src/app/(site)/ingest/page.tsx`, `src/app/(site)/tuning/page.tsx`, `src/app/(site)/verify/page.tsx`, `src/app/(site)/export/page.tsx`, `src/app/(site)/review-splits/page.tsx`, nested verify routes under `src/app/(site)/verify/`.
-
-**`src/app/api/`:**
-
-- Purpose: Route Handlers (REST + streaming).
-- Contains: Feature folders with `route.ts`.
-- Key files: `src/app/api/ingest-film/stream/route.ts`, `src/app/api/ingest-film/route.ts`, `src/app/api/search/route.ts`, `src/app/api/rag/route.ts`, `src/app/api/s3/route.ts`, `src/app/api/shots/route.ts`, `src/app/api/verifications/route.ts`, `src/app/api/verifications/[shotId]/route.ts`, `src/app/api/v1/films/route.ts`, `src/app/api/v1/shots/route.ts`, `src/app/api/v1/search/route.ts`, `src/app/api/v1/taxonomy/route.ts`, `src/app/api/batch/review/route.ts`, upload routes `src/app/api/upload-video/route.ts`, `src/app/api/upload-to-s3/route.ts`, `src/app/api/detect-objects/route.ts`, `src/app/api/export/route.ts`, `src/app/api/group-scenes/route.ts`, `src/app/api/process-scene/route.ts`.
+- Purpose: Next.js App Router tree: public UI and API.
+- Contains: `layout.tsx`, `page.tsx`, dynamic segments, Route Handlers `route.ts`.
+- Key files: `src/app/layout.tsx` (root fonts, metadata), `src/app/(site)/layout.tsx` (`force-dynamic`, `SiteShell`), `src/app/api/ingest-film/stream/route.ts`, `src/app/api/rag/route.ts`, `src/app/api/search/route.ts`, boundary/eval APIs under `src/app/api/boundary-*`, `src/app/api/eval-*`.
 
 **`src/components/`:**
 
-- Purpose: Presentation and feature UI.
-- Contains: `archive/`, `eval/`, `export/`, `films/`, `home/`, `layout/`, `review/`, `shots/`, `verify/`, `video/`, `visualize/`, and `ui/` for shared primitives.
-- Key files: `src/components/layout/site-shell.tsx`, `src/components/video/shot-player.tsx`, `src/components/video/metadata-overlay.tsx`, `src/components/visualize/viz-dashboard.tsx`.
-
-**`src/db/`:**
-
-- Purpose: Database layer for the Next app.
-- Contains: Schema, client, queries, embeddings helpers, env loader, one-off scripts.
-- Key files: `src/db/schema.ts`, `src/db/index.ts`, `src/db/queries.ts`, `src/db/embeddings.ts`, `src/db/load-env.ts`, `src/db/generate-embeddings.ts`, `src/db/generate-scene-embeddings.ts`, `src/db/ingest-corpus.ts`.
+- Purpose: UI building blocks grouped by feature.
+- Contains: `layout/` (shell, header), `visualize/` (D3 dashboards), `video/`, `films/`, `shots/`, `verify/`, `ingest/`, `export/`, `archive/`, `tuning/`, `eval/`, `ui/` (shadcn-style).
+- Key files: `src/components/layout/site-shell.tsx`, `src/components/visualize/viz-dashboard.tsx`, `src/components/video/shot-player.tsx`.
 
 **`src/lib/`:**
 
-- Purpose: Shared non-UI logic consumed by routes and components.
-- Key files: `src/lib/taxonomy.ts`, `src/lib/types.ts`, `src/lib/ingest-pipeline.ts`, `src/lib/rag-retrieval.ts`, `src/lib/s3.ts`, `src/lib/tmdb.ts`, `src/lib/queue.ts`, `src/lib/api-auth.ts`, `src/lib/rate-limiter.ts`, `src/lib/shot-display.ts`, `src/lib/utils.ts`.
+- Purpose: Shared TypeScript domain modules (imported by Next, worker, scripts).
+- Contains: ingest, boundaries, S3, ffmpeg, rate limit, taxonomy, types, viz helpers.
+- Key files: `src/lib/ingest-pipeline.ts`, `src/lib/ingest-worker-delegate.ts`, `src/lib/taxonomy.ts`, `src/lib/types.ts`, `src/lib/eval-cut-json.ts`.
 
-**`src/hooks/`:**
+**`src/db/`:**
 
-- Purpose: Client-only hooks.
-- Example: `src/hooks/use-realtime-detection.ts`.
+- Purpose: Database layer for the app.
+- Contains: `schema.ts`, `index.ts`, `queries.ts`, `boundary-tuning-queries.ts`, seed/embeddings utilities, `load-env.ts`.
+- Key files: `src/db/schema.ts`, `src/db/queries.ts`, `src/db/index.ts`.
 
-**`src/styles/`:**
+**`worker/`:**
 
-- Purpose: Global styles and tokens.
-- Key files: `src/styles/globals.css`, `src/styles/tokens.css`.
-
-**`worker/src/`:**
-
-- Purpose: Express service codebase.
-- Key files: `worker/src/server.ts`, `worker/src/ingest.ts`, `worker/src/db.ts`, `worker/src/s3.ts`; ingest logic shared from `src/lib/ingest-pipeline.ts`.
-- Note: Separate Node project — install and run from `worker/` per `worker/package.json`.
+- Purpose: Long-running Node service for ingest SSE and boundary-detect JSON.
+- Contains: Express app, handlers that import `../../src/lib/*`.
+- Key files: `worker/src/server.ts`, `worker/src/ingest.ts`, `worker/src/boundary-detect.ts`, `worker/src/db.ts`, `worker/package.json`.
 
 **`pipeline/`:**
 
-- Purpose: Python ingestion and classification.
-- Key files: `pipeline/main.py`, `pipeline/batch_worker.py`, `pipeline/shot_detect.py`, `pipeline/extract_clips.py`, `pipeline/classify.py`, `pipeline/write_db.py`, `pipeline/taxonomy.py`, `pipeline/config.py`, `pipeline/rate_limiter.py`, `pipeline/requirements.txt`.
+- Purpose: Python alternative/batch processing path.
+- Contains: `main.py`, `shot_detect.py`, `classify.py`, `extract_clips.py`, `write_db.py`, `batch_worker.py`, `taxonomy.py`, optional `transnet_cuts.py`.
+- Key files: `pipeline/main.py`, `pipeline/config.py`.
+
+**`scripts/`:**
+
+- Purpose: Node/tsx CLIs wired from root `package.json` `scripts` entries.
+- Contains: `eval-pipeline.ts`, `eval-smoke.ts`, `export-film-eval.ts`, `detect-export-cuts.ts`, `detect-refine-fn-windows.ts`, `eval-boundary-deltas.ts`, `eval-boundary-misses.ts`, sweep scripts, `check-schema-drift.ts`, `check-taxonomy-parity.ts`, `clear-app-data.ts`, `ensure-ffmpeg-static.cjs`.
+
+**`eval/`:**
+
+- Purpose: Human-verified reference JSON (`gold/`), detector output (`predicted/`), sweep fixtures (`fixtures/`), optional TransNet inputs (`extra-cuts/`), run notebooks/logs (`runs/`).
+- Contains: JSON/JSONL/MD artifacts; not all files are committed in every clone.
+- Key files: `eval/gold/template.json`, `eval/gold/README.md`, `eval/runs/README.md`, `eval/runs/STATUS.md`, `eval/fixtures/README.md`.
 
 **`drizzle/`:**
 
-- Purpose: SQL migrations generated by Drizzle Kit.
-- Generated: Yes (via `pnpm db:generate`).
-- Committed: Typically yes (migration history).
+- Purpose: Versioned SQL migrations and Drizzle Kit journal/snapshots.
+- Contains: `0000_*.sql` … `0009_*.sql`, `meta/_journal.json`.
 
 **`.planning/`:**
 
-- Purpose: GSD / planning artifacts (including this document).
-- Key path: `.planning/codebase/` for mapper outputs.
-
-**`.kiln/` (if present):**
-
-- Purpose: Kiln pipeline docs and architecture reference (read-only for mappers).
+- Purpose: Planning and codebase reference docs (this folder).
+- Contains: `codebase/*.md` and other research artifacts as maintained by the team.
 
 ## Key File Locations
 
 **Entry Points:**
 
-- `package.json`: Next.js dev/build/start scripts for the main app.
-- `worker/package.json`: `dev`, `build`, `start` for the Express worker.
+- `src/app/layout.tsx`: Root HTML shell, fonts, global CSS import.
+- `src/app/(site)/page.tsx`: Landing.
+- `worker/src/server.ts`: Express listen and route registration.
 - `pipeline/main.py`: Python CLI entry.
-- `pipeline/batch_worker.py`: Long-running batch consumer.
 
 **Configuration:**
 
-- `tsconfig.json`: `@/*` → `./src/*`.
-- `drizzle.config.ts`: schema path and migration output `drizzle/`.
-- `eslint.config.mjs` or equivalent: at repo root (lint via `pnpm lint`).
-- `components.json`: shadcn/ui paths (typically `src/components/ui`).
+- `next.config.ts`: `serverExternalPackages`, `outputFileTracingIncludes` for ffmpeg routes, `images.remotePatterns`.
+- `tsconfig.json`: `@/*` → `./src/*`; `worker` excluded from root project emit scope.
+- `drizzle.config.ts`: Drizzle Kit config (repo root).
+- `vitest.config.ts`: Test runner config.
+- `worker/tsconfig.json`: Worker TypeScript project (`pnpm check:worker`).
 
 **Core Logic:**
 
-- `src/db/schema.ts`: Table definitions and inferred types.
-- `src/db/queries.ts`: Application query API for pages and routes.
-- `src/lib/ingest-pipeline.ts`: Next-side ingest steps shared with streaming route.
+- `src/lib/ingest-pipeline.ts`: Ingest orchestration.
+- `src/db/schema.ts`: Table definitions and JSONB payload types.
+- `src/db/queries.ts`: Read/write helpers for pages and APIs.
 
 **Testing:**
 
-- Not detected: no `*.test.ts` / `vitest.config` / `jest.config` at project root in current tree snapshot — add tests alongside features or under a dedicated `tests/` directory if introduced.
+- `src/lib/__tests__/*.test.ts`: Vitest unit tests co-located under `__tests__`.
 
 ## Naming Conventions
 
 **Files:**
 
-- Route segments: Next conventions — `page.tsx`, `layout.tsx`, `loading.tsx`, `route.tsx` / `route.ts` under `api/`.
-- Components: kebab-case filenames (e.g. `shot-player.tsx`, `site-shell.tsx`) with PascalCase default exports inside.
-- Lib modules: kebab-case `ingest-pipeline.ts`, `shot-display.ts`.
+- **kebab-case** for most TS/TSX files: `ingest-pipeline.ts`, `site-shell.tsx`, `gold-annotate-workspace.tsx`.
+- **Route segments:** Next conventions — `page.tsx`, `layout.tsx`, `route.ts` inside folders like `film/[id]/`.
 
 **Directories:**
 
-- `src/components/` grouped by domain (`films/`, `shots/`, `video/`).
-- `src/app/api/` grouped by resource (`v1/`, `batch/`, `eval/`, etc.).
+- **kebab-case** under `src/components/` and `src/app/` route folders: `eval/gold-annotate/`, `tuning/workspace/`.
+- **Python:** snake_case modules: `shot_detect.py`, `write_db.py`.
 
-**Symbols:**
+**Symbols (observed):**
 
-- Drizzle tables: camelCase exports mapping to snake_case SQL columns in `src/db/schema.ts` (e.g. `shotMetadata`, column `shot_id`).
-- Types: exported from schema (`Film`, `Shot`, `PipelineJob`) and from `src/lib/types.ts` for cross-cutting DTOs.
+- React components: **PascalCase** (`SiteShell`, `VizDashboard`).
+- Functions/variables: **camelCase** (`detectShotsForIngest`, `searchShots`).
+- Drizzle tables: **camelCase** exports (`films`, `shotMetadata`, `boundaryCutPresets`).
 
 ## Where to Add New Code
 
-**New Feature (user-facing page):**
+**New public page:**
 
-- Primary code: `src/app/(site)/<feature>/page.tsx`.
-- Layout: extend `src/app/(site)/layout.tsx` or add a nested `layout.tsx` under the feature folder.
-- UI: `src/components/<domain>/`.
-- Data: new query functions in `src/db/queries.ts` or a focused module under `src/db/` if the query surface is large.
+- Route: `src/app/(site)/<segment>/page.tsx`.
+- Shared chrome: reuse `src/components/layout/site-shell.tsx` via `(site)/layout.tsx`.
 
-**New API Route:**
+**New API route:**
 
-- Implementation: `src/app/api/<resource>/route.ts` (or `[id]/route.ts` for dynamic segments).
-- Shared logic: `src/lib/`.
-- Auth for external API: `src/lib/api-auth.ts` pattern for `src/app/api/v1/*`.
+- Handler: `src/app/api/<resource>/route.ts` (or dynamic `src/app/api/<resource>/[id]/route.ts`).
+- DB access: add query helpers to `src/db/queries.ts` (or a focused module under `src/db/` if large), import `db` from `src/db/index.ts`.
 
-**New Component:**
+**New UI component:**
 
-- Implementation: `src/components/<domain>/<name>.tsx`.
-- Primitives: add or extend `src/components/ui/` following existing shadcn patterns.
+- Feature-specific: `src/components/<domain>/<name>.tsx`.
+- Primitives: extend `src/components/ui/` following existing shadcn patterns.
 
-**New Database Table:**
+**New shared domain logic (Next + worker):**
 
-- Schema: `src/db/schema.ts`.
-- Migrations: `pnpm db:generate` then apply per project workflow (`pnpm db:push` or migrate).
-- Queries: `src/db/queries.ts` (or split file if the team introduces `src/db/queries/*.ts`).
+- Implementation: `src/lib/<topic>.ts`.
+- Wire worker: import from `../../src/lib/...` in `worker/src/*.ts` (tsx dev or esbuild bundle with `packages: external`).
+
+**New database table:**
+
+- Definition: `src/db/schema.ts`.
+- Migration: `pnpm db:generate` / apply via Drizzle workflow in `drizzle/`.
+- Queries: `src/db/queries.ts` or `src/db/boundary-tuning-queries.ts` for tuning-related tables.
+
+**New Python pipeline stage:**
+
+- Module: `pipeline/<module>.py`; wire from `pipeline/main.py` or `pipeline/batch_worker.py`.
+- Taxonomy: update `pipeline/taxonomy.py` and `src/lib/taxonomy.ts` together (`pnpm check:taxonomy`).
+
+**New eval script or offline job:**
+
+- Script: `scripts/<name>.ts`, expose via `package.json` `"scripts"` with `tsx scripts/<name>.ts`.
+- Inputs/outputs: prefer `eval/gold/`, `eval/predicted/`, `eval/runs/` for consistency.
 
 **Worker-only behavior:**
 
-- Code: `worker/src/`; DB schema is `src/db/schema.ts` (imported by `worker/src/db.ts`).
-
-**Python pipeline step:**
-
-- Code: new module under `pipeline/`; wire from `pipeline/main.py` or `pipeline/batch_worker.py`; keep `pipeline/taxonomy.py` aligned with `src/lib/taxonomy.ts`.
-
-**Utilities:**
-
-- Shared helpers: `src/lib/utils.ts` for generic helpers; domain-specific helpers next to the domain (`src/lib/shot-display.ts`, etc.).
+- Handlers: `worker/src/<feature>.ts`, register in `worker/src/server.ts`.
 
 ## Special Directories
 
-**`worker/`:**
+**`worker/node_modules/` / `worker/dist/`:**
 
-- Purpose: Independent Node service for ingest; not bundled into the Next.js build.
-- Generated: `worker/dist/` after `pnpm build` inside `worker/`.
-- Committed: Source yes; `node_modules/` and build output typically gitignored.
-
-**`pipeline/`:**
-
-- Purpose: Python virtualenv and CLI; not part of the pnpm workspace install.
-- Generated: Clip and review output dirs per `pipeline/config.py` (operator-local).
-- Committed: Source yes; venv and large media outputs typically gitignored.
+- Purpose: Worker package install and esbuild output when built.
+- Generated: `dist/` by `pnpm build` inside `worker/`; `node_modules` by install.
+- Committed: No (should be gitignored).
 
 **`.next/`:**
 
-- Purpose: Next.js build cache and output.
+- Purpose: Next build cache and server output.
 - Generated: Yes.
 - Committed: No.
 
+**`eval/predicted/` and `eval/runs/`:**
+
+- Purpose: Operational eval outputs and logs.
+- Generated: Yes (scripts and operators).
+- Committed: Optional per team policy; many JSON/MD files are local experiment artifacts.
+
 ---
 
-*Structure analysis: 2026-04-07*
+*Structure analysis: 2026-04-11*

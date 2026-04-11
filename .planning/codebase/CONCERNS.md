@@ -1,170 +1,139 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-04-07
+**Analysis Date:** 2026-04-11
 
 ## Tech Debt
 
-**Documentation vs. repository state (AC-23):**
-- Issue: `.kiln/docs/codebase-state.md` still states `src/app/api/detect-shots/route.ts` exists as a Python shell-out side channel. That route is not present under `src/app/api/` (only routes such as `process-scene`, `ingest-film`, `detect-objects`, `v1/*`, etc.).
-- Files: `.kiln/docs/codebase-state.md`, `.kiln/docs/arch-constraints.md` (AC-23 narrative references `detect-shots`)
-- Impact: Planners and agents may schedule duplicate consolidation work or misreport compliance.
-- Fix approach: Regenerate or hand-edit `.kiln/docs/codebase-state.md` and any checklists in `.kiln/master-plan.md` / `.kiln/plans/*.md` so they match the live tree; treat AC-23 as satisfied only after explicit verification of all remaining serverless media paths.
+**Python classification module out of sync with composition taxonomy:**
+- Issue: `pipeline/classify.py` imports `MOVEMENT_TYPES`, `DIRECTIONS`, `SPEEDS`, `SPECIAL_ANGLES` from `pipeline/taxonomy.py`, but those symbols are not defined in `pipeline/taxonomy.py` (composition-only slugs: framing, depth, blocking, symmetry, dominant lines, lighting, color temperature, shot size, angles, duration). Any run of `python main.py` that reaches `classify_shot` will fail at import time once the `google` SDK is installed.
+- Files: `pipeline/classify.py`, `pipeline/taxonomy.py`, `pipeline/main.py`
+- Impact: Bulk / CLI Python classification path is not runnable without rewriting the prompt and validation to match TS / `write_db.py` expectations.
+- Fix approach: Align `classify.py` JSON schema and prompt with `src/lib/taxonomy.ts` + `pipeline/taxonomy.py`; update `DEFAULT_CLASSIFICATION` and validators; extend CI to `python -c "import pipeline.classify"` (with venv) or a minimal import smoke after `pip install -r requirements.txt`.
 
-**Drizzle ORM version vs. constraint (AC-14):**
-- Issue: `drizzle-orm` is declared at `^0.45.1` in root `package.json` and `worker/package.json`, while `.kiln/docs/arch-constraints.md` AC-14 and `AGENTS.md` still specify pinning to `~0.38.x`.
-- Files: `package.json`, `worker/package.json`, `.kiln/docs/arch-constraints.md`, `AGENTS.md`
-- Impact: Constraint docs and agent guidance are misleading; upgrade-induced API drift is possible when copying snippets from older Drizzle docs.
-- Fix approach: Either amend AC-14 / `AGENTS.md` to the chosen major line and document migration notes, or downgrade and regression-test if strict compliance is required.
+**Monolithic modules (high change cost, review burden):**
+- Issue: Several files exceed ~1k lines and mix UI, data fetching, and domain logic.
+- Files: `src/components/eval/gold-annotate-workspace.tsx`, `src/db/queries.ts`, `src/lib/object-detection.ts`, `src/lib/ingest-pipeline.ts`, `src/components/ingest/pipeline-viz.tsx`, `src/components/review/review-splits-workspace.tsx`
+- Impact: Regressions are easy to miss; merges conflict often; behavior is hard to test in isolation.
+- Fix approach: Extract query helpers from `src/db/queries.ts`, split ingest stages in `src/lib/ingest-pipeline.ts`, and peel presentational subcomponents from the largest client workspaces.
 
-**AGENTS.md scripts vs. root `package.json`:**
-- Issue: `AGENTS.md` documents `pnpm db:seed` (`tsx src/db/seed.ts`), but root `package.json` has no `db:seed` script and no `src/db/seed.ts` file was found in the tree.
-- Files: `AGENTS.md`, `package.json`
-- Impact: Onboarding commands fail; operators assume seeding exists.
-- Fix approach: Add the script and seed module, or remove the command from `AGENTS.md`.
+**Worker loads shared TS via `default ?? named` interop:**
+- Issue: `worker/src/ingest.ts` repeatedly does `(module as { default?: T }).default ?? module` for many `../../src/lib/*.js` imports to survive ESM/CJS shape differences.
+- Files: `worker/src/ingest.ts`
+- Impact: Easy to break the worker when refactoring exports in `src/lib/*` without running `pnpm check:worker` and a dev ingest smoke test.
+- Fix approach: Standardize shared modules on a single export style or add a tiny `interopDefault` helper + contract tests.
 
-**Dual Drizzle schema definitions:** *(resolved 2026-04)* — `worker/src/db.ts` imports `src/db/schema.ts` directly; `scripts/check-schema-drift.ts` asserts shared tables exist. Keep worker imports pointed at the app schema when adding tables.
-
-**Package naming drift:**
-- Issue: Root `package.json` uses `"name": "metrovision"` while historical references still say "scenedeck" (`AGENTS.md` config section).
-- Files: `package.json`, `AGENTS.md`
-- Impact: Low; mainly confusion in docs and tooling.
-- Fix approach: Align naming in docs or rename package consistently.
+**Documentation drift (movement taxonomy):**
+- Issue: `.kiln/docs/arch-constraints.md` AC-02 still describes camera movement slug parity between TS and Python; the live constraint in `AGENTS.md` / `src/lib/taxonomy.ts` is composition-first with movement removed from the shared taxonomy.
+- Files: `.kiln/docs/arch-constraints.md`, `AGENTS.md`, `src/lib/taxonomy.ts`
+- Impact: Planners may reintroduce removed enums or mis-prioritize parity checks.
+- Fix approach: Update kiln AC-02 to match `scripts/check-taxonomy-parity.ts` and current `pipeline/taxonomy.py` fields.
 
 ## Known Bugs
 
-**`generateApiKey` and `crypto` reference:**
-- Issue: `src/lib/api-auth.ts` imports `createHash` from `node:crypto` but calls `crypto.randomUUID()` without importing `crypto` as a namespace. Behavior depends on global `crypto` (runtime-specific); TypeScript strict setups may flag this.
-- Files: `src/lib/api-auth.ts`
-- Trigger: Calling `generateApiKey` in environments where global `crypto` is not the same as Web Crypto API.
-- Workaround: Use `import { createHash, randomUUID } from "node:crypto"` and `randomUUID()` for keys.
-
-No `TODO` / `FIXME` / `HACK` / `XXX` markers were found in first-party trees `src/`, `worker/src/`, or `pipeline/` (grep); operational risk is in architecture and untested paths rather than commented stubs.
+**Python `classify` import failure (blocked pipeline stage):**
+- Symptoms: ImportError for `MOVEMENT_TYPES` / `SPECIAL_ANGLES` / etc. when loading `pipeline.classify` after dependencies are installed.
+- Files: `pipeline/classify.py`, `pipeline/taxonomy.py`
+- Trigger: `python -m pipeline.main` (or direct `import classify`) in an environment with `google-genai` installed.
+- Workaround: Use the TS ingest worker (`worker/src/ingest.ts`) or Next ingest paths for classification until Python classify is realigned.
 
 ## Security Considerations
 
-**Public, unauthenticated LLM proxy routes (cost & abuse):**
-- Risk: Several route handlers accept arbitrary user input and spend server-side API quota (Gemini, OpenAI, retrieval) without API key checks. This aligns with AC-21 (no end-user auth) but increases operator risk.
-- Files: `src/app/api/rag/route.ts` (POST `query` → retrieval + Gemini) and other ingest/process routes if exposed on a public deployment.
-- Current mitigation: Relies on deployment boundary (not indexed, IP limits, Vercel protection) rather than application-level auth.
-- Recommendations: Add optional shared-secret header for production, per-IP or token bucket at the edge, or restrict these routes to internal networks; monitor spend on Google/OpenAI dashboards.
+**Public v1 surface (by design) with cost and abuse exposure:**
+- Risk: No end-user auth (`AGENTS.md` AC-21). Routes that trigger Gemini, OpenAI embeddings, ffmpeg, or large uploads can be abused if deployed without optional gates.
+- Files: `src/app/api/rag/route.ts` (`src/lib/llm-route-gate.ts`), `src/app/api/process-scene/route.ts`, `src/app/api/upload-video/route.ts`, `src/app/api/ingest-film/stream/route.ts`, `worker/src/server.ts`
+- Current mitigation: Optional `METROVISION_LLM_GATE_SECRET` + `x-metrovision-llm-gate` on gated LLM routes; optional `METROVISION_PROCESS_SCENE_SECRET` on process-scene; eval artifact admin bearer (`src/lib/eval-artifact-gate.ts`); `METROVISION_ALLOW_API_KEY_QUERY` documented as off by default (`src/lib/api-auth.ts`).
+- Recommendations: Treat the Express worker as trusted-network or add shared-secret / mTLS for `POST /api/ingest-film/stream` and `POST /api/boundary-detect` when exposed beyond localhost; restrict `POST /api/upload-video` (auth or same-origin-only) on public hosts; keep production secrets set for RAG and eval admin.
 
-**API keys in query strings:**
-- Risk: `validateApiKey` in `src/lib/api-auth.ts` accepts `?api_key=` which can leak via logs, referrers, and browser history.
-- Files: `src/lib/api-auth.ts`
-- Current mitigation: Keys are stored hashed; Bearer header is preferred in docs.
-- Recommendations: Deprecate query param in favor of `Authorization` only for external integrators.
+**Worker health endpoint metadata:**
+- Risk: `GET /health` returns booleans such as `hasGoogleKey`, `hasAws`, `hasDb` (`worker/src/server.ts`), which aids reconnaissance.
+- Current mitigation: Low sensitivity (no secret values).
+- Recommendations: Omit credential flags in production or protect `/health` behind the same operator controls as ingest.
 
-**`process-scene` trusts server-local `videoPath`:**
-- Risk: `POST` body supplies `videoPath`; the handler uses `access(payload.videoPath, constants.R_OK)` then reads that path. On a shared host, a caller who can hit the route could probe readable paths if the deployment exposes this API without network isolation.
-- Files: `src/app/api/process-scene/route.ts`
-- Current mitigation: Intended for operator-controlled environments with local disk access.
-- Recommendations: Do not expose this route on public Vercel; require auth or restrict to same-origin admin tooling.
-
-**Next.js image remote patterns:**
-- Risk: `next.config.ts` allows `images.remotePatterns` for `https` and `http` with `hostname: "**"`, widening the surface for unexpected image domains.
-- Files: `next.config.ts`
-- Recommendations: Narrow to known CDNs (e.g., S3 host patterns, TMDB) when possible.
+**Unauthenticated video upload to local temp:**
+- Risk: `src/app/api/upload-video/route.ts` accepts arbitrary multipart uploads and writes under `tmpdir()` without authentication.
+- Current mitigation: None in route code.
+- Recommendations: Same as worker — do not expose without network controls; add size quotas and auth if the route is public.
 
 ## Performance Bottlenecks
 
-**Heavy serverless route: `process-scene`:**
-- Problem: `src/app/api/process-scene/route.ts` runs `ffmpeg` via `spawn`, shells to Python for `pipeline.classify.classify_shot`, runs object detection and uploads — far beyond typical Vercel duration and binary availability.
-- Files: `src/app/api/process-scene/route.ts`
-- Cause: Monolithic route couples media processing with Next.js deployment model.
-- Improvement path: Remove or gate behind self-hosted Node; canonical path should remain `worker/src/ingest.ts` (SSE) and Python batch worker per AC-20.
-
-**Semantic search fallback:**
-- Problem: On embedding/vector failures, `searchShots` falls back to ILIKE (`src/db/queries.ts`), which does not scale on large shot tables.
+**Semantic search: embedding path vs ILIKE fallback:**
+- Problem: When `shot_embeddings` is empty or pgvector/query fails, `searchShots` falls back to ILIKE (`src/db/queries.ts`), which does not scale like vector search on large corpora.
 - Files: `src/db/queries.ts`
-- Cause: Defensive fallback after caught errors.
-- Improvement path: Alert on fallback, fix vector extension/connectivity, add indexes for common text filters.
+- Cause: Missing or failed embedding index; dimension/extension issues.
+- Improvement path: Run `pnpm db:embeddings` after ingest; monitor `[searchShots]` logs; ensure pgvector extension per `AGENTS.md` / AC-03.
 
-**Worker concurrent Gemini calls:**
-- ~~Problem: worker classify path lacked rate limit~~ *(resolved)* — worker now calls `classifyShot` from `src/lib/ingest-pipeline.ts`, which uses `acquireToken()` before Gemini.
-- Files: `worker/src/ingest.ts`, `src/lib/ingest-pipeline.ts`, `pipeline/classify.py`
+**Long-running ingest on serverless:**
+- Problem: `src/app/api/ingest-film/stream/route.ts` sets `maxDuration` up to 800s and can run heavy work unless proxied to the worker via `INGEST_WORKER_URL` / `NEXT_PUBLIC_WORKER_URL` (`src/lib/ingest-worker-delegate.ts`).
+- Files: `src/app/api/ingest-film/stream/route.ts`
+- Cause: Platform timeout and cold-start limits vs film-length jobs.
+- Improvement path: Always proxy production ingest to the TS worker; keep worker on a long-lived host.
 
-**RAG route — rate limiter:** *(resolved)* — `src/app/api/rag/route.ts` calls `acquireToken()` before Gemini.
-- Files: `src/app/api/rag/route.ts`, `src/lib/rate-limiter.ts`
+**Large DB query module:**
+- Problem: `src/db/queries.ts` centralizes many hot paths; a single regression affects browse, search, shot detail, and visualize.
+- Files: `src/db/queries.ts`
+- Cause: Organic growth without vertical splits.
+- Improvement path: Split by domain (films, shots, search, eval) and add targeted benchmarks for worst joins.
 
 ## Fragile Areas
 
-**Taxonomy synchronization (AC-02):**
-- Files: `src/lib/taxonomy.ts`, `pipeline/taxonomy.py`
-- Why fragile: Any edit to one file without the other corrupts classification slugs vs. UI expectations.
-- Safe modification: Single commit touching both; add a small script or test that compares key sets.
-- Test coverage: No automated taxonomy parity test detected in-repo.
+**Ingest pipeline orchestration:**
+- Files: `src/lib/ingest-pipeline.ts`, `worker/src/ingest.ts`, `src/app/api/ingest-film/stream/route.ts`
+- Why fragile: Boundary detection env flags, preset resolution, timeline windows, Gemini calls, and S3 uploads interact; small env or schema changes surface late.
+- Safe modification: Run `pnpm check:taxonomy`, `pnpm check:schema-drift`, `pnpm test`, and a short ingest smoke on a clip after changes.
+- Test coverage: Logic-heavy pieces have unit tests under `src/lib/__tests__/` (boundary, ingest timeline, worker origin); full ingest is not covered end-to-end in CI.
 
 **D3 visualization components:**
-- Files: `src/components/visualize/*.tsx` (e.g., `chord-diagram.tsx` uses multiple `eslint-disable` for `any` with D3 callbacks)
-- Why fragile: D3 typings and React lifecycle interact easily with `requestAnimationFrame` and resize observers (AC-16).
-- Safe modification: Always pair rAF with cleanup; run visual smoke tests after dependency upgrades.
+- Files: `src/components/visualize/*.tsx`, constraints in `.kiln/docs/arch-constraints.md` AC-09
+- Why fragile: Partial or malformed datasets cause render failures; `useEffect` + animation loops must clean up (AC-16).
+- Safe modification: Feed complete server-fetched payloads; verify cleanup on navigation in manual QA.
 
-**Large client components:**
-- Files: `src/components/review/review-splits-workspace.tsx` (file-level `eslint-disable react-hooks/exhaustive-deps`), `src/components/ingest/pipeline-viz.tsx`
-- Why fragile: Suppressed hook dependency warnings can hide stale-closure bugs.
-- Safe modification: Replace blanket disables with scoped deps or `useCallback`/`useMemo` with correct lists.
+**Optional `dangerouslySetInnerHTML` for styles:**
+- Files: `src/components/ingest/pipeline-viz.tsx`
+- Why fragile: Any future change that interpolates untrusted strings into `STYLES` would widen XSS risk; current use is static CSS injection.
+- Safe modification: Keep `__html` strictly static or migrate to CSS modules / Tailwind.
 
 ## Scaling Limits
 
-**Neon storage (AC-11):**
-- Resource: Embeddings and media metadata growth.
-- Current capacity: Documented in AC-11 (~166K shots at 768-dim on free tier assumptions).
-- Limit: Storage and connection limits on Neon tier.
-- Scaling path: Monitor Neon dashboard; upgrade tier; consider dimension reduction or archival.
+**Neon storage (vectors and corpus):**
+- Current capacity: Documented in AC-11 (`.kiln/docs/arch-constraints.md`) — rough shot counts for 0.5 GB at 768-dim embeddings.
+- Limit: Free-tier storage and HTTP driver connection patterns on spikes.
+- Scaling path: Neon tier upgrade; monitor storage; batch embedding jobs off critical request path.
 
-**Vercel serverless timeout (AC-01):**
-- Limit: 60s on route handlers.
-- Affected code: Any route that runs subprocesses or long video work — notably `src/app/api/process-scene/route.ts`.
-- Scaling path: Keep heavy work on `worker/` or Python pipeline only.
+**Gemini / OpenAI quotas:**
+- Limit: Rate limits and token spend under anonymous or wide-open deploys.
+- Scaling path: `src/lib/rate-limiter.ts` + `pipeline/rate_limiter.py`; optional LLM gate; tier upgrades.
 
 ## Dependencies at Risk
 
-**Drizzle + Neon stack:**
-- Risk: Major Drizzle jumps (post-0.38) can change inferred types and Kit behavior.
-- Files: `package.json`, `drizzle.config.ts`, `drizzle-kit` devDependency
-- Migration plan: Pin intentionally, read Drizzle changelog before bumps, run `pnpm build` and `drizzle-kit` checks.
-
-**TensorFlow.js / COCO-SSD in browser or API paths:**
-- Files: `@tensorflow/tfjs`, `@tensorflow-models/coco-ssd` in `package.json`, used from `src/lib/object-detection.ts` (large surface)
-- Risk: Bundle size, memory, and CPU on server when invoked from API routes.
-- Impact: Cold starts and timeouts under load.
+**Google GenAI SDK + Python classify alignment:**
+- Risk: `pipeline/classify.py` is incompatible with current `pipeline/taxonomy.py`; upgrading `google-genai` without fixing classify will not restore the pipeline.
+- Impact: Python batch classification unusable until fixed.
+- Migration plan: Rewrite classify prompt/output to composition fields; validate against `pipeline/write_db.py` column expectations.
 
 ## Missing Critical Features
 
-**Automated tests in application source:**
-- Problem: No `*.test.ts` / `*.spec.ts` files under `src/` or `worker/src/` (excluding `node_modules`). No `.github/workflows` CI detected at repository root for lint/build/test.
-- Blocks: Regressions in API contracts, taxonomy, and DB queries go unnoticed until manual QA.
-- Priority: High for any production launch (AC-19 gate).
-
-**Centralized observability:**
-- Problem: Errors are largely `console.error` in route handlers (`src/app/api/*`, `src/db/queries.ts`) without structured logging or APM.
-- Blocks: Production debugging and SLO tracking.
+**Not applicable (product scope):** Authentication and billing are explicitly deferred (AC-21). Track as product risk, not an implementation gap in-repo.
 
 ## Test Coverage Gaps
 
-**API routes:**
-- What's not tested: CRUD/search/export/batch/rag/process-scene behavior.
-- Files: `src/app/api/**/route.ts`
-- Risk: Breaking changes to JSON shapes and status codes.
-- Priority: High.
+**API Route Handlers and pages:**
+- What's not tested: Most `src/app/api/**/route.ts` handlers and large client pages have no automated tests in CI.
+- Files: e.g. `src/app/api/upload-video/route.ts`, `src/app/api/ingest-film/stream/route.ts`, `src/app/(site)/ingest/page.tsx`
+- Risk: Regressions in HTTP contracts, auth gates, and streaming only surface manually or in production.
+- Priority: Medium — add focused route tests (Vitest + `Request` mocks) for upload size, gating headers, and delegate-to-worker branches.
 
-**Worker ingest pipeline:**
-- What's not tested: SSE event sequence, S3 upload failures, Gemini fallback paths in `worker/src/ingest.ts`.
-- Files: `worker/src/ingest.ts`, `worker/src/server.ts`
-- Risk: Silent `fallbackClassification()` under load without alerts.
+**Worker Express server:**
+- What's not tested: `worker/src/server.ts`, CORS matrix, and SSE handler integration.
+- Files: `worker/src/server.ts`, `worker/src/ingest.ts`
+- Risk: CORS or body-limit misconfiguration breaks hosted ingest UIs.
 - Priority: Medium.
 
-**Python pipeline:**
-- What's not tested: End-to-end `classify_shot`, batch worker queue semantics (no pytest discovery in this audit).
-- Files: `pipeline/classify.py`, `pipeline/batch_worker.py`
-- Risk: Rate limiter regressions and Gemini API changes.
-- Priority: Medium.
-
-## Research / ingest accuracy strategy
-
-- **Strategy, constraints, learning-product stance, dev roadmap:** [`.planning/research/ingest-accuracy-hitl-strategy.md`](../research/ingest-accuracy-hitl-strategy.md)
-- **Pipeline whitepaper (proof point — steps, tech, I/O, fidelity):** [`.planning/research/pipeline-whitepaper.md`](../research/pipeline-whitepaper.md)
+**Python pipeline (beyond taxonomy script):**
+- What's not tested: CI runs `pnpm check:taxonomy` and `pnpm eval:smoke` (TS); Python `main.py` / `classify.py` are not exercised in `.github/workflows/ci.yml`.
+- Files: `pipeline/main.py`, `pipeline/classify.py`
+- Risk: The classify/taxonomy drift went undetected by CI.
+- Priority: High until classify is fixed, then add a minimal import or dry-run job.
 
 ---
 
-*Concerns audit: 2026-04-07*
+*Concerns audit: 2026-04-11*
