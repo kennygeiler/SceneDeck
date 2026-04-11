@@ -3,7 +3,8 @@
 **Created:** 2026-04-10  
 **Purpose:** Single reference for (1) the **product goal** of a self-tuning boundary agent fed by ~15 min samples and past sessions, and (2) **ordered work to close Ran** as the first fully tuned benchmark. Update this file when Ran is “done” or when Phase 10/11 scope changes.
 
-**Living metrics + baselines:** [`eval/runs/STATUS.md`](../eval/runs/STATUS.md)  
+**Living metrics + baselines:** [`eval/runs/STATUS.md`](../eval/runs/STATUS.md) — **CEMENTED** production row (2026-04-11).  
+**In-app:** route **`/tuning`** (`src/app/(site)/tuning/page.tsx`).  
 **Operator workflow:** [`docs/tuning-flow.md`](../docs/tuning-flow.md)  
 **Roadmap index:** [`ROADMAP.md`](ROADMAP.md)
 
