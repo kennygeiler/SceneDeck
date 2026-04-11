@@ -5,7 +5,7 @@
 
 ## Outcomes
 
-- `api/rag/route.ts` and `api/agent/chat/route.ts` — `acquireToken` before Gemini.
+- `api/rag/route.ts` — `acquireToken` before Gemini (chat route existed at the time and received the same treatment; later removed).
 - `object-detection.ts` `enrichWithGemini` — `acquireToken` before Gemini.
 
 ## Verification

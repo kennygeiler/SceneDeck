@@ -159,7 +159,7 @@ Gemini 2.5 Flash (real-time)    Gemini Batch API (JSONL, 24h)
 2. **TS Ingest Worker** (`worker/`) -- Interactive single-film pipeline with SSE
 3. **Python Pipeline Library** (`pipeline/`) -- PySceneDetect, classification, batch worker
 4. **D3 Visualizations** (`src/components/visualize/`) -- 6 standalone chart components
-5. **Chat/Agent** (`src/components/agent/`, `src/app/api/agent/`) -- Generative UI chat
+5. **RAG API** (`src/app/api/rag/route.ts`, `src/lib/rag-retrieval.ts`) -- Optional retrieval + Gemini Q&A (no dedicated chat UI)
 6. **Data Layer** (`src/db/`) -- Drizzle schema, queries, embeddings
 7. **Taxonomy** (`src/lib/taxonomy.ts`, `pipeline/taxonomy.py`) -- Shared constants
 8. **ComfyUI Package** (`comfyui-metrovision/`) -- Python node package [NEW]
@@ -169,6 +169,6 @@ Gemini 2.5 Flash (real-time)    Gemini Batch API (JSONL, 24h)
 - **Two-lane pipeline**: TS for interactive (SSE streaming), Python for batch (Gemini Batch API + SKIP LOCKED). Both are canonical; neither replaces the other.
 - **Postgres as universal backbone**: ORM store + vector index + job queue (SKIP LOCKED). No Redis, no BullMQ.
 - **RAG not fine-tuning**: Foundation models augmented with retrieved knowledge, not custom-trained.
-- **Generative UI for chat**: Tool-call-to-component pattern. LLM returns typed JSON, client mounts D3 components. No LLM-generated code execution.
+- **RAG surface**: Retrieval-backed answers via API; no in-app generative chat shell.
 - **Hybrid retrieval**: Vector + BM25 + RRF fusion for highest precision (~84% vs ~62% pure vector).
 - **Multi-granularity embeddings**: Shot + scene + film levels for hierarchical retrieval.

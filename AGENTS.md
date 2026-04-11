@@ -37,7 +37,7 @@ python main.py          # Run pipeline CLI
 
 MetroVision (SceneDeck) is a **shot-level composition archive** at cinematic scale: per-shot **framing, depth, blocking, symmetry, dominant lines, lighting, color temperature, shot size, camera angle, and duration category** (`shot_metadata`), plus semantic text (`shot_semantic`), optional **detections** (`shot_objects`), **human verifications** (`verifications`), and **pgvector** search when embeddings exist. The **legacy camera-movement taxonomy** (movement types, directions, speeds) was **removed** from the shared taxonomy; see comments at the bottom of `src/lib/taxonomy.ts`.
 
-Stack: Next.js 15 App Router (TypeScript, Tailwind CSS 4, shadcn/ui) on Vercel, Neon PostgreSQL + Drizzle. Two-lane ingest: **TS Express worker** (interactive film ingest + SSE) and **Python pipeline** (PySceneDetect + Gemini). Six **D3** visualization panels. **AI chat** with SSE tool calls. **AWS S3** for media. **CI** (`.github/workflows/ci.yml`): `lint`, `check:taxonomy`, `check:schema-drift`, `test` — `build` expects `DATABASE_URL` where prerender hits the DB.
+Stack: Next.js 15 App Router (TypeScript, Tailwind CSS 4, shadcn/ui) on Vercel, Neon PostgreSQL + Drizzle. Two-lane ingest: **TS Express worker** (interactive film ingest + SSE) and **Python pipeline** (PySceneDetect + Gemini). Six **D3** visualization panels. Optional **RAG** (`POST /api/rag`) for retrieval + Gemini answers. **AWS S3** for media. **CI** (`.github/workflows/ci.yml`): `lint`, `check:taxonomy`, `check:schema-drift`, `test` — `build` expects `DATABASE_URL` where prerender hits the DB.
 
 ## Conventions
 
@@ -72,10 +72,9 @@ src/app/(site)/browse/page.tsx        -- Film/shot browse with filters
 src/app/(site)/film/[id]/page.tsx     -- Film detail page
 src/app/(site)/shot/[id]/page.tsx     -- Shot detail with metadata overlay
 src/app/(site)/verify/page.tsx        -- HITL verification queue
-src/app/(site)/agent/page.tsx         -- AI chat interface
 src/app/(site)/visualize/page.tsx     -- D3 visualization dashboard
 src/app/(site)/ingest/page.tsx        -- Film ingest UI
-src/app/(site)/admin/page.tsx         -- Admin panel
+src/app/(site)/tuning/page.tsx        -- Boundary tuning hub (canonical env + eval links)
 src/app/(site)/export/page.tsx        -- JSON/CSV export + citation block
 
 # Landing / trust / demo (composition wedge)
@@ -104,12 +103,6 @@ src/components/visualize/director-radar.tsx
 src/components/visualize/rhythm-stream.tsx
 src/components/visualize/hierarchy-sunburst.tsx
 src/components/visualize/pacing-heatmap.tsx
-
-# AI Agent
-src/lib/agent-system-prompt.ts        -- Agent system prompt
-src/lib/agent-tools.ts                -- Agent tool definitions
-src/app/api/agent/chat/route.ts       -- Chat SSE endpoint
-src/components/agent/chat-interface.tsx -- Chat UI
 
 # TS Ingest Worker
 worker/src/server.ts                  -- Express server entry
@@ -155,7 +148,7 @@ vitest.config.ts                      -- Unit tests (`src/lib/__tests__/`)
 - **Visual similarity (Phase D):** Table `shot_image_embeddings` (768-d CLIP via Replicate). **`pnpm db:embeddings:image`** requires **`REPLICATE_API_TOKEN`**, public **`NEXT_PUBLIC_SITE_URL`** (so `/api/s3` thumbnail URLs resolve), and optional **`REPLICATE_CLIP_EMBEDDING_MODEL`**. **`GET /api/shots/[id]/similar-visual`** returns nearest neighbors by cosine distance.
 - **TransNet cuts → ingest:** In `pipeline/.venv`, `pip install -r requirements-transnet.txt`, then `python -m pipeline.transnet_cuts /path/film.mp4 -o cuts.json`. **Worker / ingest JSON** accepts **`extraBoundaryCuts`: number[]** (merged with **`METROVISION_EXTRA_BOUNDARY_CUTS_JSON`**). Prefer **`METROVISION_BOUNDARY_DETECTOR=pyscenedetect_ensemble_pyscene`** so PyScene and TransNet cuts fuse via NMS.
 - **Eval (gold vs predicted):** Human writes **`eval/gold/<film>.json`** (`cutsSec`, optional `shots` with `framing` / `shotSize`). Ran hand-cut convention: **`eval/gold/gold-ran-2026-04-10.json`** (copy from local machine into repo; see **`eval/gold/README.md`**). Predicted boundaries: **`pnpm eval:export-film -- <filmId>`** (from DB) or **`pnpm detect:export-cuts -- <videoPath>`** (detect-only, no DB/Gemini; optional **`--fusion-policy`** `merge_flat` \| `auxiliary_near_primary` \| `pairwise_min_sources`, `--extra-cuts`, `--gold`, `--ledger`, timeline `--start`/`--end`). **FN-window second pass:** **`pnpm detect:refine-fn-windows -- <videoPath> --gold ... --pred ...`** (optional **`--pad`**, **`--max-windows`**, **`--out`**; stderr shows baseline vs refined F1). **`pnpm eval:pipeline -- eval/gold/foo.json eval/predicted/foo.json --tol 0.5 --slots`** prints precision/recall/F1 and optional slot accuracy. **Canonical Ran baseline + benchmark targets:** **`eval/runs/STATUS.md`** (section **CEMENTED**). **In-app boundary tuning hub:** **`/tuning`**. Run log: **`eval/runs/README.md`** / **`ledger.jsonl`**. Per-film **tuning flow** (CLI → product): **`docs/tuning-flow.md`**. Matched-pair **|pred−gt|** stats: **`npm run eval:boundary-deltas`**. **FN/FP cut lists** (same match as F1): **`pnpm eval:boundary-misses -- eval/gold/foo.json eval/predicted/foo.json [--tol 0.5] [--json] [--markdown] [--out PATH]`**. TransNet × merge-gap grid: **`npm run eval:sweep-transnet`** (see **`eval/runs/2026-04-10-transnet-threshold-sweep.md`**). **`/eval/gold-annotate`** can **save gold/predicted JSON to Postgres** (`eval_artifacts`); retrieval is **`GET /api/eval/artifacts/<id>?t=<token>`** (token shown once on create). See **`METROVISION_EVAL_ARTIFACT_ADMIN_SECRET`** under Production hardening.
-- **Gemini (AC-07):** `acquireToken()` from `src/lib/rate-limiter.ts` (~130 RPM token bucket) runs before Gemini HTTP calls in `ingest-pipeline.ts` (used by Next ingest stream **and** the Express worker), `object-detection.ts` (enrichment). `api/agent/chat` and `api/rag` should align with the same limiter where they call Gemini.
+- **Gemini (AC-07):** `acquireToken()` from `src/lib/rate-limiter.ts` (~130 RPM token bucket) runs before Gemini HTTP calls in `ingest-pipeline.ts` (used by Next ingest stream **and** the Express worker), `object-detection.ts` (enrichment), and `src/app/api/rag/route.ts` where it calls Gemini.
 - **Semantic search:** `src/db/queries.ts` `searchShots` uses pgvector when `shot_embeddings` has data; otherwise or on failure it falls back to ILIKE. Logs are prefixed **`[searchShots]`** — monitor in production; run `pnpm db:embeddings` to populate vectors after ingest.
 - **Canonical long-running ingest:** Use the **Express worker** (`worker/`, SSE) or **Python pipeline** (`pipeline/`) for film-scale jobs. **`/api/process-scene`** is **off on Vercel**; **`/api/ingest-film/stream`** still targets a full Node host with local `videoPath` and is not a substitute for the worker on small serverless timeouts.
 
@@ -163,11 +156,11 @@ vitest.config.ts                      -- Unit tests (`src/lib/__tests__/`)
 
 Optional env vars (see `.planning/codebase/INTEGRATIONS.md`):
 
-- **`METROVISION_LLM_GATE_SECRET`** — If set, `POST /api/agent/chat` and `POST /api/rag` require header **`x-metrovision-llm-gate`** with the same value (reduces anonymous Gemini/OpenAI spend).
+- **`METROVISION_LLM_GATE_SECRET`** — If set, `POST /api/rag` requires header **`x-metrovision-llm-gate`** with the same value (reduces anonymous Gemini/OpenAI spend).
 - **`METROVISION_PROCESS_SCENE_SECRET`** — If set, `POST /api/process-scene` requires **`x-metrovision-process-scene-secret`**. The route is **disabled on Vercel** (`503`); use the worker ingest path for hosted workflows.
 - **`METROVISION_ALLOW_API_KEY_QUERY`** — Set to `true` only to temporarily allow v1 API keys via `?api_key=`; prefer Bearer.
 - **`METROVISION_EVAL_ARTIFACT_ADMIN_SECRET`** — If set (required in **`NODE_ENV=production`** for uploads/list), **`POST /api/eval/artifacts`** and **`GET /api/eval/artifacts`** (metadata list) require **`Authorization: Bearer`** with the same value. Fetches **`GET /api/eval/artifacts/[id]?t=...`** use only the per-row token. Apply migration **`drizzle/0007_eval_artifacts.sql`** (or **`pnpm db:push`**).
 
 ## Known Issues
 
-(None — Phase 01 aligned AC-14 and agent docs with `^0.45.1`.)
+(None — Phase 01 aligned AC-14 and Drizzle docs with `^0.45.1`.)

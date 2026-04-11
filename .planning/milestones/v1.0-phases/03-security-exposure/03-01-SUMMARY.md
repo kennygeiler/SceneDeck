@@ -6,7 +6,7 @@
 ## Outcomes
 
 - `src/lib/llm-route-gate.ts`: optional `METROVISION_LLM_GATE_SECRET` with header `x-metrovision-llm-gate` (timing-safe).
-- `src/app/api/agent/chat/route.ts` and `src/app/api/rag/route.ts`: call `rejectIfLlmRouteGated` before body handling.
+- `src/app/api/rag/route.ts`: call `rejectIfLlmRouteGated` before body handling (chat route at the time; later removed).
 
 ## Verification
 

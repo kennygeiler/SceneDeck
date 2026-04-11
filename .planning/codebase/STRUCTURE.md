@@ -38,19 +38,19 @@ SceneDeck/
 
 - Purpose: Shared `SiteShell` layout for main UX pages.
 - Contains: One folder per route (`page.tsx`, optional `loading.tsx`).
-- Key files: `src/app/(site)/layout.tsx`, `src/app/(site)/page.tsx`, `src/app/(site)/browse/page.tsx`, `src/app/(site)/film/[id]/page.tsx`, `src/app/(site)/shot/[id]/page.tsx`, `src/app/(site)/agent/page.tsx`, `src/app/(site)/visualize/page.tsx`, `src/app/(site)/ingest/page.tsx`, `src/app/(site)/verify/page.tsx`, `src/app/(site)/admin/page.tsx`, `src/app/(site)/export/page.tsx`, `src/app/(site)/review-splits/page.tsx`, nested verify routes under `src/app/(site)/verify/`.
+- Key files: `src/app/(site)/layout.tsx`, `src/app/(site)/page.tsx`, `src/app/(site)/browse/page.tsx`, `src/app/(site)/film/[id]/page.tsx`, `src/app/(site)/shot/[id]/page.tsx`, `src/app/(site)/visualize/page.tsx`, `src/app/(site)/ingest/page.tsx`, `src/app/(site)/tuning/page.tsx`, `src/app/(site)/verify/page.tsx`, `src/app/(site)/export/page.tsx`, `src/app/(site)/review-splits/page.tsx`, nested verify routes under `src/app/(site)/verify/`.
 
 **`src/app/api/`:**
 
 - Purpose: Route Handlers (REST + streaming).
 - Contains: Feature folders with `route.ts`.
-- Key files: `src/app/api/agent/chat/route.ts`, `src/app/api/ingest-film/stream/route.ts`, `src/app/api/ingest-film/route.ts`, `src/app/api/search/route.ts`, `src/app/api/rag/route.ts`, `src/app/api/s3/route.ts`, `src/app/api/shots/route.ts`, `src/app/api/verifications/route.ts`, `src/app/api/verifications/[shotId]/route.ts`, `src/app/api/v1/films/route.ts`, `src/app/api/v1/shots/route.ts`, `src/app/api/v1/search/route.ts`, `src/app/api/v1/taxonomy/route.ts`, batch and admin routes under `src/app/api/batch/`, `src/app/api/admin/`, upload routes `src/app/api/upload-video/route.ts`, `src/app/api/upload-to-s3/route.ts`, `src/app/api/detect-objects/route.ts`, `src/app/api/export/route.ts`, `src/app/api/group-scenes/route.ts`, `src/app/api/process-scene/route.ts`.
+- Key files: `src/app/api/ingest-film/stream/route.ts`, `src/app/api/ingest-film/route.ts`, `src/app/api/search/route.ts`, `src/app/api/rag/route.ts`, `src/app/api/s3/route.ts`, `src/app/api/shots/route.ts`, `src/app/api/verifications/route.ts`, `src/app/api/verifications/[shotId]/route.ts`, `src/app/api/v1/films/route.ts`, `src/app/api/v1/shots/route.ts`, `src/app/api/v1/search/route.ts`, `src/app/api/v1/taxonomy/route.ts`, `src/app/api/batch/review/route.ts`, upload routes `src/app/api/upload-video/route.ts`, `src/app/api/upload-to-s3/route.ts`, `src/app/api/detect-objects/route.ts`, `src/app/api/export/route.ts`, `src/app/api/group-scenes/route.ts`, `src/app/api/process-scene/route.ts`.
 
 **`src/components/`:**
 
 - Purpose: Presentation and feature UI.
-- Contains: `agent/`, `archive/`, `export/`, `films/`, `home/`, `layout/`, `review/`, `shots/`, `verify/`, `video/`, `visualize/`, and `ui/` for shared primitives.
-- Key files: `src/components/layout/site-shell.tsx`, `src/components/video/shot-player.tsx`, `src/components/video/metadata-overlay.tsx`, `src/components/agent/chat-interface.tsx`, `src/components/visualize/viz-dashboard.tsx`.
+- Contains: `archive/`, `eval/`, `export/`, `films/`, `home/`, `layout/`, `review/`, `shots/`, `verify/`, `video/`, `visualize/`, and `ui/` for shared primitives.
+- Key files: `src/components/layout/site-shell.tsx`, `src/components/video/shot-player.tsx`, `src/components/video/metadata-overlay.tsx`, `src/components/visualize/viz-dashboard.tsx`.
 
 **`src/db/`:**
 
@@ -61,7 +61,7 @@ SceneDeck/
 **`src/lib/`:**
 
 - Purpose: Shared non-UI logic consumed by routes and components.
-- Key files: `src/lib/taxonomy.ts`, `src/lib/types.ts`, `src/lib/ingest-pipeline.ts`, `src/lib/agent-tools.ts`, `src/lib/agent-system-prompt.ts`, `src/lib/rag-retrieval.ts`, `src/lib/s3.ts`, `src/lib/tmdb.ts`, `src/lib/queue.ts`, `src/lib/api-auth.ts`, `src/lib/rate-limiter.ts`, `src/lib/shot-display.ts`, `src/lib/utils.ts`.
+- Key files: `src/lib/taxonomy.ts`, `src/lib/types.ts`, `src/lib/ingest-pipeline.ts`, `src/lib/rag-retrieval.ts`, `src/lib/s3.ts`, `src/lib/tmdb.ts`, `src/lib/queue.ts`, `src/lib/api-auth.ts`, `src/lib/rate-limiter.ts`, `src/lib/shot-display.ts`, `src/lib/utils.ts`.
 
 **`src/hooks/`:**
 
@@ -131,12 +131,12 @@ SceneDeck/
 
 - Route segments: Next conventions — `page.tsx`, `layout.tsx`, `loading.tsx`, `route.tsx` / `route.ts` under `api/`.
 - Components: kebab-case filenames (e.g. `shot-player.tsx`, `site-shell.tsx`) with PascalCase default exports inside.
-- Lib modules: kebab-case `ingest-pipeline.ts`, `agent-tools.ts`, `shot-display.ts`.
+- Lib modules: kebab-case `ingest-pipeline.ts`, `shot-display.ts`.
 
 **Directories:**
 
 - `src/components/` grouped by domain (`films/`, `shots/`, `video/`).
-- `src/app/api/` grouped by resource (`agent/`, `v1/`, `batch/`).
+- `src/app/api/` grouped by resource (`v1/`, `batch/`, `eval/`, etc.).
 
 **Symbols:**
 

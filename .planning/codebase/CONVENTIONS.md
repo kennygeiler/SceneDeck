@@ -6,8 +6,8 @@
 
 **Files:**
 
-- React components and pages: **kebab-case** filenames (e.g. `film-card.tsx`, `chat-interface.tsx`, `metadata-overlay.tsx`) under `src/components/` and `src/app/`.
-- Library and server modules: **kebab-case** (e.g. `agent-tools.ts`, `shot-display.ts`, `load-env.ts`) under `src/lib/` and `src/db/`.
+- React components and pages: **kebab-case** filenames (e.g. `film-card.tsx`, `shot-browser.tsx`, `metadata-overlay.tsx`) under `src/components/` and `src/app/`.
+- Library and server modules: **kebab-case** (e.g. `rag-retrieval.ts`, `shot-display.ts`, `load-env.ts`) under `src/lib/` and `src/db/`.
 - Python pipeline modules: **snake_case** filenames (e.g. `main.py`, `classify.py`) under `pipeline/`.
 - Worker (Express) TypeScript: **kebab-case** or descriptive single names under `worker/src/` (e.g. `server.ts`, `ingest.ts`).
 
@@ -22,7 +22,7 @@
 
 **Types:**
 
-- **PascalCase** for types and interfaces (e.g. `FilmCardProps`, `ChatMessage`, `RequestBody` in `src/app/api/agent/chat/route.ts`).
+- **PascalCase** for types and interfaces (e.g. `FilmCardProps`, request body types in `src/app/api/rag/route.ts`).
 - Prefer `type` for object shapes and props; use `interface` where the codebase already does for clarity or extension.
 
 ## Code Style
@@ -64,14 +64,14 @@
 
 **Patterns:**
 
-- **Fail fast on missing configuration:** throw `Error` when required env is absent (e.g. `src/db/index.ts` for `DATABASE_URL`; `callGemini` in `src/app/api/agent/chat/route.ts` for `GOOGLE_API_KEY`).
+- **Fail fast on missing configuration:** throw `Error` when required env is absent (e.g. `src/db/index.ts` for `DATABASE_URL`; Gemini callers in `src/lib/ingest-pipeline.ts` for `GOOGLE_API_KEY` where required).
 - **Route handlers:** wrap `POST`/`GET` in `try/catch`; return `Response.json({ error }, { status })` for client errors (400) and opaque or generic messages for 500 where appropriate.
-- **Streaming / SSE:** errors inside the stream use `console.error` and send structured `{ type: "error", text }` events before `done` (see `src/app/api/agent/chat/route.ts`).
+- **Streaming / SSE:** errors inside the stream use `console.error` and structured events where applicable (see worker ingest SSE in `worker/src/ingest.ts`).
 - **Non-fatal sub-operations:** empty `catch` blocks with a comment when failure must not abort the main flow (e.g. RAG retrieval in the same route).
 
 **eslint and `any`:**
 
-- Prefer typed shapes; when interacting with loosely typed external JSON, use narrow casts or `Record<string, unknown>`. If `any` is unavoidable, use a targeted disable: `// eslint-disable-next-line @typescript-eslint/no-explicit-any` (as in `src/app/api/agent/chat/route.ts`).
+- Prefer typed shapes; when interacting with loosely typed external JSON, use narrow casts or `Record<string, unknown>`. If `any` is unavoidable, use a targeted disable next to the cast.
 
 ## Logging
 
@@ -87,12 +87,12 @@
 **When to comment:**
 
 - File-level or section banners for domain modules (e.g. block comments at top of `src/lib/taxonomy.ts`).
-- Large client components sometimes use ASCII section dividers (e.g. `src/components/agent/chat-interface.tsx`).
+- Large client components sometimes use ASCII section dividers (e.g. `src/components/ingest/pipeline-viz.tsx`).
 - Explain **why** for non-obvious control flow (e.g. non-fatal RAG failure, streaming behavior).
 
 **JSDoc/TSDoc:**
 
-- JSDoc-style blocks used for helper functions where the contract is non-obvious (e.g. `toGeminiContents`, `callGemini` in `src/app/api/agent/chat/route.ts`). Not required on every exported symbol.
+- JSDoc-style blocks used for helper functions where the contract is non-obvious (e.g. non-trivial parsers in `src/lib/ingest-pipeline.ts`). Not required on every exported symbol.
 
 ## Function Design
 
@@ -122,8 +122,8 @@
 ## Next.js App Router Conventions
 
 - **Server Components** by default for pages in `src/app/(site)/` that fetch data (e.g. `src/app/(site)/page.tsx` importing `getAllFilms` from `@/db/queries`).
-- **Client Components:** first statement `"use client";` then React imports (e.g. `src/components/agent/chat-interface.tsx`).
-- **Route segments:** API routes under `src/app/api/**/route.ts`; use `export const runtime = "nodejs"` and `export const dynamic = "force-dynamic"` when needed (see `src/app/api/agent/chat/route.ts`). Note: in that file, route config exports precede imports — valid but unusual; new files may follow standard import-first order unless there is a documented reason.
+- **Client Components:** first statement `"use client";` then React imports (e.g. `src/components/shots/shot-browser.tsx`).
+- **Route segments:** API routes under `src/app/api/**/route.ts`; use `export const runtime = "nodejs"` and `export const dynamic = "force-dynamic"` when needed (see `src/app/api/rag/route.ts`).
 
 ## Styling
 

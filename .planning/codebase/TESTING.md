@@ -98,7 +98,7 @@ worker/src/
 
 **Unit Tests:**
 
-- Not present. High-value first targets: `src/lib/shot-display.ts`, taxonomy helpers in `src/lib/taxonomy.ts`, and pure parsing utilities under `src/components/agent/`.
+- Not present. High-value first targets: `src/lib/shot-display.ts`, taxonomy helpers in `src/lib/taxonomy.ts`, and pure parsing utilities in `src/lib/` (e.g. export helpers).
 
 **Integration Tests:**
 

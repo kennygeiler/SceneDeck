@@ -44,7 +44,7 @@ No `TODO` / `FIXME` / `HACK` / `XXX` markers were found in first-party trees `sr
 
 **Public, unauthenticated LLM proxy routes (cost & abuse):**
 - Risk: Several route handlers accept arbitrary user input and spend server-side API quota (Gemini, OpenAI, retrieval) without API key checks. This aligns with AC-21 (no end-user auth) but increases operator risk.
-- Files: `src/app/api/rag/route.ts` (POST `query` → retrieval + Gemini), `src/app/api/agent/chat/route.ts` (streaming chat), and other ingest/process routes if exposed on a public deployment.
+- Files: `src/app/api/rag/route.ts` (POST `query` → retrieval + Gemini) and other ingest/process routes if exposed on a public deployment.
 - Current mitigation: Relies on deployment boundary (not indexed, IP limits, Vercel protection) rather than application-level auth.
 - Recommendations: Add optional shared-secret header for production, per-IP or token bucket at the edge, or restrict these routes to internal networks; monitor spend on Google/OpenAI dashboards.
 
@@ -83,10 +83,8 @@ No `TODO` / `FIXME` / `HACK` / `XXX` markers were found in first-party trees `sr
 - ~~Problem: worker classify path lacked rate limit~~ *(resolved)* — worker now calls `classifyShot` from `src/lib/ingest-pipeline.ts`, which uses `acquireToken()` before Gemini.
 - Files: `worker/src/ingest.ts`, `src/lib/ingest-pipeline.ts`, `pipeline/classify.py`
 
-**RAG and agent routes — no shared rate limiter:**
-- Problem: `src/app/api/rag/route.ts` and `src/app/api/agent/chat/route.ts` call Gemini without `acquireToken` from `src/lib/rate-limiter.ts`.
-- Files: `src/app/api/rag/route.ts`, `src/app/api/agent/chat/route.ts`, `src/lib/rate-limiter.ts`
-- Improvement path: Wrap outbound Gemini calls with the same limiter configuration used elsewhere (AC-07).
+**RAG route — rate limiter:** *(resolved)* — `src/app/api/rag/route.ts` calls `acquireToken()` before Gemini.
+- Files: `src/app/api/rag/route.ts`, `src/lib/rate-limiter.ts`
 
 ## Fragile Areas
 
@@ -145,7 +143,7 @@ No `TODO` / `FIXME` / `HACK` / `XXX` markers were found in first-party trees `sr
 ## Test Coverage Gaps
 
 **API routes:**
-- What's not tested: CRUD/search/export/batch/agent/rag/process-scene behavior.
+- What's not tested: CRUD/search/export/batch/rag/process-scene behavior.
 - Files: `src/app/api/**/route.ts`
 - Risk: Breaking changes to JSON shapes and status codes.
 - Priority: High.

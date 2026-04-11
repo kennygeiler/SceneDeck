@@ -25,17 +25,17 @@
 
 **UI components:**
 
-- Purpose: Reusable views — films, shots, video overlays, agent chat, visualizations (D3), admin, verify flows.
+- Purpose: Reusable views — films, shots, video overlays, visualizations (D3), verify flows.
 - Location: `src/components/`
-- Contains: Domain folders (`agent/`, `films/`, `shots/`, `video/`, `visualize/`, `verify/`, `layout/`, etc.) and `src/components/ui/` (primitives).
+- Contains: Domain folders (`films/`, `shots/`, `video/`, `visualize/`, `verify/`, `layout/`, etc.) and `src/components/ui/` (primitives).
 - Depends on: `src/lib/*` (taxonomy display, utils), hooks in `src/hooks/`.
 - Used by: Pages in `src/app/(site)/`.
 
 **Application / domain logic (TypeScript):**
 
-- Purpose: Taxonomy, ingest orchestration, RAG, agent tools, S3, TMDB, rate limiting, export, verification rules, types.
+- Purpose: Taxonomy, ingest orchestration, RAG retrieval helpers, S3, TMDB, rate limiting, export, verification rules, types.
 - Location: `src/lib/`
-- Contains: Cohesive modules such as `src/lib/taxonomy.ts`, `src/lib/ingest-pipeline.ts`, `src/lib/agent-tools.ts`, `src/lib/rag-retrieval.ts`, `src/lib/s3.ts`, `src/lib/queue.ts`, `src/lib/types.ts`.
+- Contains: Cohesive modules such as `src/lib/taxonomy.ts`, `src/lib/ingest-pipeline.ts`, `src/lib/rag-retrieval.ts`, `src/lib/s3.ts`, `src/lib/queue.ts`, `src/lib/types.ts`.
 - Depends on: `src/db/` for persistence helpers where applicable (`@/db` alias).
 - Used by: Route handlers and Server Components.
 
@@ -91,10 +91,9 @@
 2. Processing uses `detect_shots`, `extract_clips`, `classify_shot`, and `write_to_db` in `pipeline/write_db.py`.
 3. Taxonomy validation runs in Python via `pipeline/taxonomy.py` before inserts (aligned with TS taxonomy in `src/lib/taxonomy.ts` conceptually).
 
-**Agent chat:**
+**RAG (optional LLM Q&A):**
 
-1. `src/app/api/agent/chat/route.ts` receives messages, calls Gemini with tools from `src/lib/agent-tools.ts` and system prompt `src/lib/agent-system-prompt.ts`.
-2. Tool execution can call retrieval from `src/lib/rag-retrieval.ts` and other DB-backed operations.
+1. `src/app/api/rag/route.ts` accepts a `query`, retrieves context via `src/lib/rag-retrieval.ts`, then calls Gemini with `acquireToken()` from `src/lib/rate-limiter.ts`.
 
 **Postgres-backed job queue (TypeScript):**
 
@@ -125,11 +124,6 @@
 - Purpose: Shared steps for shot detection (spawned processes), S3 upload, Gemini classification, parallelism.
 - Examples: `src/lib/ingest-pipeline.ts` (Next); parallel logic in `worker/src/ingest.ts`.
 - Pattern: Progress callbacks / SSE `ProgressEvent` union type in `src/lib/ingest-pipeline.ts`.
-
-**Agent tools:**
-
-- Purpose: Declarative tool schemas and `executeToolCall` bridge for the chat route.
-- Examples: `src/lib/agent-tools.ts`, `src/lib/agent-system-prompt.ts`.
 
 **Media URLs:**
 

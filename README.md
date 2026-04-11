@@ -49,8 +49,8 @@ Placeholder: `https://scenedeck-demo.vercel.app`
               │  Next.js 15 App │             │  TS Worker      │             │  Python         │
               │  (Vercel / Node)  │           │  (Express SSE)  │             │  pipeline/      │
               │  App Router, UI,  │           │  Ingest film:   │             │  Batch:         │
-              │  API routes, RAG, │           │  detect, extract│             │  PySceneDetect, │
-              │  agent chat       │           │  Gemini classify│             │  Gemini, S3, DB │
+              │  API routes, RAG  │           │  detect, extract│             │  PySceneDetect, │
+              │                   │           │  Gemini classify│             │  Gemini, S3, DB │
               └────────┬────────┘             │  TMDB, S3, DB   │             └────────┬────────┘
                        │                      └────────┬────────┘                      │
                        │                               │                               │
@@ -93,7 +93,7 @@ Placeholder: `https://scenedeck-demo.vercel.app`
 1. Configure env (Neon, S3, Gemini, OpenAI for embeddings, TMDB).  
 2. **Ingest:** run the **worker** (`cd worker && pnpm dev`) for reliable long jobs, or use the **Ingest** page against a configured worker URL.  
 3. Backfill vectors: `pnpm db:embeddings` so search uses semantics.  
-4. Use **Verify** / **batch verify** to fix bad rows; **Admin** for aggregates and correction patterns.  
+4. Use **Verify** / **batch verify** to fix bad rows.  
 5. Re-run checks locally: `pnpm check:schema-drift`, `pnpm check:taxonomy`, `pnpm test`.
 
 ## Quality gates (CI & tests)

@@ -31,7 +31,7 @@
 | 1.1 | Extend **`getVisualizationData`** select + map to include: `symmetry`, `dominantLines`, `lightingDirection`, `lightingQuality`, `colorTemperature`, `angleHorizontal`, `durationCat`, `foregroundElements`/`backgroundElements` (or `fgCount`/`bgCount` only to keep payload small), `confidence`, `reviewStatus`. | `src/db/queries.ts` | Prefer counts for element arrays if row size matters. |
 | 1.2 | Add **verification summary per shot** (reuse pattern from `getShotById`: `hasVerification`, `verificationCount`, optional `latestVerifiedAt`) or a single boolean `isHumanReviewed` for filters. | `queries.ts` | Batch query verifications `WHERE shotId IN (...)` to avoid N+1. |
 | 1.3 | Expand **`VizShot`** (and **`VisualizationData`** if needed) in `src/lib/types.ts`. | `src/lib/types.ts` | Keep backward-compatible defaults for nulls. |
-| 1.4 | Update **agent tools** that return viz samples (`src/lib/agent-tools.ts`) to use new shape or document trimmed fields. | `agent-tools.ts` | Avoid breaking tool JSON schema expectations. |
+| 1.4 | If a future LLM surface returns viz payloads, align JSON shapes with `VizShot` / trimmed fields (no in-repo chat tools today). | backlog | Keeps viz contracts stable if tooling is reintroduced. |
 | 1.5 | Unit or smoke test: map row → `VizShot` with null metadata columns. | `src/lib/__tests__/` or script | Optional if types are strict enough. |
 
 **Verify.** Log or temporary dev page: sample `VizShot` JSON includes new keys; filter `reviewStatus === 'human_verified'` reduces count correctly.

@@ -42,11 +42,10 @@
                     │                 CONTROL PLANE                    │
                     │           (Vercel + Next.js app)                │
                     │                                                  │
-                    │  /admin/batch     — Submit batch jobs            │
-                    │  /admin/monitor   — Pipeline dashboard           │
-                    │  /admin/qa        — Human review queue           │
-                    │  /agent           — Agent MetroVision            │
+                    │  /browse, /verify — Archive + HITL               │
                     │  /visualize       — D3 analytics                 │
+                    │  /tuning          — Boundary eval hub            │
+                    │  /export          — Data + citations             │
                     └─────────────┬────────────────────────────────────┘
                                   │
                     ┌─────────────┴─────────────┐
@@ -250,8 +249,8 @@ Auto-fix clear errors, flag ambiguous ones.
 - [ ] Set up Gemini Batch API access (requires Google Cloud project)
 - [ ] Provision Neon Pro database
 - [ ] Create S3 bucket structure: `films/{slug}/source/`, `films/{slug}/clips/`, `films/{slug}/thumbnails/`
-- [ ] Build batch submission UI (`/admin/batch`)
-- [ ] Build pipeline monitoring dashboard (`/admin/monitor`)
+- [ ] Batch submission via worker / Python CLI (or external orchestrator), not a Next admin surface
+- [ ] Pipeline monitoring via logs/metrics (Grafana, Axiom, etc.), not `/admin/*` routes
 
 **Day 2-3: Film Sourcing + Ingestion**
 - [ ] Source 5,000 films (Internet Archive, public domain, licensed collections)
@@ -294,9 +293,9 @@ Auto-fix clear errors, flag ambiguous ones.
 
 **Day 13: Validation + Testing**
 - [ ] Full accuracy audit: random sample of 500 shots across 50 films
-- [ ] Verify all pages work: /browse, /film/[id], /visualize, /agent
+- [ ] Verify core pages: /browse, /film/[id], /visualize, /export, /verify
 - [ ] Performance test: browse page loads < 3s with 500K shots
-- [ ] Agent MetroVision test: verify it can query and compare across 5K films
+- [ ] RAG / API smoke test: sample queries against search + optional `/api/rag`
 - [ ] Database optimization: add indexes, vacuum, analyze
 
 **Day 14: Launch**
@@ -343,7 +342,7 @@ CREATE INDEX idx_pipeline_jobs_status ON pipeline_jobs(status, stage);
 
 ---
 
-## Monitoring Dashboard (`/admin/monitor`)
+## Monitoring dashboard (operators)
 
 Real-time view of the pipeline:
 
@@ -421,7 +420,7 @@ With 5,000 films analyzed:
 
 2. **Director style fingerprinting.** With 50+ films per director, you can statistically characterize visual styles and spot influences across generations.
 
-3. **Film school in a database.** Agent MetroVision becomes genuinely useful — it can back up every claim with data from thousands of films.
+3. **Film school in a database.** Structured shot rows + search/RAG back claims with data from thousands of films.
 
 4. **API/MCP as a product.** Other tools (ComfyUI, Runway, film researchers) could query this data. The dataset itself becomes valuable.
 

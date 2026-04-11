@@ -40,9 +40,9 @@ The 5,000-film classification goal is feasible but requires a two-lane pipeline 
 **Confidence**: 0.82
 
 ### 4. Chat Visual Rendering
-**Question**: How should the chat interface render visual output (D3 charts, shotlists, reference decks) inline from LLM responses?
-**Finding**: The tool-call-to-component (Generative UI) pattern is the industry standard: LLM tools return typed JSON, client maps to pre-registered React components. MetroVision already has ~70% of the infrastructure -- SSE streaming with tool_call/tool_result events, a Gemini function-calling loop, and six standalone D3 components with typed props. The gap: the client currently discards tool_result payloads instead of mounting visualizations. LLM-generated D3 code (eval/sandbox approach) produces working output only 40-60% of the time -- avoid.
-**Recommendation**: Add "viz tools" (render_rhythm_stream, render_shotlist, render_comparison_table, etc.) that return typed data payloads. Switch tool_result handler in chat-interface.tsx to mount matching D3/list components inline. Complete tool result JSON fully before mounting (D3 needs complete datasets). Text streams in parallel.
+**Question**: How should a chat interface render visual output (D3 charts, shotlists, reference decks) inline from LLM responses?
+**Finding**: The tool-call-to-component (Generative UI) pattern is the industry standard: LLM tools return typed JSON, client maps to pre-registered React components. MetroVision **removed** the product chat route/UI; six standalone D3 components with typed props remain under `src/components/visualize/`. LLM-generated D3 code (eval/sandbox) is still unreliable—avoid.
+**Recommendation**: If chat returns, add "viz tools" that return typed payloads and mount matching D3/list components only after JSON is complete. **`POST /api/rag`** covers text Q&A without a chat shell today.
 **Confidence**: 0.88
 
 ### 5. ComfyUI Node Integration

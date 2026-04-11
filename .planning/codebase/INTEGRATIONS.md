@@ -7,7 +7,7 @@
 **Google Gemini (Generative AI):**
 
 - **Purpose:** Shot/film analysis, chat agent, RAG, object-detection assist, and Python batch classification.
-- **Integration (TypeScript):** HTTP `fetch` to **Google AI Generative Language API** (`https://generativelanguage.googleapis.com/v1beta/models/...`) with `key` query param — see `src/app/api/agent/chat/route.ts`, `src/lib/ingest-pipeline.ts`, `src/app/api/rag/route.ts`, `src/lib/object-detection.ts`.
+- **Integration (TypeScript):** HTTP `fetch` to **Google AI Generative Language API** (`https://generativelanguage.googleapis.com/v1beta/models/...`) with `key` query param — see `src/lib/ingest-pipeline.ts`, `src/app/api/rag/route.ts`, `src/lib/object-detection.ts`.
 - **Integration (Python):** `google.genai` client in `pipeline/classify.py` (ensure installed Python package matches this import; `pipeline/requirements.txt` lists `google-generativeai`).
 - **Auth:** `GOOGLE_API_KEY` (primary). `GEMINI_API_KEY` is an alternate in `src/lib/object-detection.ts` when calling Gemini.
 
@@ -103,7 +103,7 @@
 
 **Optional / feature-specific:**
 
-- `METROVISION_LLM_GATE_SECRET` — Gates `POST /api/agent/chat` and `POST /api/rag` behind header `x-metrovision-llm-gate` when set.
+- `METROVISION_LLM_GATE_SECRET` — Gates `POST /api/rag` behind header `x-metrovision-llm-gate` when set.
 - `METROVISION_PROCESS_SCENE_SECRET` — Gates `POST /api/process-scene` behind header `x-metrovision-process-scene-secret` when set; route returns `503` on Vercel regardless.
 - `METROVISION_ALLOW_API_KEY_QUERY` — Set `true` only to allow legacy `?api_key=` on v1 REST during migration (default: Bearer only).
 - `SCENEDETECT_PATH` — Custom PySceneDetect binary (`src/lib/ingest-pipeline.ts`, `worker/src/ingest.ts`).

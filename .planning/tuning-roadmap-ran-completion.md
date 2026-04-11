@@ -1,7 +1,7 @@
-# Tuning agent vision + finishing Ran (reference)
+# Boundary tuning roadmap + finishing Ran (reference)
 
 **Created:** 2026-04-10  
-**Purpose:** Single reference for (1) the **product goal** of a self-tuning boundary agent fed by ~15 min samples and past sessions, and (2) **ordered work to close Ran** as the first fully tuned benchmark. Update this file when Ran is “done” or when Phase 10/11 scope changes.
+**Purpose:** Single reference for (1) the **product direction** for sample-driven boundary tuning and reuse of past tuning sessions, and (2) **ordered work to close Ran** as the first fully tuned benchmark. Update this file when Ran is “done” or when Phase 10/11 scope changes.
 
 **Living metrics + baselines:** [`eval/runs/STATUS.md`](../eval/runs/STATUS.md) — **CEMENTED** production row (2026-04-11).  
 **In-app:** route **`/tuning`** (`src/app/(site)/tuning/page.tsx`).  
@@ -10,9 +10,9 @@
 
 ---
 
-## Product goal (future)
+## Product direction (future)
 
-Use learnings from boundary eval/tuning to support an **agent** that can:
+Use learnings from boundary eval/tuning to support **automation** that can:
 
 1. **Self-tune** from a **sample** (~15 min of cuts / timeline) on a given title — propose or iterate detector + merge + fusion settings within safe bounds.
 2. **Reuse signal** from **other tuning sessions** (retrieval over structured session records, then optional search over a small discrete knob grid).
@@ -34,13 +34,13 @@ Use learnings from boundary eval/tuning to support an **agent** that can:
 
 ---
 
-## Roadmap mapping (agent-enabling)
+## Roadmap mapping (enabling future automation)
 
-| Track | Role for the agent |
-|-------|---------------------|
-| **Phase 10 — HITL** | Human confirms gold / accepts a proposed boundary profile before full-film ingest; audit trail for “what the agent tried.” |
-| **Phase 11 — Eval corpus** | Second+ gold files + calibration so the agent isn’t overfit to Ran; retrieval “similar title” becomes meaningful. |
-| **Future (suggested)** | **Tuning agent / session store** — normalized `tuning_session` (or `eval_artifacts` extensions), agent **tools** (detect-only, eval, misses, capped sweeps), **policy** (stop conditions, cost caps), UI “propose → apply.” Not yet a numbered phase; add after 11 when ready. |
+| Track | Role |
+|-------|------|
+| **Phase 10 — HITL** | Human confirms gold / accepts a proposed boundary profile before full-film ingest; audit trail for tuning attempts. |
+| **Phase 11 — Eval corpus** | Second+ gold files + calibration so settings aren’t overfit to Ran; retrieval “similar title” becomes meaningful. |
+| **Future (suggested)** | **Session store + tooling** — normalized `tuning_session` (or `eval_artifacts` extensions), CLI/API hooks (detect-only, eval, misses, capped sweeps), **policy** (stop conditions, cost caps), UI “propose → apply.” Not yet a numbered phase; add after 11 when ready. |
 
 ---
 
@@ -50,7 +50,7 @@ Ran is **finished** when all of the following are true:
 
 1. **Reference media** is fixed and documented (path or stable object key), **duration ≥ last gold cut** (~764 s), same timebase as gold.
 2. **Best-known predicted JSON** is in repo with **recorded env** (`METROVISION_BOUNDARY_DETECTOR`, `METROVISION_BOUNDARY_MERGE_GAP_SEC`, `fusionPolicy`, optional extras).
-3. **Miss hygiene:** `eval:boundary-misses` exported to `eval/runs/` with human-readable notes on **systematic** FN/FP patterns (optional but strongly recommended for future agent training/features).
+3. **Miss hygiene:** `eval:boundary-misses` exported to `eval/runs/` with human-readable notes on **systematic** FN/FP patterns (optional but strongly recommended for future feature engineering).
 4. **Optional grid:** small sweep (e.g. merge gap 0.20 / 0.22 / 0.25) **or** explicit statement “0.22 chosen; grid deferred” to avoid a single lucky point.
 5. **Refine experiment on full-length source:** `detect:refine-fn-windows` run on length-matched file with documented outcome (helped / hurt / neutral).
 6. **Tuning profile artifact** — one JSON (or `eval_artifacts` row) summarizing: window, knobs, metrics, paths to gold/pred, `tol`, date.
@@ -74,8 +74,8 @@ Ran is **finished** when all of the following are true:
 
 ---
 
-## Risks / constraints (for the agent design later)
+## Risks / constraints (for later automation design)
 
 - Tuning on a **window** must not be silently assumed to hold for **full feature** without a policy (re-detect full film = separate job + cost).
 - Presigned URLs carry **credentials** — never commit; use local paths or server-side keys for automation.
-- Agent tools need **timeouts**, **max parallel detects**, and **versioned gold** (no overwrite without history).
+- Automation needs **timeouts**, **max parallel detects**, and **versioned gold** (no overwrite without history).

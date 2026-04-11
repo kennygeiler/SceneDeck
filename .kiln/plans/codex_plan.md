@@ -17,7 +17,7 @@
 - 6 D3 visualization components: RhythmStream, HierarchySunburst, PacingHeatmap, ChordDiagram, CompositionScatter, DirectorRadar
 - TMDB metadata integration
 - HITL verification workflow UI (shots verification queue with 0-5 rating)
-- SSE streaming infrastructure for agent/chat with tool_call/tool_result events
+- ~~SSE streaming infrastructure for product chat~~ — removed; RAG API remains for retrieval-backed Q&A
 - Gemini 2.5 Flash classification (interactive path)
 - Fixed camera movement taxonomy (21 movement types, 15 directions, 7 speeds, 15 shot sizes, 15 angles, 6 durations)
 - shadcn/ui components throughout
@@ -279,14 +279,14 @@
 **Scope**: Medium — the approximately 70% infrastructure already exists; the gap is connecting tool results to component rendering
 
 **Deliverables**:
-- [ ] Add viz tool definitions to the RAG/agent layer:
+- [ ] Add viz tool definitions to the RAG layer (if a future chat surface returns viz payloads):
   - render_rhythm_stream (film_id, scene_ids) returning typed data payload
   - render_pacing_heatmap (film_id) returning typed data payload
   - render_director_radar (director_name, film_ids) returning typed data payload
   - render_shotlist (scene_id or query result) returning structured shotlist JSON
   - render_reference_deck (shot_ids) returning reference deck JSON
   - render_comparison_table (film_ids or director_ids) returning comparison table JSON
-- [ ] Fix chat-interface.tsx tool_result handler: mount matching D3/list components inline in message thread instead of discarding payloads (AC-08: no eval/execute, pre-registered components only)
+- [ ] ~~Fix chat UI tool_result handler~~ — product chat removed; any future UI should mount pre-registered components only (AC-08: no eval/execute)
 - [ ] Implement hybrid streaming: text streams in parallel; D3 components mount only after complete JSON payload received (AC-09: no partial data mounts)
 - [ ] Chat route handler: RAG retrieval to foundation model with tool definitions to SSE stream of text + tool_call/tool_result events
 - [ ] Chat UI polish: cinematic visual language; tool-result cards feel native to the message thread

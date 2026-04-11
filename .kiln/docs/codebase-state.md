@@ -26,7 +26,7 @@ Status: not started
 - Architecture doc may mention older table counts; schema is source of truth in `src/db/schema.ts`
 - drizzle-orm `^0.45.1` — AC-14 updated to match (Phase 01)
 - src/lib/queue.ts and src/lib/queue-workers.ts exist (verify BullMQ usage vs AC-06)
-- Batch API routes exist: src/app/api/batch/{source,submit,status,review}/route.ts
+- Batch review API: `src/app/api/batch/review/route.ts` (used by verify batch UI; source/submit/status admin routes removed)
 
 ## Milestone: M2 — Batch Pipeline Infrastructure
 Status: not started
@@ -38,7 +38,7 @@ Status: not started
 - [ ] Multi-process orchestration at film level
 - [ ] Graceful shutdown and resume
 - [ ] Job submission endpoint
-- [ ] Admin panel for batch jobs — src/app/(site)/admin/page.tsx exists (partial)
+- [ ] Operator tooling for batch job submission — use worker/Python pipeline; in-app admin panel removed
 - [ ] Two-lane architecture documented (AC-20)
 
 ## Milestone: M3 — Dataset Scale to 500 Films
@@ -70,11 +70,7 @@ Status: not started (some UI already exists from prior work)
 Status: not started
 
 ## Milestone: M6 — Chat Interface with Generative UI
-Status: not started (partial infrastructure exists)
-
-### Notes
-- AI agent exists: src/app/(site)/agent/page.tsx, src/components/agent/chat-interface.tsx, src/app/api/agent/chat/route.ts
-- Agent system prompt and tools: src/lib/agent-system-prompt.ts, src/lib/agent-tools.ts
+Status: **retired** — product chat / generative UI routes and libs removed; optional `POST /api/rag` remains for retrieval + Q&A without a dedicated chat page.
 
 ## Milestone: M7 — API Portal and ComfyUI Integration
 Status: not started
@@ -82,10 +78,10 @@ Status: not started
 ## Module Inventory
 
 ### Next.js App (src/)
-- **Pages**: layout.tsx, page.tsx (home), browse/, film/[id]/, shot/[id]/, verify/, verify/[shotId]/, export/, visualize/, agent/, ingest/, admin/, review-splits/ (outside route group)
-- **API Routes**: `admin/accuracy`, `admin/correction-patterns`, `agent/chat`, `batch/{source,submit,status,review}`, `detect-objects`, `export`, `group-scenes`, `ingest-film`, `ingest-film/stream`, `process-scene`, `rag`, `s3`, `search`, `shots`, `upload-to-s3`, `upload-video`, `verifications`, `verifications/[shotId]`, `v1/films`, `v1/search`, `v1/shots`, `v1/taxonomy` (no `detect-shots`, no `blob/[...path]`)
-- **Components**: video/ (shot-player, metadata-overlay, object-overlay, realtime-object-overlay), shots/ (shot-card, shot-browser, detect-objects-button), films/ (film-card, film-header, film-coverage-stats, film-timeline, scene-card, film-browser), visualize/ (6 D3 charts + viz-dashboard), agent/ (chat-interface, message-cards), export/ (export-button, export-panel), verify/ (verification-panel, verification-history), review/ (review-splits-workspace), layout/ (site-shell, site-header), home/ (home-hero), ingest/ (pipeline-viz), ui/ (button, loading-skeleton)
-- **Lib**: taxonomy.ts, types.ts, utils.ts, shot-display.ts, tmdb.ts, s3.ts, export.ts, archive-org.ts, object-detection.ts, timeline-colors.ts, verification.ts, validation-rules.ts, ingest-pipeline.ts, agent-system-prompt.ts, agent-tools.ts, queue.ts, queue-workers.ts, mock/shots.ts
+- **Pages**: layout.tsx, page.tsx (home), browse/, film/[id]/, shot/[id]/, verify/, verify/[shotId]/, export/, visualize/, tuning/, ingest/, review-splits/ (outside route group)
+- **API Routes**: `batch/review`, `detect-objects`, `eval/*`, `export`, `export/shots`, `group-scenes`, `health/config`, `ingest-film`, `ingest-film/stream`, `ingest-film/live-status`, `process-scene`, `rag`, `s3`, `s3/presign-get`, `search`, `shots`, `shots/[id]/*`, `tmdb/*`, `upload-to-s3`, `upload-video`, `verifications`, `verifications/[shotId]`, `v1/films`, `v1/search`, `v1/shots`, `v1/taxonomy` (no `detect-shots`, no `blob/[...path]`)
+- **Components**: video/ (shot-player, metadata-overlay, object-overlay, realtime-object-overlay), shots/ (shot-card, shot-browser, detect-objects-button), films/ (film-card, film-header, film-coverage-stats, film-timeline, scene-card, film-browser), visualize/ (6 D3 charts + viz-dashboard), eval/ (gold-annotate), export/ (export-button, export-panel), verify/ (verification-panel, verification-history), review/ (review-splits-workspace), layout/ (site-shell, site-header), home/ (home-hero), ingest/ (pipeline-viz), archive/, ui/ (button, loading-skeleton)
+- **Lib**: taxonomy.ts, types.ts, utils.ts, shot-display.ts, tmdb.ts, s3.ts, export.ts, archive-org.ts, object-detection.ts, timeline-colors.ts, verification.ts, validation-rules.ts, ingest-pipeline.ts, rag-retrieval.ts, llm-route-gate.ts, queue.ts, queue-workers.ts, mock/shots.ts
 - **DB**: schema.ts (9 tables), index.ts, queries.ts, generate-embeddings.ts, generate-scene-embeddings.ts, ingest-corpus.ts, seed.ts, load-env.ts
 
 ### TS Ingest Worker (worker/)

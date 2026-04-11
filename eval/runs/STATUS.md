@@ -2,7 +2,7 @@
 
 **Purpose:** Single place for **where we are** on shot-boundary evaluation: canonical gold/pred files, latest numbers, decisions, and **benchmark targets**. Update this when a run changes the baseline or when strategy shifts.
 
-**Deeper narrative:** [`docs/tuning-flow.md`](../docs/tuning-flow.md) · **Env / workflow:** [`docs/pipeline-analysis.md`](../docs/pipeline-analysis.md) §3 · **Finish Ran + tuning-agent roadmap:** [`.planning/tuning-agent-and-ran-completion.md`](../../.planning/tuning-agent-and-ran-completion.md). **In-app hub:** `/tuning` (canonical profile + links).
+**Deeper narrative:** [`docs/tuning-flow.md`](../docs/tuning-flow.md) · **Env / workflow:** [`docs/pipeline-analysis.md`](../docs/pipeline-analysis.md) §3 · **Finish Ran + tuning roadmap:** [`.planning/tuning-roadmap-ran-completion.md`](../../.planning/tuning-roadmap-ran-completion.md). **In-app hub:** `/tuning` (canonical profile + links).
 
 ---
 

@@ -8,7 +8,7 @@ This milestone delivers phased hardening and alignment work traced to `.planning
 
 **Related plans**
 
-- **[Tuning agent vision + finish Ran checklist](tuning-agent-and-ran-completion.md)** — Product goal (15 min sample → self-tune → cross-session inference), roadmap mapping (Phases 10–11 + future session store), **ordered steps to close Ran tuning**.
+- **[Boundary tuning roadmap + finish Ran checklist](tuning-roadmap-ran-completion.md)** — Product direction (15 min sample → self-tune → cross-session reuse), roadmap mapping (Phases 10–11 + future session store), **ordered steps to close Ran tuning**.
 - **[/visualize composition dashboard](VISUALIZE-COMPOSITION-PLAN.md)** — `VizShot` / trust filters / staging & lighting D3 views; Phases 0–5 implemented in-app; Phase 6 (embeddings UMAP, scene facets, etc.) remains backlog.
 
 ## Phases
@@ -18,7 +18,7 @@ This milestone delivers phased hardening and alignment work traced to `.planning
 - [x] **Phase 1: Documentation & constraint alignment** — Kiln/AGENTS accuracy; Drizzle policy; onboarding scripts; naming
 - [x] **Phase 2: Correctness & schema integrity** — API auth crypto import; worker vs app Drizzle schema drift
 - [x] **Phase 3: Security & exposure** — LLM route abuse; API key transport; `process-scene` exposure; image remote patterns
-- [x] **Phase 4: Rate limits & heavy-work boundaries** — Worker/RAG/agent Gemini limiting; semantic search fallback; `process-scene` stance vs AC-01/AC-20
+- [x] **Phase 4: Rate limits & heavy-work boundaries** — Worker/RAG Gemini limiting; semantic search fallback; `process-scene` stance vs AC-01/AC-20
 - [x] **Phase 5: Fragile modules** — Taxonomy TS/Python parity; D3 and large client components
 - [x] **Phase 6: Tests & observability** — Baseline automated tests, CI, structured logging
 - [x] **Phase 7: Shot boundary FN analysis** — List gold cuts with no predicted match within tolerance (CLI: `eval:boundary-misses`)
@@ -87,7 +87,7 @@ Plans:
 
 **Success Criteria** (what must be TRUE):
 
-1. LLM-heavy routes (`agent/chat`, `rag`, etc.) have a documented production posture: optional shared secret, edge rate limits, and/or deploy guidance that matches operator intent.
+1. LLM-heavy routes (`rag`, etc.) have a documented production posture: optional shared secret, edge rate limits, and/or deploy guidance that matches operator intent.
 2. API keys for integrators are accepted via `Authorization` (Bearer); query-string `api_key` is deprecated or removed with migration note.
 3. `process-scene` is not publicly exploitable for arbitrary filesystem read: auth, network restriction, or documented “local operator only” with runtime guard.
 4. `next.config.ts` `images.remotePatterns` is narrowed toward known hosts (S3, TMDB, etc.) where feasible.
@@ -109,12 +109,12 @@ Plans:
 
 **Depends on:** Phase 3
 
-**Traceability (CONCERNS.md):** Performance — `process-scene`; semantic fallback; worker parallel Gemini; RAG/agent without limiter
+**Traceability (CONCERNS.md):** Performance — `process-scene`; semantic fallback; worker parallel Gemini; RAG rate limiting
 
 **Success Criteria** (what must be TRUE):
 
 1. Worker shot classification / embeddings use the same rate limiter/token pattern as other Gemini callers (reuse or extract shared module).
-2. `rag` and `agent/chat` wrap outbound model calls with `acquireToken` (or equivalent) from `src/lib/rate-limiter.ts`.
+2. `rag` wraps outbound model calls with `acquireToken` (or equivalent) from `src/lib/rate-limiter.ts`.
 3. Semantic search: on vector failure, operators get visibility (log/metric/alert) and a documented scale posture for ILIKE fallback.
 4. `process-scene` on Vercel is removed, gated, or documented as non-canonical; canonical ingest path documented as worker SSE + Python batch per AC-20.
 
@@ -123,7 +123,7 @@ Plans:
 Plans:
 
 - [x] 04-01: Add rate limiting to `worker/src/ingest.ts` Gemini paths consistent with `src/lib/rate-limiter.ts` / `pipeline` patterns
-- [x] 04-02: Add `acquireToken` (or shared wrapper) to `src/app/api/rag/route.ts` and `src/app/api/agent/chat/route.ts`
+- [x] 04-02: Add `acquireToken` (or shared wrapper) to `src/app/api/rag/route.ts` (and formerly to the removed chat route)
 - [x] 04-03: Instrument and document `searchShots` vector failure fallback in `src/db/queries.ts`
 - [x] 04-04: Finalize `process-scene` stance: relocate, feature-flag off serverless, or operator-only; update docs
 
@@ -234,7 +234,7 @@ Plans:
 Plans:
 - [ ] TBD (run /gsd-plan-phase 11 to break down)
 
-**Cross-reference:** A future **self-tuning boundary agent** (sample-based tune + reuse prior sessions) depends on Phases **10–11** plus a **session store / tool loop** — see **[`tuning-agent-and-ran-completion.md`](tuning-agent-and-ran-completion.md)**.
+**Cross-reference:** Future **sample-based boundary tuning** with reuse of prior sessions depends on Phases **10–11** plus a **session store / tooling loop** — see **[`tuning-roadmap-ran-completion.md`](tuning-roadmap-ran-completion.md)**.
 
 ---
 

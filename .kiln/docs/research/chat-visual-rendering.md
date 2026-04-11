@@ -1,8 +1,10 @@
 # Chat Visual Rendering
 
+**Status (2026-04):** The in-app Gemini chat route and UI were **removed** from the product codebase. This note remains as **industry background** if a future surface combines LLM output with D3 again.
+
 ## Finding
 
-The dominant pattern for LLM-driven visual chat output in 2025 is the **tool-call-to-component** (Generative UI) pipeline: the LLM decides via function/tool calling which visualization to emit, returns a typed JSON payload as the tool result, and the client maps that result to a pre-registered React component. This is well-established by Vercel AI SDK 5+ and avoids the security hazards and fragility of having the LLM generate raw D3/JavaScript code at runtime. MetroVision already has this infrastructure partially in place — the `/api/agent/chat` route runs a Gemini function-calling loop and streams `tool_call` and `tool_result` SSE events to the client, but the client currently ignores tool result payloads and only renders the text response.
+The dominant pattern for LLM-driven visual chat output in 2025 is the **tool-call-to-component** (Generative UI) pipeline: the LLM decides via function/tool calling which visualization to emit, returns a typed JSON payload as the tool result, and the client maps that result to a pre-registered React component. This is well-established by Vercel AI SDK 5+ and avoids the security hazards and fragility of having the LLM generate raw D3/JavaScript code at runtime.
 
 There are three distinct rendering patterns each suited to different output types:
 
@@ -12,34 +14,31 @@ There are three distinct rendering patterns each suited to different output type
 
 3. **LLM-generated code execution** (higher risk): The model emits actual D3/JS code which is eval'd or sandboxed client-side (see Renderify, Observable). This grants maximum flexibility but introduces XSS/eval risks, requires a sandbox runtime, and produces fragile output. Observable's 2024 study found AI tools for D3 code generation produce working code only ~40-60% of the time without iteration. Avoid for MetroVision.
 
-For shotlists and reference decks, the same pattern applies: define a `shotlist` tool that returns `{ shots: ShotRef[], title: string, rationale: string }`, then render a `<InlineShotlist>` component in the message. The agent's existing `parseAgentMessage` function already demonstrates inline-badge rendering from text patterns — the same concept extended to full component rendering via tool results.
+For shotlists and reference decks, the same pattern applies: define a `shotlist` tool that returns `{ shots: ShotRef[], title: string, rationale: string }`, then render a `<InlineShotlist>` component in the message.
 
 ## Recommendation
 
-Extend the existing Gemini tool-call infrastructure with a small set of "viz tools" (e.g. `render_rhythm_stream`, `render_shotlist`, `render_comparison_table`) that return typed data payloads. In `chat-interface.tsx`, switch the tool_result handler to mount the matching D3/list component inline in the message, rendering it below or alongside the text content.
+If a chat-style surface returns again, pair a small set of "viz tools" (e.g. `render_rhythm_stream`, `render_shotlist`, `render_comparison_table`) with a client that mounts **pre-registered** D3/list components from typed tool results (no eval of model-generated code).
 
 ## Key Facts
 
-- MetroVision already has SSE streaming with `tool_call` / `tool_result` event types and a function-calling loop in `/api/agent/chat/route.ts` — the core plumbing exists.
+- MetroVision **no longer ships** the former SSE chat route or client; **`POST /api/rag`** remains for retrieval-backed text answers.
 - The six D3 components (`RhythmStream`, `HierarchySunburst`, `PacingHeatmap`, `ChordDiagram`, `CompositionScatter`, `DirectorRadar`) are all standalone `useRef + useEffect` components that accept typed props — they can be embedded in a chat message with no modifications.
 - Vercel AI SDK 5 formalises the "tool result → React component" pattern via `message.parts` typed as `tool-${toolName}`, allowing conditional rendering in the message loop.
 - `llm-ui` (React) provides a `useLLMOutput` hook and `LLMOutputComponent` pattern for matching structured blocks in LLM output streams and routing them to renderers.
 - Vercel's `json-render` (open source, 2025) offers a declarative framework for AI-generated UI from JSON specs — useful if MetroVision wants LLM-composed layouts, not just LLM-selected charts.
 - Scott Logic (2024): LLM-generated D3 code requires careful prompt engineering with field-level data descriptions and execution environment hints to succeed; structured-data-then-render is more reliable than code-generation.
 - Observable's AI tools study (2024): Current LLMs produce working D3 code inconsistently; they are better at selecting and parameterising chart types than writing D3 from scratch.
-- Existing `message-cards.tsx` already parses inline `[SHOT:uuid:type:film]` and `[FILM:title]` tokens into interactive React components — this is a simpler inline-badge form of the same Generative UI pattern.
+- Inline token parsing (e.g. shot/film badges in prose) is a lighter-weight variant of the same Generative UI idea.
 - For streaming visual props, the recommended approach is to complete the tool result JSON fully before mounting the D3 component (D3 operates on complete datasets; partial data causes render errors). Text and tool indicators can stream in parallel.
-- `ComparisonTable` in `message-cards.tsx` is already a structured-data rendered component — the pattern is proven in the codebase.
+- Structured-data → component mapping is proven in the visualize dashboard (`src/components/visualize/*`).
 - Vercel AI SDK 5 data-parts: "On the server, you can stream a data part by specifying your part type... On the client, you can then render this specific part."
 - Recommended new tool types to add: `render_rhythm_stream` (filmId), `render_pacing_heatmap` (filmId), `render_director_radar` (directors[]), `render_shotlist` (shots[], title), `render_reference_deck` (shots[], theme), `render_comparison_table` (headers, rows).
 
 ## Sources
 
-- `/Users/kennygeiler/Documents/Vibing Coding Projects 2026/SceneDeck/src/app/api/agent/chat/route.ts` — existing SSE streaming + Gemini function-calling loop
-- `/Users/kennygeiler/Documents/Vibing Coding Projects 2026/SceneDeck/src/components/agent/chat-interface.tsx` — client SSE consumer, current tool_result handling (noop)
-- `/Users/kennygeiler/Documents/Vibing Coding Projects 2026/SceneDeck/src/components/agent/message-cards.tsx` — inline badge parsing (proto-Generative UI)
-- `/Users/kennygeiler/Documents/Vibing Coding Projects 2026/SceneDeck/src/components/visualize/rhythm-stream.tsx` — exemplar D3 component (useRef + useEffect pattern)
-- `/Users/kennygeiler/Documents/Vibing Coding Projects 2026/SceneDeck/src/components/visualize/viz-dashboard.tsx` — existing standalone D3 dashboard
+- `src/components/visualize/rhythm-stream.tsx` — exemplar D3 component (useRef + useEffect pattern)
+- `src/components/visualize/viz-dashboard.tsx` — standalone D3 dashboard
 - https://ai-sdk.dev/docs/ai-sdk-ui/generative-user-interfaces — Vercel AI SDK generative UI docs
 - https://vercel.com/blog/ai-sdk-5 — AI SDK 5 typed message parts
 - https://blog.scottlogic.com/2024/03/26/generating-d3-code-with-llms.html — LLM D3 code generation reliability study

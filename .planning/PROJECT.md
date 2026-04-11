@@ -17,7 +17,7 @@ MetroVision (SceneDeck) is a platform for structured camera movement analysis at
 - [x] **REQ-DOC-01** — Kiln/architecture docs and `AGENTS.md` match the live repo (no phantom routes or scripts). *(Phase 1, 2026-04-07)*
 - [x] **REQ-CORR-01** — `generateApiKey` / `src/lib/api-auth.ts` uses explicit `node:crypto` (`randomUUID`), not the global `crypto` binding. *(Phase 2, 02-01, 2026-04-07)*
 - [x] **REQ-SCHEMA-01** — App and worker cannot drift silently on shared tables (`pnpm check:schema-drift`); `shot_metadata` gap explicit via script warning + CONCERNS. *(Phase 2, 02-02, 2026-04-07)*
-- [x] **REQ-SEC-01** — LLM routes (`/api/agent/chat`, `/api/rag`) support optional `METROVISION_LLM_GATE_SECRET`; v1 API keys Bearer-first with legacy query opt-in; `process-scene` blocked on Vercel + optional secret; image remote patterns narrowed. *(Phase 3, 03-01–03-04, 2026-04-07)*
+- [x] **REQ-SEC-01** — LLM route `POST /api/rag` supports optional `METROVISION_LLM_GATE_SECRET`; v1 API keys Bearer-first with legacy query opt-in; `process-scene` blocked on Vercel + optional secret; image remote patterns narrowed. *(Phase 3, 03-01–03-04, 2026-04-07; chat route removed in consolidation.)*
 - [x] **REQ-RL-01** — Gemini paths use shared `acquireToken` / worker mirror; `searchShots` logs vector fallback; AGENTS documents limits and canonical ingest (AC-07, AC-20). *(Phase 4, 04-01–04-04, 2026-04-07)*
 - [x] **REQ-TAX-01** — `pnpm check:taxonomy` + GitHub Action on taxonomy file changes; TS/Python slug sets stay aligned (AC-02). *(Phase 5, 05-01, 2026-04-07)*
 
