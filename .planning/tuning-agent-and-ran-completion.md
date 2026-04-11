@@ -58,7 +58,7 @@ Ran is **finished** when all of the following are true:
 
 ## Next steps to finish Ran (execute in order)
 
-1. **Confirm canonical video** — Same clock as gold; **≥ ~764 s** (e.g. `Ran1243.mov` or `Ran_1985.mp4`). Document in `eval/runs/STATUS.md` or this file if the canonical asset changes.
+1. **Confirm canonical video** — Same clock as gold; **≥ ~764 s**. **Repo reference:** `s3://metrovision-superai/films/ran-1985/source/Ran1243.mov` (see **`eval/runs/STATUS.md`** for object URL + presign policy). Document in `STATUS` if the key changes.
 2. **Freeze baseline v1** — Treat `eval/predicted/ran1243-ensemble-gap022-20260410.json` as current best unless a sweep beats it; if replaced, update STATUS + commit new pred JSON.
 3. **Export miss lists** —  
    `pnpm eval:boundary-misses -- eval/gold/gold-ran-2026-04-10.json eval/predicted/ran1243-ensemble-gap022-20260410.json --tol 0.5 --markdown --out eval/runs/ran1243-misses.md`  

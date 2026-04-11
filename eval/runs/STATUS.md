@@ -23,6 +23,18 @@
 
 **Requirement:** Video **duration must cover the gold timeline** (~764 s). A short transcode (e.g. ~443 s “ranshort”) leaves **~26 gold cuts with no possible match** in the last third of the timeline — metrics look like a **recall crash** even when detector settings are unchanged.
 
+**Canonical media (S3, updated long clip aligned to gold):**
+
+| Field | Value |
+|-------|--------|
+| **Bucket** | `metrovision-superai` |
+| **Region** | `us-east-2` |
+| **Key** | `films/ran-1985/source/Ran1243.mov` |
+| **S3 URI** | `s3://metrovision-superai/films/ran-1985/source/Ran1243.mov` |
+| **Object URL (identification; access usually requires IAM or presign)** | `https://metrovision-superai.s3.us-east-2.amazonaws.com/films/ran-1985/source/Ran1243.mov` |
+
+**Presigned URLs:** Use the AWS Console, SDK, or CLI to generate a **fresh** download URL when running `detect-export-cuts` on a remote host. **Do not commit presigned URLs** to the repo (they contain temporary security tokens and expire).
+
 **Config (detect / ingest-aligned):**
 
 - `METROVISION_BOUNDARY_DETECTOR=pyscenedetect_ensemble_pyscene`
@@ -32,7 +44,7 @@
 
 **Predicted JSON in repo:**
 
-- [`eval/predicted/ran1243-ensemble-gap022-20260410.json`](../predicted/ran1243-ensemble-gap022-20260410.json) — generated from **`Ran1243.mov`** (probed **~763.4 s**), same env as above; `videoPath` in JSON is the machine-local path used at generation.
+- [`eval/predicted/ran1243-ensemble-gap022-20260410.json`](../predicted/ran1243-ensemble-gap022-20260410.json) — generated from the canonical **`Ran1243.mov`** object above (probed **~763.4 s**), same env as below; `videoPath` in JSON is the machine-local path used at generation (e.g. after `curl` download).
 
 **Numbers @ tol 0.5 s** (gold vs file above):
 
