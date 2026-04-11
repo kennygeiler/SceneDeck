@@ -1,6 +1,6 @@
 # Per-film boundary tuning flow (CLI today → in-app product)
 
-This document **logs the intended tuning workflow** so operators (and future app UX) can repeat it: **sample window → human cuts → auto detect → metrics → adjust → re-run**. It complements **`eval/runs/STATUS.md`** (canonical baseline, improvement tiers, presigned-URL note) and **`eval/runs/README.md`** (append-only ledger) plus **`eval/runs/*.json`** (structured run snapshots).
+This document **logs the intended tuning workflow** so operators (and future app UX) can repeat it: **sample window → human cuts → auto detect → metrics → adjust → re-run**. It complements **`eval/runs/STATUS.md`** (canonical baseline, **CEMENTED** production row, improvement tiers) and the in-app **`/tuning`** hub, plus **`eval/runs/README.md`** (append-only ledger) and **`eval/runs/*.json`** (structured run snapshots).
 
 ---
 

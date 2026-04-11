@@ -2,7 +2,27 @@
 
 **Purpose:** Single place for **where we are** on shot-boundary evaluation: canonical gold/pred files, latest numbers, decisions, and **benchmark targets**. Update this when a run changes the baseline or when strategy shifts.
 
-**Deeper narrative:** [`docs/tuning-flow.md`](../docs/tuning-flow.md) · **Env / workflow:** [`docs/pipeline-analysis.md`](../docs/pipeline-analysis.md) §3 · **Finish Ran + tuning-agent roadmap:** [`.planning/tuning-agent-and-ran-completion.md`](../../.planning/tuning-agent-and-ran-completion.md).
+**Deeper narrative:** [`docs/tuning-flow.md`](../docs/tuning-flow.md) · **Env / workflow:** [`docs/pipeline-analysis.md`](../docs/pipeline-analysis.md) §3 · **Finish Ran + tuning-agent roadmap:** [`.planning/tuning-agent-and-ran-completion.md`](../../.planning/tuning-agent-and-ran-completion.md). **In-app hub:** `/tuning` (canonical profile + links).
+
+---
+
+## CEMENTED — canonical production boundary tuning (2026-04-11)
+
+**Status:** **LOCKED** for Ran and for **worker / ingest parity** until a new sweep or title-specific profile supersedes this section.
+
+**Evidence:** merge-gap sweep ([`ran1243-merge-gap-sweep-2026-04-11.md`](ran1243-merge-gap-sweep-2026-04-11.md)); multi-knob sweep at gap **0.22** ([`ran1243-knob-sweep-gap022-2026-04-11.md`](ran1243-knob-sweep-gap022-2026-04-11.md) + [`.log`](ran1243-knob-sweep-gap022-2026-04-11.log)).
+
+| Knob | Production value | Notes |
+|------|------------------|--------|
+| `METROVISION_BOUNDARY_DETECTOR` | **`pyscenedetect_ensemble_pyscene`** | `pyscenedetect_ensemble` equivalent on Ran1243. **Not** `pyscenedetect_cli` alone (lower F1 on gold). |
+| `METROVISION_BOUNDARY_MERGE_GAP_SEC` | **`0.22`** | Sweeps **0.12–0.45** did not change ensemble interior cuts on Ran1243; **0.22** kept as dense-cut default. |
+| Extra cuts / TransNet | **None** for baseline | Add only with a real auxiliary detector; **`merge_flat`** when merging. |
+| `detect-export-cuts --fusion-policy` | **`merge_flat`** | **`pairwise_min_sources`** can drop **all** interior cuts if nothing pairs within ε/2; **`auxiliary_near_primary`** did not beat baseline on oracle tests. |
+| Gold eval tolerance (`eval:pipeline` / `--gold`) | **`0.5` s** | Optional **0.55 s** for looser reporting only (does not improve detector). |
+| Canonical media | **`s3://metrovision-superai/films/ran-1985/source/Ran1243.mov`** | Duration **~763.4 s**; must cover gold through **~764 s**. |
+| Reference predicted JSON | **`eval/predicted/ran1243-ensemble-gap022-20260410.json`** | **P 0.784 / R 0.817 / F1 0.800** @ tol **0.5**. |
+
+**Worker / Railway:** Set the two `METROVISION_*` env vars above to match this row before full-film Ran ingest.
 
 ---
 

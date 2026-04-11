@@ -1,5 +1,7 @@
 # Ran1243 boundary sweep — 2026-04-11
 
+**Canonical profile:** **LOCKED** in [`eval/runs/STATUS.md`](STATUS.md) (section **CEMENTED**). This file is supporting evidence for merge-gap invariance on ensemble.
+
 **Source:** `/tmp/Ran1243.mov` (canonical object `s3://metrovision-superai/films/ran-1985/source/Ran1243.mov`, downloaded with presigned URL — do not commit URLs).  
 **Gold:** `eval/gold/gold-ran-2026-04-10.json`  
 **Tolerance:** `0.5` s  

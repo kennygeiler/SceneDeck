@@ -1,6 +1,8 @@
 # Pipeline eval run log
 
-**Current baseline, targets, and decisions:** **[`STATUS.md`](STATUS.md)** — canonical Ran numbers, improvement tiers, TransNet decision, presigned-URL note, Phase 9 pointer.
+**Current baseline, targets, and decisions:** **[`STATUS.md`](STATUS.md)** — canonical Ran numbers, **CEMENTED** production profile (2026-04-11), improvement tiers, TransNet decision, presigned-URL note, Phase 9 pointer.
+
+**In-app:** Route **`/tuning`** — canonical boundary profile + operator links + GitHub evidence (`src/app/(site)/tuning/page.tsx`).
 
 Use this folder to **record boundary experiments** without relying on memory or chat history.
 
