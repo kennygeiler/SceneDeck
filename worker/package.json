@@ -8,8 +8,8 @@
   },
   "scripts": {
     "start": "node dist/server.mjs",
-    "build": "esbuild src/server.ts --bundle --platform=node --format=esm --packages=external --target=node20 --outfile=dist/server.mjs",
-    "typecheck": "tsc --noEmit",
+    "build": "node ../node_modules/esbuild/bin/esbuild src/server.ts --bundle --platform=node --format=esm --packages=external --target=node20 --outfile=dist/server.mjs",
+    "typecheck": "node ../node_modules/typescript/bin/tsc --noEmit",
     "dev": "node --import tsx/esm --watch src/server.ts",
     "db:clear": "pnpm -C .. run db:clear"
   },
