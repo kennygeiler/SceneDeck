@@ -26,6 +26,8 @@ type ShotVideoTransportProps = {
   previewPoster?: string | null;
   splitAt?: string;
   onSplitAtChange?: (value: string) => void;
+  /** Seconds into this shot under the pointer while hovering the rail (null when not over rail). */
+  onHoverIntoShotChange?: (intoSec: number | null) => void;
 };
 
 function clamp(n: number, lo: number, hi: number) {
@@ -43,6 +45,7 @@ export function ShotVideoTransport({
   previewPoster,
   splitAt,
   onSplitAtChange,
+  onHoverIntoShotChange,
 }: ShotVideoTransportProps) {
   const railRef = useRef<HTMLDivElement | null>(null);
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -277,6 +280,7 @@ export function ShotVideoTransport({
     if (e.target instanceof HTMLElement) {
       e.target.setPointerCapture(e.pointerId);
     }
+    onHoverIntoShotChange?.(into);
     applyIntoShot(into);
   };
 
@@ -287,6 +291,9 @@ export function ShotVideoTransport({
         const rect = railRef.current.getBoundingClientRect();
         setHover({ x: e.clientX - rect.left, into });
         scheduleHoverPreview(into);
+        onHoverIntoShotChange?.(into);
+      } else {
+        onHoverIntoShotChange?.(null);
       }
       return;
     }
@@ -310,6 +317,7 @@ export function ShotVideoTransport({
 
   const onRailLeave = () => {
     setHover(null);
+    onHoverIntoShotChange?.(null);
     hoverFileTRef.current = null;
     previewGenRef.current += 1;
     if (hoverRafRef.current != null) {

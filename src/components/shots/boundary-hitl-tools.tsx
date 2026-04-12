@@ -1,7 +1,7 @@
 "use client";
 
 import type { RefObject } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Merge, Scissors } from "lucide-react";
 
@@ -24,6 +24,8 @@ type BoundaryHitlToolsProps = {
   onSplitAtChange: (value: string) => void;
   /** When true, `ShotVideoTransport` keeps `splitAt` in sync; otherwise poll the video (native controls path). */
   playheadSyncedByTransport: boolean;
+  /** From timeline rail hover (custom transport only); used with Space+S to split at the previewed frame. */
+  timelineHoverIntoShotSec?: number | null;
 };
 
 function isEditableTarget(target: EventTarget | null) {
@@ -49,8 +51,10 @@ export function BoundaryHitlTools({
   splitAt,
   onSplitAtChange,
   playheadSyncedByTransport,
+  timelineHoverIntoShotSec = null,
 }: BoundaryHitlToolsProps) {
   const router = useRouter();
+  const spaceDownRef = useRef(false);
   const [splitting, setSplitting] = useState(false);
   const [merging, setMerging] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -113,45 +117,75 @@ export function BoundaryHitlTools({
     return startTc + intoShot;
   }, [usePlayhead, videoRef, mediaAnchor, startTc, splitAt]);
 
-  const doSplit = useCallback(async () => {
-    const t = readSplitSec();
-    if (t == null || !Number.isFinite(t)) {
-      setMessage(
-        "Enter seconds into this shot (0 = shot start), or scrub the player when video is on the page.",
-      );
-      return;
-    }
-    if (startTc == null || endTc == null) {
-      setMessage("Shot is missing start or end timecodes.");
-      return;
-    }
-    if (t <= startTc + MIN_SPLIT_MARGIN || t >= endTc - MIN_SPLIT_MARGIN) {
-      setMessage(
-        `Split must fall between ${MIN_SPLIT_MARGIN.toFixed(2)}s and ${(shotDuration - MIN_SPLIT_MARGIN).toFixed(2)}s into this shot (player timeline).`,
-      );
-      return;
-    }
-    setSplitting(true);
-    setMessage(null);
-    try {
-      const res = await fetch(`/api/shots/${shotId}/split`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ splitAtSec: t }),
-      });
-      const data = (await res.json()) as { error?: string; tailShotId?: string };
-      if (!res.ok) {
-        setMessage(data.error ?? "Split failed.");
+  const splitAtFilmSec = useCallback(
+    async (t: number | null) => {
+      if (t == null || !Number.isFinite(t)) {
+        setMessage(
+          "Enter seconds into this shot (0 = shot start), or scrub the player when video is on the page.",
+        );
         return;
       }
-      setMessage(`Split OK — tail shot ${data.tailShotId?.slice(0, 8)}…`);
-      router.refresh();
-    } catch {
-      setMessage("Split request failed.");
-    } finally {
-      setSplitting(false);
-    }
-  }, [readSplitSec, startTc, endTc, shotDuration, shotId, router]);
+      if (startTc == null || endTc == null) {
+        setMessage("Shot is missing start or end timecodes.");
+        return;
+      }
+      if (t <= startTc + MIN_SPLIT_MARGIN || t >= endTc - MIN_SPLIT_MARGIN) {
+        setMessage(
+          `Split must fall between ${MIN_SPLIT_MARGIN.toFixed(2)}s and ${(shotDuration - MIN_SPLIT_MARGIN).toFixed(2)}s into this shot (player timeline).`,
+        );
+        return;
+      }
+      setSplitting(true);
+      setMessage(null);
+      try {
+        const res = await fetch(`/api/shots/${shotId}/split`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ splitAtSec: t }),
+        });
+        const data = (await res.json()) as { error?: string; tailShotId?: string };
+        if (!res.ok) {
+          setMessage(data.error ?? "Split failed.");
+          return;
+        }
+        setMessage(`Split OK — tail shot ${data.tailShotId?.slice(0, 8)}…`);
+        router.refresh();
+      } catch {
+        setMessage("Split request failed.");
+      } finally {
+        setSplitting(false);
+      }
+    },
+    [startTc, endTc, shotDuration, shotId, router],
+  );
+
+  const doSplit = useCallback(() => {
+    void splitAtFilmSec(readSplitSec());
+  }, [splitAtFilmSec, readSplitSec]);
+
+  useEffect(() => {
+    const onSpaceDown = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        spaceDownRef.current = true;
+      }
+    };
+    const onSpaceUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        spaceDownRef.current = false;
+      }
+    };
+    const onBlur = () => {
+      spaceDownRef.current = false;
+    };
+    window.addEventListener("keydown", onSpaceDown);
+    window.addEventListener("keyup", onSpaceUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onSpaceDown);
+      window.removeEventListener("keyup", onSpaceUp);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -165,11 +199,18 @@ export function BoundaryHitlTools({
         return;
       }
       e.preventDefault();
-      void doSplit();
+      const useHoverSplit =
+        spaceDownRef.current &&
+        timelineHoverIntoShotSec != null &&
+        startTc != null &&
+        timelineHoverIntoShotSec > MIN_SPLIT_MARGIN &&
+        timelineHoverIntoShotSec < shotDuration - MIN_SPLIT_MARGIN;
+      const t = useHoverSplit ? startTc + timelineHoverIntoShotSec : readSplitSec();
+      void splitAtFilmSec(t);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [doSplit, canEdit]);
+  }, [canEdit, splitAtFilmSec, readSplitSec, timelineHoverIntoShotSec, startTc, shotDuration]);
 
   async function doMerge() {
     if (!nextShotId) {
@@ -281,7 +322,7 @@ export function BoundaryHitlTools({
             Split
           </Button>
           <span className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-            Shortcut: S
+            Shortcuts: S (playhead) · Space+S (split at timeline hover)
           </span>
         </div>
       ) : null}

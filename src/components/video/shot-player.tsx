@@ -18,9 +18,16 @@ type ShotPlayerProps = {
   /** Controlled: seconds into shot (synced from custom transport when present). */
   splitAt?: string;
   onSplitAtChange?: (value: string) => void;
+  onTimelineHoverIntoShotChange?: (intoSec: number | null) => void;
 };
 
-export function ShotPlayer({ shot, videoRef, splitAt, onSplitAtChange }: ShotPlayerProps) {
+export function ShotPlayer({
+  shot,
+  videoRef,
+  splitAt,
+  onSplitAtChange,
+  onTimelineHoverIntoShotChange,
+}: ShotPlayerProps) {
   const [videoAttachTick, setVideoAttachTick] = useState(0);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -169,6 +176,7 @@ export function ShotPlayer({ shot, videoRef, splitAt, onSplitAtChange }: ShotPla
             previewPoster={shot.thumbnailUrl ?? null}
             splitAt={splitAt}
             onSplitAtChange={onSplitAtChange}
+            onHoverIntoShotChange={onTimelineHoverIntoShotChange}
           />
         ) : null}
       </div>

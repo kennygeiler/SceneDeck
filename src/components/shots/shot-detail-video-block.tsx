@@ -15,10 +15,12 @@ type ShotDetailVideoBlockProps = {
 export function ShotDetailVideoBlock({ shot, nextShotId }: ShotDetailVideoBlockProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [splitAt, setSplitAt] = useState("");
+  const [timelineHoverIntoShotSec, setTimelineHoverIntoShotSec] = useState<number | null>(null);
   const playbackSegment = useMemo(() => getShotPlaybackSegment(shot), [shot]);
 
   useEffect(() => {
     setSplitAt("");
+    setTimelineHoverIntoShotSec(null);
   }, [shot.id]);
 
   return (
@@ -28,6 +30,7 @@ export function ShotDetailVideoBlock({ shot, nextShotId }: ShotDetailVideoBlockP
         videoRef={videoRef}
         splitAt={splitAt}
         onSplitAtChange={setSplitAt}
+        onTimelineHoverIntoShotChange={setTimelineHoverIntoShotSec}
       />
       <BoundaryHitlTools
         shotId={shot.id}
@@ -41,6 +44,7 @@ export function ShotDetailVideoBlock({ shot, nextShotId }: ShotDetailVideoBlockP
         splitAt={splitAt}
         onSplitAtChange={setSplitAt}
         playheadSyncedByTransport={playbackSegment != null}
+        timelineHoverIntoShotSec={timelineHoverIntoShotSec}
       />
     </div>
   );
