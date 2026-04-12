@@ -8,7 +8,7 @@ import {
   toPrettyJson,
 } from "@/lib/export";
 import { buildExportManifest } from "@/lib/export-manifest";
-import type { IngestProvenancePayload } from "@/lib/pipeline-provenance";
+import { normalizeIngestProvenanceForManifest } from "@/lib/pipeline-provenance";
 
 function getParamValue(searchParams: URLSearchParams, key: string) {
   return searchParams.get(key)?.trim() || undefined;
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
           title: f.title,
           director: f.director,
           year: f.year ?? null,
-          ingestProvenance: (f.ingestProvenance ?? null) as IngestProvenancePayload | null,
+          ingestProvenance: normalizeIngestProvenanceForManifest(f.ingestProvenance),
         })),
       });
       const body = JSON.stringify({ manifest, shots }, null, 2);

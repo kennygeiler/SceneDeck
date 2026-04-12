@@ -52,7 +52,6 @@ export async function GET(request: NextRequest) {
         duration: s.duration,
         description: s.semantic?.description ?? null,
         relevance: s.relevance,
-        thumbnailUrl: s.thumbnailUrl,
       })),
       total: shots.length,
     });

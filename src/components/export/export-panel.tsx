@@ -248,7 +248,7 @@ export function ExportPanel({
             JSON + manifest
           </button>
           <p className="text-sm text-[var(--color-text-secondary)]">
-            Exports omit clip/poster URLs and model scene-grouping fields. Rows are one detected shot (
+            Exports omit clip/poster URLs, storage file names, and model scene-grouping fields. Rows are one detected shot (
             <a
               href="https://github.com/kennygeiler/MetroVision/blob/main/.planning/research/pipeline-whitepaper.md"
               className="text-[var(--color-text-accent)] underline-offset-2 hover:underline"

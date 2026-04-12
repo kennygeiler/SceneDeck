@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 /** Bump when ingest/classify/export contract changes materially. */
@@ -25,12 +25,59 @@ function repoRoot(): string {
   return cwd;
 }
 
-/** Short SHA-256 of TS + Python taxonomy sources (AC-02 parity files). */
+/**
+ * Short SHA-256 of TS + Python taxonomy sources (AC-02 parity files).
+ * On Vercel/serverless, repo source files are often absent — set `METROVISION_TAXONOMY_HASH`
+ * (16 hex chars from `pnpm check:taxonomy` / local `computeTaxonomyHash`) so export manifest stays stable.
+ */
 export function computeTaxonomyHash(): string {
+  const envHash = process.env.METROVISION_TAXONOMY_HASH?.trim();
+  if (envHash && /^[a-f0-9]{16}$/i.test(envHash)) {
+    return envHash.toLowerCase();
+  }
+
   const root = repoRoot();
-  const ts = readFileSync(path.join(root, "src/lib/taxonomy.ts"), "utf8");
-  const py = readFileSync(path.join(root, "pipeline/taxonomy.py"), "utf8");
-  return createHash("sha256").update(ts).update("\n").update(py).digest("hex").slice(0, 16);
+  const tsPath = path.join(root, "src/lib/taxonomy.ts");
+  const pyPath = path.join(root, "pipeline/taxonomy.py");
+  const h = createHash("sha256");
+  try {
+    if (existsSync(tsPath)) {
+      h.update(readFileSync(tsPath, "utf8"));
+    } else {
+      h.update("# src/lib/taxonomy.ts not available on filesystem\n");
+    }
+    h.update("\n");
+    if (existsSync(pyPath)) {
+      h.update(readFileSync(pyPath, "utf8"));
+    } else {
+      h.update("# pipeline/taxonomy.py not available on filesystem\n");
+    }
+    return h.digest("hex").slice(0, 16);
+  } catch {
+    return createHash("sha256").update("taxonomy-hash-unavailable").digest("hex").slice(0, 16);
+  }
+}
+
+/** Coerce DB jsonb / string into a JSON-safe manifest payload. */
+export function normalizeIngestProvenanceForManifest(
+  raw: unknown,
+): IngestProvenancePayload | null {
+  if (raw == null) return null;
+  if (typeof raw === "string") {
+    if (raw.trim() === "") return null;
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      return typeof parsed === "object" && parsed !== null
+        ? (parsed as IngestProvenancePayload)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof raw === "object") {
+    return raw as IngestProvenancePayload;
+  }
+  return null;
 }
 
 export function getGeminiClassifyModel(): string {

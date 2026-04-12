@@ -329,7 +329,6 @@ function mapExportShotRow(row: ShotRow): ExportShotRecord {
     filmTitle: row.filmTitle,
     director: row.filmDirector,
     year: row.filmYear ?? null,
-    sourceFile: row.shotSourceFile ?? null,
     startTc: row.shotStartTc ?? null,
     endTc: row.shotEndTc ?? null,
     duration: row.shotDuration ?? 0,
@@ -675,6 +674,25 @@ export async function getFilmManifestRows(filmIds: string[]) {
     })
     .from(schema.films)
     .where(inArray(schema.films.id, filmIds));
+}
+
+/** Playback URLs for a single shot (eval UI); not included in bulk export. */
+export async function getShotClipUrlsById(
+  shotId: string,
+): Promise<{ videoUrl: string | null; thumbnailUrl: string | null } | null> {
+  const [row] = await db
+    .select({
+      videoUrl: schema.shots.videoUrl,
+      thumbnailUrl: schema.shots.thumbnailUrl,
+    })
+    .from(schema.shots)
+    .where(eq(schema.shots.id, shotId))
+    .limit(1);
+  if (!row) return null;
+  return {
+    videoUrl: proxyBlobUrl(row.videoUrl ?? null),
+    thumbnailUrl: proxyBlobUrl(row.thumbnailUrl ?? null),
+  };
 }
 
 async function searchShotsWithIlike(query: string): Promise<ShotWithDetails[]> {

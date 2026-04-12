@@ -8,7 +8,7 @@ import {
 } from "./pipeline-provenance";
 
 export const EXPORT_DATA_DISCLAIMER =
-  "Rows are one detected shot each. Exports omit direct media URLs and internal model grouping keys; use shotId and film metadata to cite rows. See .planning/research/pipeline-whitepaper.md.";
+  "Rows are one detected shot each. Exports omit media URLs, storage file names, and internal model grouping keys; cite rows with shotId and your site’s public shot URLs. See .planning/research/pipeline-whitepaper.md.";
 
 export function buildExportManifest(opts: {
   filters: Record<string, string | undefined>;

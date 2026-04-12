@@ -153,7 +153,6 @@ export type ExportShotRecord = {
   filmTitle: string;
   director: string;
   year: number | null;
-  sourceFile: string | null;
   startTc: number | null;
   endTc: number | null;
   duration: number;

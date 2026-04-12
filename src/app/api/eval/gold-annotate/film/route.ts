@@ -32,7 +32,6 @@ export async function GET(request: Request) {
       startTc: s.startTc,
       endTc: s.endTc,
       duration: s.duration,
-      videoUrl: s.videoUrl,
       framing: s.metadata.framing,
     })),
     /** Same JSON as `pnpm eval:export-film` — for in-app download + compare. */

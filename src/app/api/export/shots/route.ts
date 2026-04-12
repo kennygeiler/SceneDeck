@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { getFilmManifestRows, getShotsForExportByIds } from "@/db/queries";
 import { getExportFilename, isExportFormat, toCsv, toPrettyJson } from "@/lib/export";
 import { buildExportManifest } from "@/lib/export-manifest";
-import type { IngestProvenancePayload } from "@/lib/pipeline-provenance";
+import { normalizeIngestProvenanceForManifest } from "@/lib/pipeline-provenance";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
           title: f.title,
           director: f.director,
           year: f.year ?? null,
-          ingestProvenance: (f.ingestProvenance ?? null) as IngestProvenancePayload | null,
+          ingestProvenance: normalizeIngestProvenanceForManifest(f.ingestProvenance),
         })),
       });
       return new NextResponse(JSON.stringify({ manifest, shots }, null, 2), {

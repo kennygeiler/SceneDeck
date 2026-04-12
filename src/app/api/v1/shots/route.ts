@@ -48,8 +48,6 @@ export async function GET(request: NextRequest) {
       endTc: s.endTc,
       description: s.semantic?.description ?? null,
       mood: s.semantic?.mood ?? null,
-      thumbnailUrl: s.thumbnailUrl,
-      videoUrl: s.videoUrl,
     }));
 
     return Response.json({

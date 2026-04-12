@@ -10,7 +10,6 @@ export const EXPORT_SHOT_COLUMNS = [
   "filmTitle",
   "director",
   "year",
-  "sourceFile",
   "startTc",
   "endTc",
   "duration",

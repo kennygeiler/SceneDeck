@@ -42,7 +42,14 @@ export async function GET(request: NextRequest) {
         )
       : await getAllShots(filters);
 
-    return Response.json(shots);
+    return Response.json(
+      shots.map((shot) => {
+        const safe = { ...shot } as Record<string, unknown>;
+        delete safe.videoUrl;
+        delete safe.thumbnailUrl;
+        return safe;
+      }),
+    );
   } catch (error) {
     console.error("Failed to load shots.", error);
 

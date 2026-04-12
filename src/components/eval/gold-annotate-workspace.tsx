@@ -72,7 +72,6 @@ type FilmPayload = {
     startTc: number | null;
     endTc: number | null;
     duration: number;
-    videoUrl: string | null;
     framing: string;
   }>;
   predictedExport: FilmEvalExportPayload;
@@ -215,6 +214,8 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
   const [note, setNote] = useState("");
   const [filmId, setFilmId] = useState<string>("");
   const [referenceShotId, setReferenceShotId] = useState<string>("");
+  /** Resolved via `/api/eval/gold-annotate/shot-media` so film payload stays URL-free. */
+  const [shotClipUrl, setShotClipUrl] = useState<string | null>(null);
   const [sourceMode, setSourceMode] = useState<SourceMode>(() =>
     films.length > 0 ? "shot" : "local",
   );
@@ -420,6 +421,30 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
     };
   }, [filmId]);
 
+  useEffect(() => {
+    if (sourceMode !== "shot" || !referenceShotId.trim()) {
+      setShotClipUrl(null);
+      return;
+    }
+    let cancelled = false;
+    setShotClipUrl(null);
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/eval/gold-annotate/shot-media?shotId=${encodeURIComponent(referenceShotId.trim())}`,
+        );
+        const data = (await res.json()) as { videoUrl?: string | null; error?: string };
+        if (!res.ok || cancelled) return;
+        setShotClipUrl(typeof data.videoUrl === "string" ? data.videoUrl : null);
+      } catch {
+        if (!cancelled) setShotClipUrl(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sourceMode, referenceShotId]);
+
   const referenceShot = useMemo(() => {
     if (!filmPayload || !referenceShotId) return null;
     return filmPayload.shots.find((s) => s.id === referenceShotId) ?? null;
@@ -430,7 +455,7 @@ export function GoldAnnotateWorkspace({ films }: GoldAnnotateWorkspaceProps) {
       ? localVideoUrl
       : sourceMode === "custom"
         ? customVideoUrl.trim() || null
-        : referenceShot?.videoUrl ?? null;
+        : shotClipUrl;
 
   videoSrcRef.current = videoSrc;
 
