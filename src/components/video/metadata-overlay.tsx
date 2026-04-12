@@ -21,46 +21,58 @@ type MetadataOverlayProps = {
   shot: ShotWithDetails;
 };
 
+/** Keeps labels above native play / timeline chrome (varies by browser). */
+const SAFE_BOTTOM =
+  "bottom-[max(6.25rem,16%)]" as const;
+
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
     transition: {
-      delayChildren: 0.08,
+      delayChildren: 0.06,
       staggerChildren: 0.05,
     },
   },
 };
 
 const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 10 },
+  hidden: { opacity: 0, y: 8 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.36, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.34, ease: [0.22, 1, 0.36, 1] },
   },
 };
 
-function OverlayField({
+function OverlayCard({
   label,
   children,
-  className = "",
+  align = "left",
 }: {
   label: string;
   children: ReactNode;
-  className?: string;
+  align?: "left" | "right";
 }) {
   return (
-    <div className={className}>
-      <p className="text-[11px] font-medium uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+    <div
+      className={`max-w-full rounded-[var(--radius-lg)] border px-3 py-2 shadow-[var(--shadow-md)] backdrop-blur-xl sm:px-3.5 sm:py-2.5 ${align === "right" ? "text-right" : "text-left"}`}
+      style={{
+        backgroundColor:
+          "color-mix(in oklch, var(--color-surface-primary) 68%, transparent)",
+        borderColor:
+          "color-mix(in oklch, var(--color-border-default) 70%, transparent)",
+      }}
+    >
+      <p className="text-[10px] font-medium uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
         {label}
       </p>
-      <p
-        className="mt-1 text-sm font-semibold leading-snug text-[var(--color-text-primary)]"
+      <div
+        className="mt-0.5 text-sm font-semibold leading-snug text-[var(--color-text-primary)]"
         style={{ fontFamily: "var(--font-heading)" }}
       >
         {children}
-      </p>
+      </div>
     </div>
   );
 }
@@ -80,109 +92,94 @@ export function MetadataOverlay({ shot }: MetadataOverlayProps) {
         className="absolute inset-0"
         style={{
           background:
-            "linear-gradient(180deg, transparent 0%, transparent 42%, color-mix(in oklch, var(--color-surface-primary) 55%, transparent) 100%)",
+            "linear-gradient(90deg, color-mix(in oklch, var(--color-surface-primary) 22%, transparent) 0%, transparent 38%, transparent 62%, color-mix(in oklch, var(--color-surface-primary) 22%, transparent) 100%)",
         }}
       />
 
-      {/* Context strip — stays out of the focal area */}
-      <motion.div
-        variants={itemVariants}
-        className="absolute left-4 right-4 top-4 flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-lg)] border px-3 py-2 shadow-[var(--shadow-md)] backdrop-blur-xl sm:left-5 sm:right-auto sm:max-w-[min(100%,28rem)]"
-        style={{
-          backgroundColor:
-            "color-mix(in oklch, var(--color-surface-primary) 62%, transparent)",
-          borderColor:
-            "color-mix(in oklch, var(--color-border-default) 70%, transparent)",
-        }}
+      {/* Left column — stacks top to bottom, stops above controls */}
+      <div
+        className={`absolute left-2 top-2 z-10 flex w-[min(48%,17.5rem)] flex-col gap-2 overflow-y-auto pr-1 sm:left-3 sm:top-3 ${SAFE_BOTTOM}`}
       >
-        <div className="min-w-0">
-          <p
-            className="truncate text-sm font-semibold text-[var(--color-text-primary)]"
-            style={{ fontFamily: "var(--font-heading)" }}
-          >
-            {film.title}
-          </p>
-          <p className="text-xs text-[var(--color-text-secondary)]">
-            {film.director} · {film.year}
-          </p>
-        </div>
-      </motion.div>
+        <motion.div variants={itemVariants}>
+          <OverlayCard label="Film" align="left">
+            <span className="block truncate">{film.title}</span>
+            <span className="mt-0.5 block text-xs font-normal text-[var(--color-text-secondary)]">
+              {film.director} · {film.year}
+            </span>
+          </OverlayCard>
+        </motion.div>
 
-      {/* Single readable panel — primary composition info */}
-      <motion.div
-        variants={itemVariants}
-        className="absolute inset-x-3 bottom-3 max-h-[min(52%,20rem)] overflow-y-auto rounded-[var(--radius-xl)] border p-4 shadow-[var(--shadow-lg)] backdrop-blur-xl sm:inset-x-4 sm:bottom-4 sm:max-h-[min(48%,22rem)] sm:p-5"
-        style={{
-          backgroundColor:
-            "color-mix(in oklch, var(--color-surface-primary) 72%, transparent)",
-          borderColor:
-            "color-mix(in oklch, var(--color-border-default) 68%, transparent)",
-        }}
+        <motion.div variants={itemVariants}>
+          <OverlayCard label="Framing" align="left">
+            {getFramingDisplayName(metadata.framing)}
+          </OverlayCard>
+        </motion.div>
+
+        <motion.div variants={itemVariants}>
+          <OverlayCard label="Depth" align="left">
+            {getDepthDisplayName(metadata.depth)}
+          </OverlayCard>
+        </motion.div>
+
+        <motion.div variants={itemVariants}>
+          <OverlayCard label="Blocking" align="left">
+            {getBlockingDisplayName(metadata.blocking)}
+          </OverlayCard>
+        </motion.div>
+
+        <motion.div variants={itemVariants}>
+          <OverlayCard label="Lighting" align="left">
+            <span className="block">{getLightingDirectionDisplayName(metadata.lightingDirection)}</span>
+            <span className="mt-1 block text-xs font-normal text-[var(--color-text-secondary)]">
+              {getLightingQualityDisplayName(metadata.lightingQuality)}
+            </span>
+          </OverlayCard>
+        </motion.div>
+      </div>
+
+      {/* Right column — right-aligned stack */}
+      <div
+        className={`absolute right-2 top-14 z-10 flex w-[min(48%,17.5rem)] flex-col items-end gap-2 overflow-y-auto pl-1 sm:right-3 sm:top-16 ${SAFE_BOTTOM}`}
       >
-        <div
-          className="flex flex-wrap items-end justify-between gap-3 border-b pb-3"
-          style={{
-            borderBottomColor:
-              "color-mix(in oklch, var(--color-border-subtle) 80%, transparent)",
-          }}
-        >
-          <div>
-            <p className="text-[11px] font-medium uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-              Composition
-            </p>
-            <p className="mt-0.5 text-xs text-[var(--color-text-secondary)]">
-              Labels match the archive taxonomy for this shot.
-            </p>
-          </div>
-          <p
-            className="shrink-0 rounded-full border px-3 py-1 font-mono text-xs tabular-nums text-[var(--color-text-primary)]"
+        <motion.div variants={itemVariants}>
+          <div
+            className="rounded-full border px-3 py-1.5 font-mono text-xs tabular-nums text-[var(--color-text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl"
             style={{
               backgroundColor:
-                "color-mix(in oklch, var(--color-surface-secondary) 70%, transparent)",
+                "color-mix(in oklch, var(--color-surface-primary) 68%, transparent)",
               borderColor:
-                "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
+                "color-mix(in oklch, var(--color-border-default) 70%, transparent)",
             }}
           >
             {formatShotDuration(duration)}
-          </p>
-        </div>
+          </div>
+        </motion.div>
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <OverlayField label="Framing">{getFramingDisplayName(metadata.framing)}</OverlayField>
-          <OverlayField label="Shot size">{getShotSizeDisplayName(metadata.shotSize)}</OverlayField>
-          <OverlayField label="Depth">{getDepthDisplayName(metadata.depth)}</OverlayField>
-          <OverlayField label="Blocking">{getBlockingDisplayName(metadata.blocking)}</OverlayField>
-          <OverlayField label="Lighting direction" className="sm:col-span-2 lg:col-span-1">
-            {getLightingDirectionDisplayName(metadata.lightingDirection)}
-          </OverlayField>
-          <OverlayField label="Lighting quality">{getLightingQualityDisplayName(metadata.lightingQuality)}</OverlayField>
-          <OverlayField label="Length category">
+        <motion.div variants={itemVariants} className="w-full">
+          <OverlayCard label="Shot size" align="right">
+            {getShotSizeDisplayName(metadata.shotSize)}
+          </OverlayCard>
+        </motion.div>
+
+        <motion.div variants={itemVariants} className="w-full">
+          <OverlayCard label="Length category" align="right">
             {getDurationCategoryDisplayName(metadata.durationCategory)}
-          </OverlayField>
-        </div>
+          </OverlayCard>
+        </motion.div>
 
-        <div
-          className="mt-4 rounded-[var(--radius-md)] border p-3"
-          style={{
-            backgroundColor:
-              "color-mix(in oklch, var(--color-surface-secondary) 55%, transparent)",
-            borderColor:
-              "color-mix(in oklch, var(--color-border-subtle) 88%, transparent)",
-          }}
-        >
-          <p className="text-[11px] font-medium uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-            Camera angle
-          </p>
-          <p className="mt-2 text-sm text-[var(--color-text-primary)]">
-            <span className="text-[var(--color-text-secondary)]">Vertical: </span>
-            {getVerticalAngleDisplayName(metadata.angleVertical)}
-          </p>
-          <p className="mt-1 text-sm text-[var(--color-text-primary)]">
-            <span className="text-[var(--color-text-secondary)]">Horizontal: </span>
-            {getHorizontalAngleDisplayName(metadata.angleHorizontal)}
-          </p>
-        </div>
-      </motion.div>
+        <motion.div variants={itemVariants} className="w-full">
+          <OverlayCard label="Camera angle" align="right">
+            <span className="block text-xs font-normal leading-relaxed text-[var(--color-text-primary)]">
+              <span className="text-[var(--color-text-secondary)]">Vertical · </span>
+              {getVerticalAngleDisplayName(metadata.angleVertical)}
+            </span>
+            <span className="mt-1 block text-xs font-normal leading-relaxed text-[var(--color-text-primary)]">
+              <span className="text-[var(--color-text-secondary)]">Horizontal · </span>
+              {getHorizontalAngleDisplayName(metadata.angleHorizontal)}
+            </span>
+          </OverlayCard>
+        </motion.div>
+      </div>
     </motion.div>
   );
 }

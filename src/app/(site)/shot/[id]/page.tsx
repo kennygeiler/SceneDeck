@@ -5,7 +5,6 @@ import { notFound } from "next/navigation";
 import { getNextShotAfterBoundary, getShotById } from "@/db/queries";
 import { ShotProvenanceCard } from "@/components/archive/shot-provenance-card";
 import { BoundaryHitlTools } from "@/components/shots/boundary-hitl-tools";
-import { DetectObjectsButton } from "@/components/shots/detect-objects-button";
 import { ShotPlayer } from "@/components/video/shot-player";
 import {
   formatShotDuration,
@@ -136,7 +135,6 @@ export default async function ShotDetailPage({ params }: ShotDetailPageProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <DetectObjectsButton shotId={shot.id} hasObjects={shot.objects.length > 0} />
           <Link
             href={`/verify/${shot.id}`}
             className="inline-flex h-7 items-center justify-center rounded-full border border-[var(--color-border-default)] bg-transparent px-4 text-[0.8rem] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-tertiary)] hover:text-[var(--color-text-primary)]"

@@ -105,7 +105,7 @@ export function ShotPlayer({ shot, variant = "default" }: ShotPlayerProps) {
       {variant === "verify" ? (
         <p className="text-sm leading-7 text-[var(--color-text-secondary)]">
           Use <strong className="font-medium text-[var(--color-text-primary)]">Show labels</strong> to compare the
-          on-screen composition panel with the ratings you enter below. Native video controls handle play and seek.
+          side columns with the ratings you enter below. Labels stay above the player timeline so you can still scrub.
         </p>
       ) : (
         <div
@@ -121,8 +121,8 @@ export function ShotPlayer({ shot, variant = "default" }: ShotPlayerProps) {
             About this overlay
           </p>
           <p className="mt-2 text-sm leading-7 text-[var(--color-text-secondary)]">
-            Composition labels are grouped in a single panel at the bottom of the frame so you can read framing, shot
-            size, lighting, and angles without scanning every corner.
+            Labels sit in left and right columns and stop above the native play bar so the timeline and controls stay
+            easy to use.
           </p>
         </div>
       )}
