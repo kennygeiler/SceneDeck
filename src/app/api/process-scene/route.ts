@@ -349,6 +349,7 @@ function buildSearchText(film: {
       sourceFile: null,
       startTc: shot.start,
       endTc: shot.end,
+      clipMediaAnchorStartTc: shot.start,
       videoUrl: shot.videoUrl,
       thumbnailUrl: shot.thumbnailUrl,
       createdAt: null,

@@ -21,6 +21,7 @@ export function ShotDetailVideoBlock({ shot, nextShotId }: ShotDetailVideoBlockP
         shotId={shot.id}
         startTc={shot.startTc}
         endTc={shot.endTc}
+        clipMediaAnchorStartTc={shot.clipMediaAnchorStartTc}
         nextShotId={nextShotId}
         videoRef={videoRef}
         hasVideoClip={Boolean(shot.videoUrl)}

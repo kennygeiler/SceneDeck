@@ -6,6 +6,8 @@ import {
   gte,
   ilike,
   inArray,
+  isNotNull,
+  min,
   or,
   sql,
   type SQL,
@@ -195,6 +197,7 @@ function mapShotRow(row: ShotRow): ShotWithDetails {
     sourceFile: row.shotSourceFile ?? null,
     startTc: row.shotStartTc ?? null,
     endTc: row.shotEndTc ?? null,
+    clipMediaAnchorStartTc: null,
     videoUrl: proxyBlobUrl(row.shotVideoUrl ?? null),
     thumbnailUrl: proxyBlobUrl(row.shotThumbnailUrl ?? null),
     createdAt: toIsoString(row.shotCreatedAt ?? null),
@@ -245,13 +248,79 @@ async function getObjectsGroupedByShotIds(shotIds: string[]) {
   return objectsByShotId;
 }
 
+async function attachClipMediaAnchorsToShots(
+  shots: ShotWithDetails[],
+): Promise<ShotWithDetails[]> {
+  if (shots.length === 0) {
+    return shots;
+  }
+
+  const ids = shots.map((s) => s.id);
+  const shotRows = await db
+    .select({
+      id: schema.shots.id,
+      filmId: schema.shots.filmId,
+      videoUrl: schema.shots.videoUrl,
+    })
+    .from(schema.shots)
+    .where(inArray(schema.shots.id, ids));
+
+  const dbByShotId = new Map(shotRows.map((r) => [r.id, r]));
+  const uniquePairs = new Map<string, { filmId: string; videoUrl: string }>();
+
+  for (const r of shotRows) {
+    if (!r.videoUrl) {
+      continue;
+    }
+    const k = `${r.filmId}\x1e${r.videoUrl}`;
+    uniquePairs.set(k, { filmId: r.filmId, videoUrl: r.videoUrl });
+  }
+
+  const anchorByKey = new Map<string, number>();
+  if (uniquePairs.size > 0) {
+    const pairConditions = [...uniquePairs.values()].map(({ filmId, videoUrl }) =>
+      and(eq(schema.shots.filmId, filmId), eq(schema.shots.videoUrl, videoUrl)),
+    );
+    const rows = await db
+      .select({
+        filmId: schema.shots.filmId,
+        videoUrl: schema.shots.videoUrl,
+        anchor: min(schema.shots.startTc),
+      })
+      .from(schema.shots)
+      .where(and(or(...pairConditions), isNotNull(schema.shots.startTc)))
+      .groupBy(schema.shots.filmId, schema.shots.videoUrl);
+
+    for (const row of rows) {
+      if (row.videoUrl != null && row.anchor != null) {
+        anchorByKey.set(`${row.filmId}\x1e${row.videoUrl}`, Number(row.anchor));
+      }
+    }
+  }
+
+  return shots.map((shot) => {
+    const dbRow = dbByShotId.get(shot.id);
+    if (!dbRow?.videoUrl || shot.startTc == null) {
+      return { ...shot, clipMediaAnchorStartTc: null };
+    }
+    const k = `${dbRow.filmId}\x1e${dbRow.videoUrl}`;
+    const anchor = anchorByKey.get(k);
+    return {
+      ...shot,
+      clipMediaAnchorStartTc: anchor ?? shot.startTc,
+    };
+  });
+}
+
 async function attachObjectsToShots(shots: ShotWithDetails[]) {
   const objectsByShotId = await getObjectsGroupedByShotIds(shots.map((shot) => shot.id));
 
-  return shots.map((shot) => ({
+  const withObjects = shots.map((shot) => ({
     ...shot,
     objects: objectsByShotId.get(shot.id) ?? [],
   }));
+
+  return attachClipMediaAnchorsToShots(withObjects);
 }
 
 function mapExportShotRow(row: ShotRow): ExportShotRecord {
@@ -626,7 +695,7 @@ async function searchShotsWithIlike(query: string): Promise<ShotWithDetails[]> {
     )
     .orderBy(desc(schema.shots.createdAt));
 
-  return rows
+  const sorted = rows
     .map((row) => {
       const shot = mapShotRow(row);
 
@@ -642,6 +711,8 @@ async function searchShotsWithIlike(query: string): Promise<ShotWithDetails[]> {
 
       return (right.createdAt ?? "").localeCompare(left.createdAt ?? "");
     });
+
+  return attachClipMediaAnchorsToShots(sorted);
 }
 
 type SearchShotsOptions = {
@@ -734,7 +805,7 @@ export async function searchShots(query: string, options?: SearchShotsOptions) {
   console.warn(
     `[searchShots] ILIKE text search path (query length=${normalizedQuery.length} chars). Not ideal at large corpus scale — ensure embeddings backfill and monitor this prefix.`,
   );
-  return searchShotsWithIlike(normalizedQuery);
+  return await searchShotsWithIlike(normalizedQuery);
 }
 
 type RankedImageEmbeddingRow = {

@@ -13,6 +13,8 @@ type BoundaryHitlToolsProps = {
   shotId: string;
   startTc: number | null;
   endTc: number | null;
+  /** Film time at `video.currentTime === 0` (see `ShotWithDetails.clipMediaAnchorStartTc`). */
+  clipMediaAnchorStartTc: number | null;
   nextShotId: string | null;
   videoRef?: RefObject<HTMLVideoElement | null>;
   hasVideoClip?: boolean;
@@ -33,6 +35,7 @@ export function BoundaryHitlTools({
   shotId,
   startTc,
   endTc,
+  clipMediaAnchorStartTc,
   nextShotId,
   videoRef,
   hasVideoClip = false,
@@ -44,7 +47,8 @@ export function BoundaryHitlTools({
   const [message, setMessage] = useState<string | null>(null);
 
   const canEdit = startTc != null && endTc != null && endTc - startTc > MIN_SPLIT_MARGIN * 2;
-  const usePlayhead = Boolean(hasVideoClip && videoRef && startTc != null);
+  const mediaAnchor = clipMediaAnchorStartTc ?? startTc;
+  const usePlayhead = Boolean(hasVideoClip && videoRef && mediaAnchor != null);
 
   useEffect(() => {
     if (!usePlayhead) {
@@ -70,10 +74,10 @@ export function BoundaryHitlTools({
       window.clearInterval(poll);
 
       const sync = () => {
-        if (cleared || startTc == null) {
+        if (cleared || mediaAnchor == null) {
           return;
         }
-        setSplitAt((startTc + video.currentTime).toFixed(3));
+        setSplitAt((mediaAnchor + video.currentTime).toFixed(3));
       };
 
       sync();
@@ -92,15 +96,15 @@ export function BoundaryHitlTools({
       window.clearInterval(poll);
       detachListeners?.();
     };
-  }, [usePlayhead, videoRef, startTc, shotId]);
+  }, [usePlayhead, videoRef, mediaAnchor, shotId]);
 
   const readSplitSec = useCallback((): number | null => {
-    if (usePlayhead && videoRef?.current && startTc != null) {
-      return startTc + videoRef.current.currentTime;
+    if (usePlayhead && videoRef?.current && mediaAnchor != null) {
+      return mediaAnchor + videoRef.current.currentTime;
     }
     const t = Number(splitAt);
     return Number.isFinite(t) ? t : null;
-  }, [usePlayhead, videoRef, startTc, splitAt]);
+  }, [usePlayhead, videoRef, mediaAnchor, splitAt]);
 
   const doSplit = useCallback(async () => {
     const t = readSplitSec();
@@ -108,12 +112,11 @@ export function BoundaryHitlTools({
       setMessage("Enter a valid split time in seconds (film timeline), or scrub the clip when video is available.");
       return;
     }
-    if (
-      startTc == null ||
-      endTc == null ||
-      t <= startTc + MIN_SPLIT_MARGIN ||
-      t >= endTc - MIN_SPLIT_MARGIN
-    ) {
+    if (startTc == null || endTc == null) {
+      setMessage("Shot is missing start or end timecodes.");
+      return;
+    }
+    if (t <= startTc + MIN_SPLIT_MARGIN || t >= endTc - MIN_SPLIT_MARGIN) {
       setMessage(
         `Split must be on the film timeline between ${(startTc + MIN_SPLIT_MARGIN).toFixed(2)}s and ${(endTc - MIN_SPLIT_MARGIN).toFixed(2)}s.`,
       );
@@ -208,6 +211,11 @@ export function BoundaryHitlTools({
         segments so you can re-run those jobs after boundaries settle.
       </p>
       <p className="mt-3 text-sm leading-7 text-[var(--color-text-secondary)]">
+        Splitting updates timeline fields only: both segments keep the same on-disk clip URL until you re-export two
+        files from the master (ingest / pipeline). The player constrains playback to each segment’s film-time window so
+        lengths match the database.
+      </p>
+      <p className="mt-3 text-sm leading-7 text-[var(--color-text-secondary)]">
         After a split, this shot row stays as the head segment (same ID) and a new row is inserted for the tail. There
         are no stored “shot 1 / shot 2” counters; browse and film views sort by film timeline (
         <code className="font-mono text-xs">start_tc</code>), so the extra segment simply appears between neighbors.
@@ -244,7 +252,7 @@ export function BoundaryHitlTools({
             />
             {usePlayhead ? (
               <span className="text-[11px] text-[var(--color-text-tertiary)]">
-                Pausing or moving the timeline updates this value (clip time + shot start).
+                Pausing or scrubbing updates film time (media anchor + playhead in file).
               </span>
             ) : (
               <span className="text-[11px] text-[var(--color-text-tertiary)]">

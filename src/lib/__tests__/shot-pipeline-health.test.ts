@@ -35,6 +35,7 @@ function minimalShot(partial: Partial<ShotWithDetails["metadata"]>): ShotWithDet
     sourceFile: null,
     startTc: 0,
     endTc: 1,
+    clipMediaAnchorStartTc: null,
     videoUrl: null,
     thumbnailUrl: null,
     createdAt: null,

@@ -106,6 +106,12 @@ export type ShotWithDetails = {
   sourceFile: string | null;
   startTc: number | null;
   endTc: number | null;
+  /**
+   * Film timecode (seconds) at `video.currentTime === 0` for this row’s `videoUrl`.
+   * After a split, head and tail share one file; anchor is the earliest `start_tc` among rows
+   * with that URL so the player can map file time ↔ film time.
+   */
+  clipMediaAnchorStartTc: number | null;
   videoUrl: string | null;
   thumbnailUrl: string | null;
   createdAt: string | null;

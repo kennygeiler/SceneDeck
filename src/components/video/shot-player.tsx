@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import type { RefObject } from "react";
-import { useState } from "react";
+import type { MutableRefObject, RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
 
@@ -19,6 +19,69 @@ type ShotPlayerProps = {
 
 export function ShotPlayer({ shot, variant = "default", videoRef }: ShotPlayerProps) {
   const [showOverlay, setShowOverlay] = useState(true);
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+
+  const setVideoEl = useCallback(
+    (node: HTMLVideoElement | null) => {
+      localVideoRef.current = node;
+      if (videoRef) {
+        (videoRef as MutableRefObject<HTMLVideoElement | null>).current = node;
+      }
+    },
+    [videoRef],
+  );
+
+  const anchorTc = shot.clipMediaAnchorStartTc ?? shot.startTc ?? null;
+
+  const segment = useMemo(() => {
+    if (!shot.videoUrl || shot.startTc == null || shot.duration <= 0 || anchorTc == null) {
+      return null;
+    }
+    const offset = shot.startTc - anchorTc;
+    const end = offset + shot.duration;
+    if (!Number.isFinite(offset) || !Number.isFinite(end)) {
+      return null;
+    }
+    return { offset, end };
+  }, [shot.videoUrl, shot.startTc, shot.duration, anchorTc]);
+
+  useEffect(() => {
+    const v = localVideoRef.current;
+    if (!v || !segment) {
+      return;
+    }
+
+    const { offset, end } = segment;
+
+    const clamp = () => {
+      const dur = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : end;
+      const hi = Math.min(end, dur + 0.001);
+      if (v.currentTime < offset - 0.05) {
+        v.currentTime = offset;
+      }
+      if (v.currentTime > hi) {
+        v.pause();
+        v.currentTime = Math.min(end, dur);
+      }
+    };
+
+    const snapToSegmentStart = () => {
+      v.currentTime = offset;
+    };
+
+    v.addEventListener("timeupdate", clamp);
+    v.addEventListener("seeking", clamp);
+    v.addEventListener("loadedmetadata", snapToSegmentStart);
+
+    snapToSegmentStart();
+    clamp();
+
+    return () => {
+      v.removeEventListener("timeupdate", clamp);
+      v.removeEventListener("seeking", clamp);
+      v.removeEventListener("loadedmetadata", snapToSegmentStart);
+    };
+  }, [shot.id, segment]);
 
   return (
     <div className="space-y-4">
@@ -42,7 +105,7 @@ export function ShotPlayer({ shot, variant = "default", videoRef }: ShotPlayerPr
 
         {shot.videoUrl ? (
           <video
-            ref={videoRef}
+            ref={setVideoEl}
             className="absolute inset-0 h-full w-full object-cover"
             src={shot.videoUrl}
             poster={shot.thumbnailUrl ?? undefined}
