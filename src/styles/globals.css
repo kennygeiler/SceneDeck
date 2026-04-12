@@ -284,19 +284,29 @@
   }
 }
 
-/* Video.js — shot detail fills aspect box (object-cover) */
-.mv-shot-vjs .video-js {
+/* Video.js — shot detail: fill aspect-video slot; beat vjs dimension stylesheet (intrinsic px). */
+.mv-shot-vjs {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.mv-shot-vjs .video-js,
+.mv-shot-vjs .video-js.vjs-fill {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
   padding-top: 0 !important;
   background: transparent;
 }
 
 .mv-shot-vjs .video-js .vjs-tech {
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .mv-shot-vjs .video-js .vjs-poster {
-  background-size: cover;
+  background-size: contain;
   background-position: center;
 }

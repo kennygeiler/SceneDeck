@@ -48,8 +48,9 @@ export function ShotVideoJs({
         muted: true,
         preload: "metadata",
         playsinline: true,
+        /** Fill the `aspect-video` wrapper; avoids intrinsic 300×169-style layout on first paint. */
+        fill: true,
         fluid: false,
-        fill: false,
         responsive: false,
         bigPlayButton: controls,
         controlBar: controls ? undefined : false,
@@ -83,6 +84,7 @@ export function ShotVideoJs({
       };
 
       player.ready(() => {
+        player.fill(true);
         wireTech();
       });
 
