@@ -1,10 +1,11 @@
 "use client";
 
 import type { RefObject } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pause, Play, Volume2, VolumeX } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { clipPeerSegmentColor } from "@/lib/clip-timeline-colors";
 import { formatMediaClock } from "@/lib/shot-display";
 
 type SegmentWindow = { offset: number; end: number };
@@ -21,6 +22,9 @@ type ShotVideoTransportProps = {
   segment: SegmentWindow;
   /** Bump when clip URL changes. */
   shotKey: string;
+  currentShotId: string;
+  /** Same-film rows sharing this `videoUrl` (for multi-segment rail after splits). */
+  clipTimelinePeers: { id: string; startTc: number; endTc: number }[];
   /** Same URL as main clip — dedicated element seeks for hover preview without moving playhead. */
   previewSrc: string;
   previewPoster?: string | null;
@@ -41,6 +45,8 @@ export function ShotVideoTransport({
   endTc,
   segment,
   shotKey,
+  currentShotId,
+  clipTimelinePeers,
   previewSrc,
   previewPoster,
   splitAt,
@@ -63,6 +69,16 @@ export function ShotVideoTransport({
 
   const shotDuration = endTc - startTc;
 
+  const timelineEnd = useMemo(() => {
+    if (clipTimelinePeers.length > 1) {
+      return Math.max(...clipTimelinePeers.map((p) => p.endTc));
+    }
+    return endTc;
+  }, [clipTimelinePeers, endTc]);
+
+  const timelineSpan = timelineEnd - mediaAnchor;
+  const multiClip = clipTimelinePeers.length > 1 && timelineSpan > 0.001;
+
   useEffect(() => {
     setPreviewError(false);
     previewGenRef.current += 1;
@@ -76,14 +92,16 @@ export function ShotVideoTransport({
   const intoShotFromClientX = useCallback(
     (clientX: number) => {
       const el = railRef.current;
-      if (!el || shotDuration <= 0) {
+      if (!el || shotDuration <= 0 || timelineSpan <= 0) {
         return null;
       }
       const rect = el.getBoundingClientRect();
-      const t = clamp((clientX - rect.left) / rect.width, 0, 1);
-      return t * shotDuration;
+      const frac = clamp((clientX - rect.left) / rect.width, 0, 1);
+      const filmT = mediaAnchor + frac * timelineSpan;
+      const into = filmT - startTc;
+      return clamp(into, 0, shotDuration);
     },
-    [shotDuration],
+    [shotDuration, timelineSpan, mediaAnchor, startTc],
   );
 
   const drawPreviewFrame = useCallback((gen: number) => {
@@ -326,7 +344,9 @@ export function ShotVideoTransport({
     }
   };
 
-  const playPct = shotDuration > 0 ? clamp(intoShot / shotDuration, 0, 1) * 100 : 0;
+  const filmNow = startTc + intoShot;
+  const playPct =
+    timelineSpan > 0 ? clamp((filmNow - mediaAnchor) / timelineSpan, 0, 1) * 100 : 0;
   const splitParsed = splitAt != null && splitAt !== "" ? Number(splitAt) : NaN;
   const showSplitGhost =
     onSplitAtChange &&
@@ -334,7 +354,11 @@ export function ShotVideoTransport({
     Math.abs(splitParsed - intoShot) > 0.08 &&
     splitParsed > 0 &&
     splitParsed < shotDuration;
-  const splitPct = showSplitGhost ? clamp(splitParsed / shotDuration, 0, 1) * 100 : null;
+  const splitFilmT = startTc + splitParsed;
+  const splitPct =
+    showSplitGhost && timelineSpan > 0
+      ? clamp((splitFilmT - mediaAnchor) / timelineSpan, 0, 1) * 100
+      : null;
 
   const filmAtPlayhead = startTc + intoShot;
   const fileTc = fileTimeFromIntoShot(intoShot);
@@ -386,7 +410,10 @@ export function ShotVideoTransport({
 
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-            <span>Shot timeline · hover = seeked-frame preview</span>
+            <span>
+              Shot timeline · hover = seeked-frame preview
+              {multiClip ? ` · ${clipTimelinePeers.length} segments on this clip` : ""}
+            </span>
             <span className="tabular-nums normal-case tracking-normal text-[var(--color-text-secondary)]">
               Film {formatMediaClock(filmAtPlayhead)} · in file {formatMediaClock(fileTc)}
             </span>
@@ -412,6 +439,38 @@ export function ShotVideoTransport({
                 backgroundColor: "color-mix(in oklch, var(--color-border-default) 55%, var(--color-surface-primary))",
               }}
             />
+            {multiClip ? (
+              <div
+                className="pointer-events-none absolute left-0 right-0 top-1/2 h-2 -translate-y-1/2 overflow-hidden rounded-full"
+                aria-hidden
+              >
+                {clipTimelinePeers.map((p, i) => {
+                  const left = ((p.startTc - mediaAnchor) / timelineSpan) * 100;
+                  const w = ((p.endTc - p.startTc) / timelineSpan) * 100;
+                  const isHere = p.id === currentShotId;
+                  return (
+                    <div
+                      key={p.id}
+                      className="absolute top-0 h-full rounded-sm"
+                      title={
+                        isHere
+                          ? "This shot (you are here)"
+                          : `Adjacent segment ${p.id.slice(0, 8)}…`
+                      }
+                      style={{
+                        left: `${left}%`,
+                        width: `${w}%`,
+                        backgroundColor: clipPeerSegmentColor(i),
+                        opacity: isHere ? 0.92 : 0.5,
+                        boxShadow: isHere
+                          ? "inset 0 0 0 2px color-mix(in oklch, white 70%, transparent)"
+                          : undefined,
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            ) : null}
             <div
               className="pointer-events-none absolute left-0 top-1/2 h-2 -translate-y-1/2 rounded-full"
               style={{

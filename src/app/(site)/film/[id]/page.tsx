@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { FilmHeader } from "@/components/films/film-header";
 import { FilmCoverageStats } from "@/components/films/film-coverage-stats";
 import { FilmTimeline } from "@/components/films/film-timeline";
-import { ShotCard } from "@/components/shots/shot-card";
+import { FilmShotsTable } from "@/components/shots/film-shots-table";
 import {
   getFilmById,
   getFilmCoverageStats,
@@ -150,12 +150,15 @@ export default async function FilmDetailPage({ params }: Props) {
           Shots ({film.shotCount})
         </h2>
         <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-          Story order; open a shot for full composition metadata and playback.
+          Sortable table (default: story order by start time). Click a row for full composition metadata and playback.
+          For all films, use{" "}
+          <Link href="/browse?view=shots" className="text-[var(--color-text-accent)] underline-offset-2 hover:underline">
+            Browse → Shots
+          </Link>
+          .
         </p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {allShots.map((shot) => (
-            <ShotCard key={shot.id} shot={shot} />
-          ))}
+        <div className="mt-4">
+          <FilmShotsTable shots={allShots} />
         </div>
       </section>
     </div>

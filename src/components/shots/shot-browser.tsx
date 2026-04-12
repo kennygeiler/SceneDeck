@@ -7,17 +7,18 @@ import {
   useMemo,
   useState,
 } from "react";
-import { ArrowUpDown, ChevronDown, ChevronUp, Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { ExportButton } from "@/components/export/export-button";
+import { ShotsDataTable } from "@/components/shots/shots-data-table";
 import { buttonVariants } from "@/components/ui/button";
+import { getShotSizeDisplayName } from "@/lib/shot-display";
 import {
-  formatMediaClock,
-  formatShotDuration,
-  getFramingDisplayName,
-  getShotSizeDisplayName,
-} from "@/lib/shot-display";
+  isShotsTableSortKey,
+  sortShotsForTable,
+  type ShotsTableSortKey,
+} from "@/lib/shots-table-sort";
 import type { ShotWithDetails } from "@/lib/types";
 import {
   FRAMINGS,
@@ -34,24 +35,6 @@ type ShotBrowserProps = {
   availableDirectors: string[];
   availableShotSizes: ShotSizeSlug[];
 };
-
-const SORT_KEYS = [
-  "film",
-  "director",
-  "framing",
-  "shotSize",
-  "duration",
-  "startTc",
-  "reviewStatus",
-  "confidence",
-  "created",
-] as const;
-
-type SortKey = (typeof SORT_KEYS)[number];
-
-function isSortKey(value: string | null): value is SortKey {
-  return value != null && SORT_KEYS.includes(value as SortKey);
-}
 
 function filterShots(
   shots: ShotWithDetails[],
@@ -83,61 +66,6 @@ function filterShots(
     }
 
     return true;
-  });
-}
-
-function sortShots(
-  shots: ShotWithDetails[],
-  key: SortKey,
-  order: "asc" | "desc",
-): ShotWithDetails[] {
-  const mul = order === "asc" ? 1 : -1;
-  const num = (v: number | null | undefined) =>
-    v != null && Number.isFinite(v) ? v : order === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
-  const str = (v: string | null | undefined) => (v ?? "").toLowerCase();
-
-  return [...shots].sort((a, b) => {
-    let c = 0;
-    switch (key) {
-      case "film":
-        c = str(a.film.title).localeCompare(str(b.film.title), undefined, { sensitivity: "base" });
-        break;
-      case "director":
-        c = str(a.film.director).localeCompare(str(b.film.director), undefined, { sensitivity: "base" });
-        break;
-      case "framing":
-        c = str(a.metadata.framing).localeCompare(str(b.metadata.framing), undefined, { sensitivity: "base" });
-        break;
-      case "shotSize":
-        c = str(a.metadata.shotSize).localeCompare(str(b.metadata.shotSize), undefined, { sensitivity: "base" });
-        break;
-      case "duration":
-        c = num(a.duration) - num(b.duration);
-        break;
-      case "startTc":
-        c = num(a.startTc) - num(b.startTc);
-        break;
-      case "reviewStatus":
-        c = str(a.metadata.reviewStatus).localeCompare(str(b.metadata.reviewStatus), undefined, { sensitivity: "base" });
-        break;
-      case "confidence": {
-        const ac = a.metadata.confidence;
-        const bc = b.metadata.confidence;
-        const na = ac != null && Number.isFinite(ac) ? ac : null;
-        const nb = bc != null && Number.isFinite(bc) ? bc : null;
-        if (na == null && nb == null) return 0;
-        if (na == null) return 1;
-        if (nb == null) return -1;
-        c = na - nb;
-        break;
-      }
-      case "created":
-        c = str(a.createdAt).localeCompare(str(b.createdAt), undefined, { sensitivity: "base" });
-        break;
-      default:
-        return 0;
-    }
-    return c * mul;
   });
 }
 
@@ -262,10 +190,10 @@ export function ShotBrowser({
     });
   }
 
-  function toggleSort(key: SortKey) {
+  function toggleSort(key: ShotsTableSortKey) {
     const params = new URLSearchParams(searchParams.toString());
-    const current = isSortKey(searchParams.get("shotsSort"))
-      ? (searchParams.get("shotsSort") as SortKey)
+    const current = isShotsTableSortKey(searchParams.get("shotsSort"))
+      ? (searchParams.get("shotsSort") as ShotsTableSortKey)
       : null;
     const currentOrder = searchParams.get("shotsOrder") === "asc" ? "asc" : "desc";
 
@@ -297,12 +225,12 @@ export function ShotBrowser({
       })
     : shots;
 
-  const sortKey = isSortKey(shotsSortRaw) ? shotsSortRaw : null;
+  const sortKey = isShotsTableSortKey(shotsSortRaw) ? shotsSortRaw : null;
   const sortedShots = useMemo(() => {
     if (!sortKey) {
       return displayedShots;
     }
-    return sortShots(displayedShots, sortKey, shotsOrder);
+    return sortShotsForTable(displayedShots, sortKey, shotsOrder);
   }, [displayedShots, sortKey, shotsOrder]);
 
   const hasActiveFilters =
@@ -313,41 +241,6 @@ export function ShotBrowser({
     shotSize !== "all" ||
     sortKey !== null;
   const archiveIsEmpty = totalShots === 0;
-
-  function SortTh({
-    label,
-    sortK,
-    className,
-  }: {
-    label: string;
-    sortK: SortKey;
-    className?: string;
-  }) {
-    const active = sortKey === sortK;
-    return (
-      <th scope="col" className={cn("px-3 py-3 text-left font-mono text-[10px] uppercase tracking-wide", className)}>
-        <button
-          type="button"
-          onClick={() => toggleSort(sortK)}
-          className={cn(
-            "inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-tertiary)] hover:text-[var(--color-text-primary)]",
-            active && "text-[var(--color-text-primary)]",
-          )}
-        >
-          {label}
-          {active ? (
-            shotsOrder === "asc" ? (
-              <ChevronUp className="size-3.5 shrink-0 opacity-90" aria-hidden />
-            ) : (
-              <ChevronDown className="size-3.5 shrink-0 opacity-90" aria-hidden />
-            )
-          ) : (
-            <ArrowUpDown className="size-3 shrink-0 opacity-40" aria-hidden />
-          )}
-        </button>
-      </th>
-    );
-  }
 
   return (
     <div className="space-y-8">
@@ -571,111 +464,12 @@ export function ShotBrowser({
           </p>
         </section>
       ) : sortedShots.length > 0 ? (
-        <div
-          className="overflow-x-auto rounded-[var(--radius-xl)] border"
-          style={{
-            borderColor: "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
-            backgroundColor: "color-mix(in oklch, var(--color-surface-secondary) 70%, transparent)",
-          }}
-        >
-          <table className="w-full min-w-[920px] border-collapse text-left text-sm">
-            <thead
-              className="sticky top-0 z-10 border-b"
-              style={{
-                backgroundColor: "color-mix(in oklch, var(--color-surface-primary) 92%, transparent)",
-                borderColor: "var(--color-border-subtle)",
-              }}
-            >
-              <tr>
-                <th scope="col" className="w-14 px-2 py-3 font-mono text-[10px] uppercase tracking-wide text-[var(--color-text-tertiary)]">
-                  Thumb
-                </th>
-                <SortTh label="Film" sortK="film" />
-                <SortTh label="Director" sortK="director" />
-                <SortTh label="Framing" sortK="framing" />
-                <SortTh label="Shot size" sortK="shotSize" />
-                <SortTh label="Duration" sortK="duration" />
-                <SortTh label="Start" sortK="startTc" />
-                <SortTh label="Review" sortK="reviewStatus" />
-                <SortTh label="Conf." sortK="confidence" />
-                <SortTh label="Added" sortK="created" className="hidden lg:table-cell" />
-              </tr>
-            </thead>
-            <tbody>
-              {sortedShots.map((shot) => {
-                const href = `/shot/${shot.id}`;
-                return (
-                  <tr
-                    key={shot.id}
-                    className="cursor-pointer border-b border-[var(--color-border-subtle)] transition-colors hover:bg-[color-mix(in_oklch,var(--color-accent-base)_6%,transparent)]"
-                    onClick={() => router.push(href)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        router.push(href);
-                      }
-                    }}
-                    tabIndex={0}
-                    role="link"
-                    aria-label={`Open shot ${shot.film.title}`}
-                  >
-                    <td className="px-2 py-2 align-middle">
-                      <div className="relative h-10 w-16 overflow-hidden rounded border border-[var(--color-border-subtle)] bg-[var(--color-surface-tertiary)]">
-                        {shot.thumbnailUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element -- many small browse rows
-                          <img
-                            src={shot.thumbnailUrl}
-                            alt=""
-                            className="size-full object-cover"
-                            loading="lazy"
-                            decoding="async"
-                          />
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="max-w-[10rem] truncate px-3 py-2 align-middle font-medium text-[var(--color-text-primary)]" title={shot.film.title}>
-                      {shot.film.title}
-                    </td>
-                    <td className="max-w-[8rem] truncate px-3 py-2 align-middle text-[var(--color-text-secondary)]" title={shot.film.director}>
-                      {shot.film.director}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 align-middle text-[var(--color-text-secondary)]">
-                      {getFramingDisplayName(shot.metadata.framing)}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 align-middle text-[var(--color-text-secondary)]">
-                      {getShotSizeDisplayName(shot.metadata.shotSize)}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 align-middle font-mono tabular-nums text-[var(--color-text-secondary)]">
-                      {formatShotDuration(shot.duration)}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 align-middle font-mono tabular-nums text-[var(--color-text-secondary)]">
-                      {shot.startTc != null && Number.isFinite(shot.startTc)
-                        ? formatMediaClock(shot.startTc)
-                        : "—"}
-                    </td>
-                    <td className="max-w-[7rem] truncate px-3 py-2 align-middle font-mono text-[11px] text-[var(--color-text-tertiary)]" title={shot.metadata.reviewStatus ?? ""}>
-                      {shot.metadata.reviewStatus ?? "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 align-middle font-mono tabular-nums text-[var(--color-text-secondary)]">
-                      {shot.metadata.confidence != null && Number.isFinite(shot.metadata.confidence)
-                        ? `${Math.round(shot.metadata.confidence * 100)}%`
-                        : "—"}
-                    </td>
-                    <td className="hidden whitespace-nowrap px-3 py-2 align-middle font-mono text-[11px] text-[var(--color-text-tertiary)] lg:table-cell">
-                      {shot.createdAt
-                        ? new Date(shot.createdAt).toLocaleDateString(undefined, {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })
-                        : "—"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <ShotsDataTable
+          shots={sortedShots}
+          sortKey={sortKey}
+          sortOrder={shotsOrder}
+          onToggleSort={toggleSort}
+        />
       ) : (
         <section
           className="rounded-[var(--radius-xl)] border p-8 text-center"

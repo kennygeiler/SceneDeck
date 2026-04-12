@@ -187,6 +187,8 @@ export function ShotPlayer({
             endTc={playbackSegment.endTc}
             segment={{ offset: playbackSegment.offset, end: playbackSegment.end }}
             shotKey={`${shot.id}:${shot.videoUrl ?? ""}`}
+            currentShotId={shot.id}
+            clipTimelinePeers={shot.clipTimelinePeers ?? []}
             previewSrc={shot.videoUrl!}
             previewPoster={shot.thumbnailUrl ?? null}
             splitAt={splitAt}
@@ -264,8 +266,12 @@ function ShotPlaybackFeedbackOverlays({ feedback }: { feedback: ShotPlaybackFeed
                 mixBlendMode: "screen",
               }}
               initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 0.88, 0] }}
-              transition={{ duration: 0.58, times: [0, 0.16, 1], ease: "easeOut" }}
+              animate={{ opacity: [0, 0.9, 0.9, 0] }}
+              transition={{
+                duration: 1.35,
+                times: [0, 0.1, 0.52, 1],
+                ease: "easeOut",
+              }}
             />
             <motion.div
               className="relative flex items-center gap-2.5 rounded-xl border px-5 py-3 shadow-2xl"
@@ -276,10 +282,14 @@ function ShotPlaybackFeedbackOverlays({ feedback }: { feedback: ShotPlaybackFeed
               }}
               initial={{ scale: 0.88, opacity: 0 }}
               animate={{
-                scale: [0.88, 1.04, 1],
-                opacity: [0, 1, 0],
+                scale: [0.88, 1.05, 1, 1],
+                opacity: [0, 1, 1, 0],
               }}
-              transition={{ duration: 0.58, times: [0, 0.14, 1], ease: [0.22, 1, 0.36, 1] }}
+              transition={{
+                duration: 1.45,
+                times: [0, 0.08, 0.48, 1],
+                ease: [0.22, 1, 0.36, 1],
+              }}
               onAnimationComplete={() => onSplitFlashDone?.()}
             >
               <Scissors

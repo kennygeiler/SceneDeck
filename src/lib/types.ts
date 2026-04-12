@@ -112,6 +112,8 @@ export type ShotWithDetails = {
    * with that URL so the player can map file time ↔ film time.
    */
   clipMediaAnchorStartTc: number | null;
+  /** Other shots sharing this row’s `videoUrl` on the same film (timeline coloring after splits). */
+  clipTimelinePeers?: { id: string; startTc: number; endTc: number }[];
   videoUrl: string | null;
   thumbnailUrl: string | null;
   createdAt: string | null;

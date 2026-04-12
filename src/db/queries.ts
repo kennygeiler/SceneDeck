@@ -544,6 +544,37 @@ export async function getNextShotAfterBoundary(
   return { id: row.id, startTc: row.startTc, endTc: row.endTc };
 }
 
+async function getClipTimelinePeersForShot(
+  filmId: string,
+  videoUrl: string | null,
+): Promise<{ id: string; startTc: number; endTc: number }[]> {
+  if (!videoUrl) {
+    return [];
+  }
+  const rows = await db
+    .select({
+      id: schema.shots.id,
+      startTc: schema.shots.startTc,
+      endTc: schema.shots.endTc,
+    })
+    .from(schema.shots)
+    .where(
+      and(
+        eq(schema.shots.filmId, filmId),
+        eq(schema.shots.videoUrl, videoUrl),
+        isNotNull(schema.shots.startTc),
+        isNotNull(schema.shots.endTc),
+      ),
+    )
+    .orderBy(asc(schema.shots.startTc));
+
+  return rows.map((r) => ({
+    id: r.id,
+    startTc: Number(r.startTc),
+    endTc: Number(r.endTc),
+  }));
+}
+
 export async function getShotById(id: string) {
   const [row] = await selectJoinedShots()
     .where(eq(schema.shots.id, id))
@@ -558,14 +589,17 @@ export async function getShotById(id: string) {
     return null;
   }
 
+  const clipTimelinePeers = await getClipTimelinePeersForShot(shot.film.id, shot.videoUrl);
+  const shotWithPeers = { ...shot, clipTimelinePeers };
+
   const verifications = await getVerificationsForShot(id);
   if (verifications.length === 0) {
-    return { ...shot, trust: null };
+    return { ...shotWithPeers, trust: null };
   }
 
   const latest = verifications[0];
   return {
-    ...shot,
+    ...shotWithPeers,
     trust: {
       verificationCount: verifications.length,
       latestVerifiedAt: latest.verifiedAt,
