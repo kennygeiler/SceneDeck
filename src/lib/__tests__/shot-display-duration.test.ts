@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { formatMediaClock, formatShotDuration } from "@/lib/shot-display";
+import {
+  formatFilmCardTotalDuration,
+  formatMediaClock,
+  formatShotDuration,
+} from "@/lib/shot-display";
 
 describe("formatMediaClock", () => {
   it("formats like a video player (no trailing s)", () => {
@@ -31,5 +35,24 @@ describe("formatShotDuration", () => {
   it("returns em dash for invalid", () => {
     expect(formatShotDuration(Number.NaN)).toBe("—");
     expect(formatShotDuration(-1)).toBe("—");
+  });
+});
+
+describe("formatFilmCardTotalDuration", () => {
+  it("uses rounded minutes under one hour", () => {
+    expect(formatFilmCardTotalDuration(0)).toBe("0m");
+    expect(formatFilmCardTotalDuration(90)).toBe("2m");
+    expect(formatFilmCardTotalDuration(3599)).toBe("60m");
+  });
+
+  it("uses hours and minutes from one hour up", () => {
+    expect(formatFilmCardTotalDuration(3600)).toBe("1h");
+    expect(formatFilmCardTotalDuration(9556)).toBe("2h 39m");
+    expect(formatFilmCardTotalDuration(7325)).toBe("2h 2m");
+  });
+
+  it("returns em dash for invalid", () => {
+    expect(formatFilmCardTotalDuration(Number.NaN)).toBe("—");
+    expect(formatFilmCardTotalDuration(-1)).toBe("—");
   });
 });

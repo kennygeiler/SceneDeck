@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { formatFilmCardTotalDuration } from "@/lib/shot-display";
 import type { FilmCard as FilmCardType } from "@/lib/types";
 
 type FilmCardProps = {
@@ -85,8 +86,8 @@ export function FilmCard({ film }: FilmCardProps) {
             <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
               Duration
             </p>
-            <p className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">
-              {Math.round(film.totalDuration)}s
+            <p className="mt-1 text-lg font-semibold tabular-nums text-[var(--color-text-primary)]">
+              {formatFilmCardTotalDuration(film.totalDuration)}
             </p>
           </div>
         </div>

@@ -113,3 +113,24 @@ export function formatShotDuration(duration: number) {
   }
   return formatMediaClock(duration);
 }
+
+/** Browse card: minutes only under 1h; `2h 39m` when an hour or more. */
+export function formatFilmCardTotalDuration(totalSeconds: number): string {
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
+    return "—";
+  }
+  const s = Math.round(totalSeconds);
+  if (s === 0) {
+    return "0m";
+  }
+  if (s < 3600) {
+    return `${Math.round(s / 60)}m`;
+  }
+  const totalMin = Math.round(s / 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (m === 0) {
+    return `${h}h`;
+  }
+  return `${h}h ${m}m`;
+}
