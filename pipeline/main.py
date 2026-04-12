@@ -64,7 +64,7 @@ def run_review_export(video_path: str) -> None:
 
     print("Step 1/1: Detecting shots and exporting review package")
     detect_and_export(str(source_path), str(export_path))
-    print(f"Review the splits in /review-splits, then continue with --splits {export_path}")
+    print(f"Tune boundaries in /tuning (or ingest), then continue with --splits {export_path}")
 
 
 def run_pipeline(

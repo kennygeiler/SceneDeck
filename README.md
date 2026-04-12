@@ -2,6 +2,8 @@
 
 **MetroVision is a shot-level composition archive for cinematography research and tooling**—structured framing/depth/blocking (and related fields), human verification, exports you can cite, and optional vector search. **MetroVision** is the product name; **SceneDeck** is a common repo/codename.
 
+[![CI](https://github.com/kennygeiler/MetroVision/actions/workflows/ci.yml/badge.svg)](https://github.com/kennygeiler/MetroVision/actions/workflows/ci.yml)
+
 ![Next.js](https://img.shields.io/badge/Next.js-15-black)
 ![React](https://img.shields.io/badge/React-19-1d9bf0)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6)

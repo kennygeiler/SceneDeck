@@ -50,13 +50,15 @@ export function BoundaryHitlTools({
   const [message, setMessage] = useState<string | null>(null);
 
   const canEdit = startTc != null && endTc != null && endTc - startTc > MIN_SPLIT_MARGIN * 2;
+  const shotDuration = startTc != null && endTc != null ? endTc - startTc : 0;
   const mediaAnchor = clipMediaAnchorStartTc ?? startTc;
   const usePlayhead = Boolean(hasVideoClip && videoRef && mediaAnchor != null);
 
   // Poll `currentTime`: `timeupdate` is sparse while playing and `seeking` often fires before the
   // element’s `currentTime` matches the scrub handle, so the split field goes stale without polling.
+  // UI shows seconds **into this shot** (matches native player 0…duration when the file is a per-shot clip).
   useEffect(() => {
-    if (!usePlayhead || !videoRef || mediaAnchor == null) {
+    if (!usePlayhead || !videoRef || mediaAnchor == null || startTc == null) {
       return;
     }
 
@@ -66,7 +68,9 @@ export function BoundaryHitlTools({
       if (!alive || !video) {
         return;
       }
-      const next = (mediaAnchor + video.currentTime).toFixed(3);
+      const filmSec = mediaAnchor + video.currentTime;
+      const intoShot = filmSec - startTc;
+      const next = intoShot.toFixed(3);
       setSplitAt((prev) => (prev === next ? prev : next));
     };
 
@@ -77,20 +81,25 @@ export function BoundaryHitlTools({
       alive = false;
       window.clearInterval(intervalId);
     };
-  }, [usePlayhead, videoRef, mediaAnchor, shotId, videoUrlKey]);
+  }, [usePlayhead, videoRef, mediaAnchor, startTc, shotId, videoUrlKey]);
 
   const readSplitSec = useCallback((): number | null => {
-    if (usePlayhead && videoRef?.current && mediaAnchor != null) {
+    if (usePlayhead && videoRef?.current && mediaAnchor != null && startTc != null) {
       return mediaAnchor + videoRef.current.currentTime;
     }
-    const t = Number(splitAt);
-    return Number.isFinite(t) ? t : null;
-  }, [usePlayhead, videoRef, mediaAnchor, splitAt]);
+    const intoShot = Number(splitAt);
+    if (!Number.isFinite(intoShot) || startTc == null) {
+      return null;
+    }
+    return startTc + intoShot;
+  }, [usePlayhead, videoRef, mediaAnchor, startTc, splitAt]);
 
   const doSplit = useCallback(async () => {
     const t = readSplitSec();
     if (t == null || !Number.isFinite(t)) {
-      setMessage("Enter a valid split time in seconds (film timeline), or scrub the clip when video is available.");
+      setMessage(
+        "Enter seconds into this shot (0 = shot start), or scrub the player when video is on the page.",
+      );
       return;
     }
     if (startTc == null || endTc == null) {
@@ -99,7 +108,7 @@ export function BoundaryHitlTools({
     }
     if (t <= startTc + MIN_SPLIT_MARGIN || t >= endTc - MIN_SPLIT_MARGIN) {
       setMessage(
-        `Split must be on the film timeline between ${(startTc + MIN_SPLIT_MARGIN).toFixed(2)}s and ${(endTc - MIN_SPLIT_MARGIN).toFixed(2)}s.`,
+        `Split must fall between ${MIN_SPLIT_MARGIN.toFixed(2)}s and ${(shotDuration - MIN_SPLIT_MARGIN).toFixed(2)}s into this shot (player timeline).`,
       );
       return;
     }
@@ -123,7 +132,7 @@ export function BoundaryHitlTools({
     } finally {
       setSplitting(false);
     }
-  }, [readSplitSec, startTc, endTc, shotId, router]);
+  }, [readSplitSec, startTc, endTc, shotDuration, shotId, router]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -210,7 +219,7 @@ export function BoundaryHitlTools({
               htmlFor={`split-at-${shotId}`}
               className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]"
             >
-              Split at (film timeline, seconds)
+              Split at (seconds into this shot)
             </label>
             <input
               id={`split-at-${shotId}`}
@@ -219,12 +228,12 @@ export function BoundaryHitlTools({
               readOnly={usePlayhead}
               title={
                 usePlayhead
-                  ? "Follows the player: pause or scrub to set this time (start of shot + playhead)."
+                  ? "Matches the player: 0s at the start of this shot, up to the shot length. Pause or scrub to set."
                   : undefined
               }
               placeholder={
-                startTc != null && endTc != null
-                  ? `${(startTc + MIN_SPLIT_MARGIN).toFixed(2)} – ${(endTc - MIN_SPLIT_MARGIN).toFixed(2)}`
+                endTc != null && startTc != null
+                  ? `${MIN_SPLIT_MARGIN.toFixed(2)} – ${(shotDuration - MIN_SPLIT_MARGIN).toFixed(2)}`
                   : "…"
               }
               value={splitAt}
@@ -233,11 +242,11 @@ export function BoundaryHitlTools({
             />
             {usePlayhead ? (
               <span className="text-[11px] text-[var(--color-text-tertiary)]">
-                Pausing or scrubbing updates film time (media anchor + playhead in file).
+                Same scale as the player scrubber when the file is a per-shot clip. API still stores film time.
               </span>
             ) : (
               <span className="text-[11px] text-[var(--color-text-tertiary)]">
-                No clip on this page — enter the split time on the film timeline manually.
+                No clip on this page — enter seconds from the start of this shot (0 = shot head).
               </span>
             )}
           </div>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowUpRight, Plus, Search } from "lucide-react";
+import { ArrowUpRight, Search } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -96,21 +96,6 @@ export function SiteHeader() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Link
-              href="/review-splits"
-              className={cn(
-                buttonVariants({ variant: "default", size: "sm" }),
-                "rounded-full px-4 text-[var(--color-surface-primary)]",
-              )}
-              style={{
-                backgroundColor: "var(--color-accent-light)",
-                boxShadow: "var(--shadow-glow)",
-              }}
-            >
-              <Plus aria-hidden="true" />
-              Add Scene
-            </Link>
-
             <Link
               href="/browse"
               aria-label="Search shots"

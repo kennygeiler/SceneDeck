@@ -5,6 +5,15 @@ import type { NextConfig } from "next";
 const FFMPEG_TRACE_INCLUDES = ["./node_modules/ffmpeg-static/**"];
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      {
+        source: "/review-splits",
+        destination: "/tuning",
+        permanent: true,
+      },
+    ];
+  },
   serverExternalPackages: ["ffmpeg-static"],
   /**
    * Binaries must be traced for routes that spawn ffmpeg.
