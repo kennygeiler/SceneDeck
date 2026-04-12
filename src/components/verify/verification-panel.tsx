@@ -166,7 +166,7 @@ export function VerificationPanel({ shot }: VerificationPanelProps) {
         </span>
       </div>
 
-      <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+      <form id="verification-ratings" className="mt-8 scroll-mt-24 space-y-6" onSubmit={handleSubmit}>
         <div
           className="rounded-[var(--radius-lg)] border p-5"
           style={{

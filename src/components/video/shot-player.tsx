@@ -1,174 +1,22 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { Boxes, Cpu, Eye, EyeOff, LoaderCircle } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { MetadataOverlay } from "@/components/video/metadata-overlay";
-import { ObjectOverlay } from "@/components/video/object-overlay";
-import { RealtimeObjectOverlay } from "@/components/video/realtime-object-overlay";
-import { useRealtimeDetection } from "@/hooks/use-realtime-detection";
 import type { ShotWithDetails } from "@/lib/types";
 
 type ShotPlayerProps = {
   shot: ShotWithDetails;
+  /** `verify` hides the long legend and shows a short reviewer hint. */
+  variant?: "default" | "verify";
 };
 
-const legendItems = [
-  {
-    label: "Motion vector",
-    color: "var(--color-overlay-arrow)",
-  },
-  {
-    label: "Shot scale / compound path",
-    color: "var(--color-overlay-trajectory)",
-  },
-  {
-    label: "Speed telemetry",
-    color: "var(--color-overlay-speed)",
-  },
-  {
-    label: "Badge system",
-    color: "var(--color-overlay-badge)",
-  },
-  {
-    label: "Object recognition",
-    color: "var(--color-overlay-info)",
-  },
-  {
-    label: "Live client inference",
-    color: "var(--color-overlay-live)",
-  },
-] as const;
-
-type VideoMetrics = {
-  width: number;
-  height: number;
-  sourceWidth: number;
-  sourceHeight: number;
-};
-
-export function ShotPlayer({ shot }: ShotPlayerProps) {
+export function ShotPlayer({ shot, variant = "default" }: ShotPlayerProps) {
   const [showOverlay, setShowOverlay] = useState(true);
-  const [showObjects, setShowObjects] = useState(true);
-  const [showLive, setShowLive] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [videoMetrics, setVideoMetrics] = useState<VideoMetrics>({
-    width: 0,
-    height: 0,
-    sourceWidth: 0,
-    sourceHeight: 0,
-  });
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const frameRef = useRef<number | null>(null);
-  const liveEnabled = showLive && Boolean(shot.videoUrl);
-
-  const { detections, isModelLoaded, isLoading, loadError } = useRealtimeDetection({
-    videoRef,
-    enabled: liveEnabled,
-    fps: 5,
-    minConfidence: 0.5,
-  });
-
-  useEffect(() => {
-    const video = videoRef.current;
-
-    if (!video) {
-      return;
-    }
-
-    const stopFrame = () => {
-      if (frameRef.current !== null) {
-        cancelAnimationFrame(frameRef.current);
-        frameRef.current = null;
-      }
-    };
-
-    const syncCurrentTime = () => {
-      setCurrentTime(video.currentTime);
-
-      if (!video.paused && !video.ended) {
-        frameRef.current = requestAnimationFrame(syncCurrentTime);
-      }
-    };
-
-    const startSync = () => {
-      stopFrame();
-      syncCurrentTime();
-    };
-
-    const stopSync = () => {
-      stopFrame();
-      setCurrentTime(video.currentTime);
-    };
-
-    const handleDiscreteSync = () => {
-      setCurrentTime(video.currentTime);
-    };
-
-    setCurrentTime(video.currentTime);
-    if (!video.paused && !video.ended) {
-      startSync();
-    }
-
-    video.addEventListener("play", startSync);
-    video.addEventListener("pause", stopSync);
-    video.addEventListener("ended", stopSync);
-    video.addEventListener("loadedmetadata", handleDiscreteSync);
-    video.addEventListener("seeking", handleDiscreteSync);
-    video.addEventListener("seeked", handleDiscreteSync);
-    video.addEventListener("timeupdate", handleDiscreteSync);
-
-    return () => {
-      stopFrame();
-      video.removeEventListener("play", startSync);
-      video.removeEventListener("pause", stopSync);
-      video.removeEventListener("ended", stopSync);
-      video.removeEventListener("loadedmetadata", handleDiscreteSync);
-      video.removeEventListener("seeking", handleDiscreteSync);
-      video.removeEventListener("seeked", handleDiscreteSync);
-      video.removeEventListener("timeupdate", handleDiscreteSync);
-    };
-  }, [shot.videoUrl]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-
-    if (!video) {
-      setVideoMetrics({
-        width: 0,
-        height: 0,
-        sourceWidth: 0,
-        sourceHeight: 0,
-      });
-      return;
-    }
-
-    const syncMetrics = () => {
-      setVideoMetrics({
-        width: video.clientWidth,
-        height: video.clientHeight,
-        sourceWidth: video.videoWidth || video.clientWidth,
-        sourceHeight: video.videoHeight || video.clientHeight,
-      });
-    };
-
-    syncMetrics();
-
-    const resizeObserver = new ResizeObserver(syncMetrics);
-    resizeObserver.observe(video);
-
-    video.addEventListener("loadedmetadata", syncMetrics);
-    video.addEventListener("loadeddata", syncMetrics);
-
-    return () => {
-      resizeObserver.disconnect();
-      video.removeEventListener("loadedmetadata", syncMetrics);
-      video.removeEventListener("loadeddata", syncMetrics);
-    };
-  }, [shot.videoUrl]);
 
   return (
     <div className="space-y-4">
@@ -192,7 +40,6 @@ export function ShotPlayer({ shot }: ShotPlayerProps) {
 
         {shot.videoUrl ? (
           <video
-            ref={videoRef}
             className="absolute inset-0 h-full w-full object-cover"
             src={shot.videoUrl}
             poster={shot.thumbnailUrl ?? undefined}
@@ -248,133 +95,37 @@ export function ShotPlayer({ shot }: ShotPlayerProps) {
             aria-pressed={showOverlay}
           >
             {showOverlay ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
-            Overlay
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-full border-[var(--color-border-default)] px-3 text-[var(--color-text-primary)] backdrop-blur-xl hover:bg-[var(--color-surface-tertiary)]"
-            style={{
-              backgroundColor:
-                "color-mix(in oklch, var(--color-surface-primary) 58%, transparent)",
-            }}
-            onClick={() => setShowObjects((current) => !current)}
-            aria-pressed={showObjects}
-          >
-            <Boxes aria-hidden="true" />
-            Objects
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-full border-[var(--color-border-default)] px-3 text-[var(--color-text-primary)] backdrop-blur-xl hover:bg-[var(--color-surface-tertiary)]"
-            style={{
-              backgroundColor:
-                "color-mix(in oklch, var(--color-surface-primary) 58%, transparent)",
-            }}
-            onClick={() => setShowLive((current) => !current)}
-            aria-pressed={showLive}
-            disabled={!shot.videoUrl}
-          >
-            {isLoading ? (
-              <LoaderCircle aria-hidden="true" className="animate-spin" />
-            ) : (
-              <Cpu aria-hidden="true" />
-            )}
-            Live
+            {showOverlay ? "Hide labels" : "Show labels"}
           </Button>
         </div>
-
-        {liveEnabled ? (
-          <div className="absolute left-4 top-4 z-30">
-            {isLoading ? (
-              <div
-                className="flex items-center gap-2 rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-primary)]"
-                style={{
-                  backgroundColor:
-                    "color-mix(in oklch, var(--color-surface-primary) 78%, transparent)",
-                  borderColor:
-                    "color-mix(in oklch, var(--color-overlay-live) 32%, transparent)",
-                }}
-              >
-                <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin" />
-                Loading model...
-              </div>
-            ) : loadError ? (
-              <div
-                className="rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-primary)]"
-                style={{
-                  backgroundColor:
-                    "color-mix(in oklch, var(--color-surface-primary) 78%, transparent)",
-                  borderColor:
-                    "color-mix(in oklch, var(--color-status-error) 40%, transparent)",
-                }}
-              >
-                Live unavailable
-              </div>
-            ) : null}
-          </div>
-        ) : null}
 
         {showOverlay ? <MetadataOverlay shot={shot} /> : null}
-        <ObjectOverlay tracks={shot.objects} currentTime={currentTime} visible={showObjects} />
-        <RealtimeObjectOverlay
-          detections={detections}
-          videoWidth={videoMetrics.width}
-          videoHeight={videoMetrics.height}
-          sourceWidth={videoMetrics.sourceWidth}
-          sourceHeight={videoMetrics.sourceHeight}
-          visible={liveEnabled && isModelLoaded && !isLoading && !loadError}
-        />
       </div>
 
-      <div
-        className="rounded-[var(--radius-xl)] border p-4"
-        style={{
-          backgroundColor:
-            "color-mix(in oklch, var(--color-surface-secondary) 74%, transparent)",
-          borderColor:
-            "color-mix(in oklch, var(--color-border-subtle) 88%, transparent)",
-        }}
-      >
-        <div className="flex flex-wrap items-center gap-2">
+      {variant === "verify" ? (
+        <p className="text-sm leading-7 text-[var(--color-text-secondary)]">
+          Use <strong className="font-medium text-[var(--color-text-primary)]">Show labels</strong> to compare the
+          on-screen composition panel with the ratings you enter below. Native video controls handle play and seek.
+        </p>
+      ) : (
+        <div
+          className="rounded-[var(--radius-xl)] border p-4"
+          style={{
+            backgroundColor:
+              "color-mix(in oklch, var(--color-surface-secondary) 74%, transparent)",
+            borderColor:
+              "color-mix(in oklch, var(--color-border-subtle) 88%, transparent)",
+          }}
+        >
           <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-            Overlay legend
+            About this overlay
           </p>
-          <span className="text-sm text-[var(--color-text-secondary)]">
-            Color channels map overlay layers to framing cues, geometry, and detected scene context.
-          </span>
+          <p className="mt-2 text-sm leading-7 text-[var(--color-text-secondary)]">
+            Composition labels are grouped in a single panel at the bottom of the frame so you can read framing, shot
+            size, lighting, and angles without scanning every corner.
+          </p>
         </div>
-        <div className="mt-4 flex flex-wrap gap-3">
-          {legendItems.map((item, index) => (
-            <motion.div
-              key={item.label}
-              initial={{ opacity: 0, y: 10 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.4 }}
-              transition={{ duration: 0.35, delay: index * 0.06, ease: "easeOut" }}
-              className="flex items-center gap-3 rounded-full border px-3 py-2"
-              style={{
-                backgroundColor:
-                  "color-mix(in oklch, var(--color-surface-primary) 64%, transparent)",
-                borderColor:
-                  "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
-              }}
-            >
-              <span
-                aria-hidden="true"
-                className="h-2.5 w-2.5 rounded-full shadow-[var(--shadow-glow)]"
-                style={{ backgroundColor: item.color }}
-              />
-              <span className="text-sm text-[var(--color-text-secondary)]">
-                {item.label}
-              </span>
-            </motion.div>
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
