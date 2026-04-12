@@ -3,7 +3,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getNextShotAfterBoundary, getShotById } from "@/db/queries";
-import { ShotProvenanceCard } from "@/components/archive/shot-provenance-card";
 import { ShotDetailVideoBlock } from "@/components/shots/shot-detail-video-block";
 import {
   formatShotDuration,
@@ -15,29 +14,6 @@ import {
   getShotSizeDisplayName,
   getVerticalAngleDisplayName,
 } from "@/lib/shot-display";
-
-function getObjectCategoryColor(category: string | null) {
-  switch (category) {
-    case "person":
-      return "var(--color-overlay-object-person)";
-    case "vehicle":
-      return "var(--color-overlay-object-vehicle)";
-    case "animal":
-      return "var(--color-overlay-object-animal)";
-    case "furniture":
-      return "var(--color-overlay-object-furniture)";
-    case "food":
-      return "var(--color-overlay-object-food)";
-    case "object":
-      return "var(--color-overlay-object-default)";
-    default:
-      return "var(--color-overlay-object-default)";
-  }
-}
-
-function formatSceneValue(value: string | undefined | null) {
-  return value ? value.replace(/_/gu, " ") : "Unknown";
-}
 
 type ShotDetailPageProps = {
   params: Promise<{
@@ -112,11 +88,9 @@ export default async function ShotDetailPage({ params }: ShotDetailPageProps) {
       value: formatShotDuration(shot.duration),
     },
   ] as const;
-  const sceneContext =
-    shot.objects.find((object) => object.sceneContext)?.sceneContext ?? null;
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-12">
       <section className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-3xl">
           <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
@@ -149,112 +123,56 @@ export default async function ShotDetailPage({ params }: ShotDetailPageProps) {
         </div>
       </section>
 
-      <ShotDetailVideoBlock shot={shot} nextShotId={nextShot?.id ?? null} />
-
-      <ShotProvenanceCard shot={shot} />
-
-      <section className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
-        <div
-          className="rounded-[var(--radius-xl)] border p-6"
-          style={{
-            backgroundColor:
-              "color-mix(in oklch, var(--color-surface-secondary) 76%, transparent)",
-            borderColor:
-              "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
-          }}
-        >
-          <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-            Structured metadata
-          </p>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            {metadataFields.map((field) => (
-              <div
-                key={field.label}
-                className="rounded-[var(--radius-lg)] border p-4"
-                style={{
-                  backgroundColor:
-                    "color-mix(in oklch, var(--color-surface-primary) 72%, transparent)",
-                  borderColor:
-                    "color-mix(in oklch, var(--color-border-subtle) 90%, transparent)",
-                }}
-              >
-                <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                  {field.label}
-                </p>
-                <p className="mt-2 text-sm text-[var(--color-text-primary)]">
-                  {field.value}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <aside
-          className="rounded-[var(--radius-xl)] border p-6"
-          style={{
-            backgroundColor:
-              "color-mix(in oklch, var(--color-surface-secondary) 76%, transparent)",
-            borderColor:
-              "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
-          }}
-        >
-          <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-            Semantic note
-          </p>
-          <p className="mt-4 text-base leading-8 text-[var(--color-text-secondary)]">
-            {shot.semantic?.description ??
-              "A semantic description has not been attached to this shot yet."}
-          </p>
-          {shot.semantic?.techniqueNotes ? (
-            <p className="mt-4 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] p-4 text-sm leading-7 text-[var(--color-text-secondary)]">
-              {shot.semantic.techniqueNotes}
-            </p>
-          ) : null}
-        </aside>
-      </section>
-
+      {/* Playback: video + timeline + boundary HITL — visually separated from DB-backed record below */}
       <section
-        className="rounded-[var(--radius-xl)] border p-6"
+        className="rounded-[calc(var(--radius-xl)_+_4px)] border-2 p-6 sm:p-8"
         style={{
-          backgroundColor:
-            "color-mix(in oklch, var(--color-surface-secondary) 76%, transparent)",
-          borderColor:
-            "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
+          background:
+            "linear-gradient(165deg, color-mix(in oklch, var(--color-surface-secondary) 92%, transparent) 0%, color-mix(in oklch, var(--color-surface-primary) 88%, transparent) 100%)",
+          borderColor: "color-mix(in oklch, var(--color-accent-light) 38%, var(--color-border-default))",
+          boxShadow:
+            "0 0 0 1px color-mix(in oklch, var(--color-accent-light) 12%, transparent), var(--shadow-lg)",
         }}
       >
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b border-[var(--color-border-subtle)] pb-4">
           <div>
-            <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-              Objects
+            <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-accent-light)]">
+              Playback & boundaries
             </p>
-            <h2
-              className="mt-2 text-2xl font-semibold tracking-[var(--letter-spacing-snug)] text-[var(--color-text-primary)]"
-              style={{ fontFamily: "var(--font-heading)" }}
-            >
-              Scene detections
-            </h2>
+            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+              Clip, timeline, and split/merge tools. This panel is for reviewing media, not the stored composition grid.
+            </p>
           </div>
-          <span className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-secondary)]">
-            {shot.objects.length} {shot.objects.length === 1 ? "track" : "tracks"}
-          </span>
         </div>
+        <ShotDetailVideoBlock shot={shot} nextShotId={nextShot?.id ?? null} />
+      </section>
 
-        {shot.objects.length > 0 ? (
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {shot.objects.map((object) => {
-              const color = getObjectCategoryColor(object.category);
-              const attributes = Object.entries(object.attributes ?? {});
-              const confidence = Math.max(
-                0,
-                Math.min(
-                  100,
-                  Math.round((object.yoloConfidence ?? object.confidence ?? 0) * 100),
-                ),
-              );
+      {/* Static composition record from the archive */}
+      <section className="space-y-2">
+        <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+          Composition record
+        </p>
+        <p className="max-w-2xl text-sm text-[var(--color-text-secondary)]">
+          Values below are the saved shot row and semantic fields (no live video controls).
+        </p>
 
-              return (
-                <article
-                  key={object.id}
+        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
+          <div
+            className="rounded-[var(--radius-xl)] border p-6"
+            style={{
+              backgroundColor:
+                "color-mix(in oklch, var(--color-surface-secondary) 76%, transparent)",
+              borderColor:
+                "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
+            }}
+          >
+            <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+              Structured metadata
+            </p>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              {metadataFields.map((field) => (
+                <div
+                  key={field.label}
                   className="rounded-[var(--radius-lg)] border p-4"
                   style={{
                     backgroundColor:
@@ -263,167 +181,38 @@ export default async function ShotDetailPage({ params }: ShotDetailPageProps) {
                       "color-mix(in oklch, var(--color-border-subtle) 90%, transparent)",
                   }}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-[var(--color-text-primary)]">
-                        {object.cinematicLabel ?? object.label}
-                      </p>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <span
-                          className="rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)]"
-                          style={{
-                            color,
-                            backgroundColor: `color-mix(in oklch, ${color} 14%, transparent)`,
-                            borderColor: `color-mix(in oklch, ${color} 46%, transparent)`,
-                          }}
-                        >
-                          {object.category ?? "untyped"}
-                        </span>
-                        {object.yoloClass ? (
-                          <span className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                            {object.yoloClass.replace(/_/gu, " ")}
-                          </span>
-                        ) : null}
-                        {object.significance ? (
-                          <span className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                            Cinematic note
-                          </span>
-                        ) : null}
-                        <span className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                          {object.startTime.toFixed(2)}s - {object.endTime.toFixed(2)}s
-                        </span>
-                        <span className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                          {object.keyframes.length} keyframes
-                        </span>
-                      </div>
-                    </div>
-                    <span className="font-mono text-xs text-[var(--color-text-secondary)]">
-                      {typeof object.yoloConfidence === "number" ||
-                      typeof object.confidence === "number"
-                        ? `${confidence}%`
-                        : "n/a"}
-                    </span>
-                  </div>
-
-                  {object.description ? (
-                    <p className="mt-4 text-sm leading-6 text-[var(--color-text-secondary)]">
-                      {object.description}
-                    </p>
-                  ) : null}
-
-                  {object.significance ? (
-                    <p className="mt-3 border-l-2 border-[var(--color-border-subtle)] pl-3 text-sm leading-6 text-[var(--color-text-secondary)]">
-                      {object.significance}
-                    </p>
-                  ) : null}
-
-                  <div className="mt-4">
-                    <div
-                      className="h-2 overflow-hidden rounded-full"
-                      style={{
-                        backgroundColor:
-                          "color-mix(in oklch, var(--color-surface-secondary) 88%, transparent)",
-                      }}
-                    >
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${confidence}%`,
-                          background: `linear-gradient(90deg, color-mix(in oklch, ${color} 56%, transparent), ${color})`,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-4 space-y-2">
-                    <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                      Attributes
-                    </p>
-                    {attributes.length > 0 ? (
-                      attributes.map(([key, value]) => (
-                        <div
-                          key={`${object.id}-${key}`}
-                          className="flex items-center justify-between gap-3 text-sm"
-                        >
-                          <span className="text-[var(--color-text-tertiary)]">{key}</span>
-                          <span className="text-right text-[var(--color-text-secondary)]">
-                            {value}
-                          </span>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-[var(--color-text-secondary)]">
-                        No secondary attributes attached.
-                      </p>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
+                  <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+                    {field.label}
+                  </p>
+                  <p className="mt-2 text-sm text-[var(--color-text-primary)]">{field.value}</p>
+                </div>
+              ))}
+            </div>
           </div>
-        ) : (
-          <p className="mt-6 text-sm text-[var(--color-text-secondary)]">
-            No detected objects are attached to this shot yet.
-          </p>
-        )}
-      </section>
 
-      <section
-        className="rounded-[var(--radius-xl)] border p-6"
-        style={{
-          backgroundColor:
-            "color-mix(in oklch, var(--color-surface-secondary) 76%, transparent)",
-          borderColor:
-            "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
-        }}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
+          <aside
+            className="rounded-[var(--radius-xl)] border p-6"
+            style={{
+              backgroundColor:
+                "color-mix(in oklch, var(--color-surface-secondary) 76%, transparent)",
+              borderColor:
+                "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
+            }}
+          >
             <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-              Scene context
+              Semantic note
             </p>
-            <h2
-              className="mt-2 text-2xl font-semibold tracking-[var(--letter-spacing-snug)] text-[var(--color-text-primary)]"
-              style={{ fontFamily: "var(--font-heading)" }}
-            >
-              Gemini scene enrichment
-            </h2>
-          </div>
+            <p className="mt-4 text-base leading-8 text-[var(--color-text-secondary)]">
+              {shot.semantic?.description ??
+                "A semantic description has not been attached to this shot yet."}
+            </p>
+            {shot.semantic?.techniqueNotes ? (
+              <p className="mt-4 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] p-4 text-sm leading-7 text-[var(--color-text-secondary)]">
+                {shot.semantic.techniqueNotes}
+              </p>
+            ) : null}
+          </aside>
         </div>
-
-        {sceneContext ? (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            {[
-              ["Location", sceneContext.location],
-              ["Time of day", sceneContext.timeOfDay],
-              ["Period", sceneContext.period],
-              ["Mood", sceneContext.mood],
-              ["Interior / exterior", sceneContext.interiorExterior],
-            ].map(([label, value]) => (
-              <div
-                key={label}
-                className="rounded-[var(--radius-lg)] border p-4"
-                style={{
-                  backgroundColor:
-                    "color-mix(in oklch, var(--color-surface-primary) 72%, transparent)",
-                  borderColor:
-                    "color-mix(in oklch, var(--color-border-subtle) 90%, transparent)",
-                }}
-              >
-                <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                  {label}
-                </p>
-                <p className="mt-2 text-sm text-[var(--color-text-primary)]">
-                  {formatSceneValue(value)}
-                </p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="mt-6 text-sm text-[var(--color-text-secondary)]">
-            Scene-level enrichment has not been attached to this shot yet.
-          </p>
-        )}
       </section>
     </div>
   );
