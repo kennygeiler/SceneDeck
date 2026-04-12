@@ -89,4 +89,28 @@ describe("Express worker HTTP (integration)", () => {
       .expect(400);
     expect(String(res.body?.error ?? "")).toMatch(/videoPath/i);
   });
+
+  it("POST /api/ingest-film/async returns 401 when ingest secret is set and header missing", async () => {
+    prevSecret = process.env[secretKey];
+    process.env[secretKey] = "test-worker-ingest-secret";
+    const app = createMetrovisionWorkerApp();
+    await request(app)
+      .post("/api/ingest-film/async")
+      .send({})
+      .set("Content-Type", "application/json")
+      .expect(401);
+  });
+
+  it("POST /api/ingest-film/async returns 400 when secret matches but body invalid", async () => {
+    prevSecret = process.env[secretKey];
+    process.env[secretKey] = "test-worker-ingest-secret";
+    const app = createMetrovisionWorkerApp();
+    const res = await request(app)
+      .post("/api/ingest-film/async")
+      .set("x-metrovision-worker-ingest", "test-worker-ingest-secret")
+      .set("Content-Type", "application/json")
+      .send({})
+      .expect(400);
+    expect(String(res.body?.error ?? "")).toMatch(/videoPath|videoUrl|required/i);
+  });
 });

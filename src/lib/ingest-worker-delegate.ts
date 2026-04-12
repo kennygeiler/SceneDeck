@@ -114,6 +114,75 @@ export async function forwardIngestFilmStreamToWorker(
   }
 }
 
+/** Enqueue background ingest on the worker; returns immediately with jobId + pollToken (no long-lived SSE). */
+export async function forwardIngestFilmAsyncToWorker(
+  workerOrigin: string,
+  bodyText: string,
+): Promise<Response> {
+  const origin = normalizeWorkerOrigin(workerOrigin);
+  const url = `${origin}/api/ingest-film/async`;
+  const hint =
+    " Check INGEST_WORKER_URL / NEXT_PUBLIC_WORKER_URL: use the worker **origin** only (https://host.tld), no /api path.";
+
+  try {
+    const workerRes = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...workerIngestHeadersForProxy(),
+      },
+      body: bodyText,
+      signal: AbortSignal.timeout(60_000),
+    });
+
+    if (workerRes.status === 404) {
+      const t = await workerRes.text().catch(() => "");
+      return proxyFailureResponse(
+        url,
+        `worker returned 404 — async ingest not deployed? (${t.slice(0, 120)})`,
+        hint,
+      );
+    }
+
+    const text = await workerRes.text();
+    return new Response(text, {
+      status: workerRes.status,
+      headers: { "Content-Type": workerRes.headers.get("Content-Type") ?? "application/json" },
+    });
+  } catch (err) {
+    const e = err as Error;
+    const detail = e?.name === "TimeoutError" ? "request timed out" : (e?.message ?? String(err));
+    return proxyFailureResponse(url, detail, hint);
+  }
+}
+
+/** Poll async ingest job status on the worker (short request). */
+export async function forwardIngestFilmJobStatusToWorker(
+  workerOrigin: string,
+  jobId: string,
+  pollToken: string,
+): Promise<Response> {
+  const origin = normalizeWorkerOrigin(workerOrigin);
+  const url = `${origin}/api/ingest-film/jobs/${encodeURIComponent(jobId)}?t=${encodeURIComponent(pollToken)}`;
+
+  try {
+    const workerRes = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(30_000),
+    });
+    const text = await workerRes.text();
+    return new Response(text, {
+      status: workerRes.status,
+      headers: { "Content-Type": workerRes.headers.get("Content-Type") ?? "application/json" },
+    });
+  } catch (err) {
+    const e = err as Error;
+    const detail = e?.name === "TimeoutError" ? "request timed out" : (e?.message ?? String(err));
+    return proxyFailureResponse(url, detail, "");
+  }
+}
+
 /** GET {origin}/health — quick reachability check (Express worker exposes /health). */
 export async function probeWorkerHealth(origin: string): Promise<{
   ok: boolean;

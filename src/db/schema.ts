@@ -310,6 +310,27 @@ export const ingestRuns = pgTable("ingest_runs", {
 export type IngestRun = typeof ingestRuns.$inferSelect;
 export type NewIngestRun = typeof ingestRuns.$inferInsert;
 
+/**
+ * Background ingest job (worker processes without a long-lived SSE client).
+ * Poll status via `poll_token`; durable state for close-tab / proxy timeout resilience.
+ */
+export const ingestAsyncJobs = pgTable("ingest_async_jobs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  status: text("status").notNull().default("queued"), // queued | running | completed | failed
+  stage: text("stage").notNull().default("queued"),
+  pollToken: text("poll_token").notNull().unique(),
+  requestBody: jsonb("request_body").notNull().$type<Record<string, unknown>>(),
+  progress: jsonb("progress").$type<Record<string, unknown>>(),
+  filmId: uuid("film_id").references(() => films.id, { onDelete: "set null" }),
+  ingestRunId: uuid("ingest_run_id").references(() => ingestRuns.id, { onDelete: "set null" }),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export type IngestAsyncJob = typeof ingestAsyncJobs.$inferSelect;
+export type NewIngestAsyncJob = typeof ingestAsyncJobs.$inferInsert;
+
 // ---------------------------------------------------------------------------
 // M5: RAG Intelligence Layer — Multi-granularity Embeddings + Corpus
 // ---------------------------------------------------------------------------

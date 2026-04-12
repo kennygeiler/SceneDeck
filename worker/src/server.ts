@@ -1,6 +1,8 @@
 import { createMetrovisionWorkerApp } from "./create-app.js";
+import { startIngestAsyncJobSweep } from "./ingest.js";
 
 const app = createMetrovisionWorkerApp();
+startIngestAsyncJobSweep();
 const PORT = parseInt(process.env.PORT ?? "3100", 10);
 
 app.listen(PORT, () => {

@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:ingest-contracts": "vitest run src/lib/__tests__/ingest-film-stream-contract.test.ts src/lib/__tests__/worker-http.integration.test.ts",
+    "test:ingest-contracts": "vitest run src/lib/__tests__/ingest-film-stream-contract.test.ts src/lib/__tests__/ingest-film-async-contract.test.ts src/lib/__tests__/worker-http.integration.test.ts",
     "worker:reachability-smoke": "tsx scripts/worker-reachability-smoke.ts",
     "check:schema-drift": "tsx scripts/check-schema-drift.ts",
     "check:taxonomy": "tsx scripts/check-taxonomy-parity.ts",

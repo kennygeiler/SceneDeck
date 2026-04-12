@@ -43,6 +43,16 @@ type FrameState = {
 
 type DbSnapshot = { filmId: string; shotCount: number; sceneCount: number };
 
+type BackgroundPollSnapshot = {
+  status: string;
+  stage: string;
+  message?: string;
+  totalShots?: number;
+  extractDone?: number;
+  classifyDone?: number;
+  writeDone?: number;
+};
+
 type PipelineState = {
   steps: StepInfo[];
   frames: FrameState[];
@@ -55,6 +65,8 @@ type PipelineState = {
   dbSnapshot: DbSnapshot | null;
   /** True after first byte chunk from the ingest SSE body (avoids "stream ended" + stale DB on immediate HTTP errors). */
   ingestStreamDeliveredBytes: boolean;
+  /** Async job polling (no SSE); drives step labels + aggregate counts. */
+  backgroundPoll: BackgroundPollSnapshot | null;
 };
 
 const STEP_DEFS: { id: StepId; label: string }[] = [
@@ -72,6 +84,31 @@ function isStepId(x: string): x is StepId {
 
 function stepOrderIndex(id: StepId): number {
   return STEP_DEFS.findIndex((d) => d.id === id);
+}
+
+const ASYNC_JOB_SESSION_KEY = "metrovision_ingest_async_job";
+
+function buildStepsFromPipelineStage(stage: string, detail?: string): StepInfo[] {
+  const order: StepId[] = ["detect", "lookup", "extract", "classify", "group", "write"];
+  if (stage === "complete") {
+    return STEP_DEFS.map((s) => ({ ...s, status: "complete" as const }));
+  }
+  if (stage === "failed") {
+    return STEP_DEFS.map((s) => ({ ...s, status: "complete" as const }));
+  }
+  let activeIdx = order.indexOf(stage as StepId);
+  if (stage === "queued" || stage === "running") activeIdx = 0;
+  if (activeIdx < 0) activeIdx = 0;
+  return STEP_DEFS.map((s) => {
+    const idx = order.indexOf(s.id);
+    if (idx < activeIdx) return { ...s, status: "complete" as const };
+    if (idx === activeIdx) return { ...s, status: "active" as const, detail };
+    return { ...s, status: "pending" as const };
+  });
+}
+
+function getIngestAsyncPostUrl(): string {
+  return "/api/ingest-film/async";
 }
 
 /** Prefer the latest active step so the header matches the true phase if an earlier step stayed "active" after a dropped SSE. */
@@ -410,6 +447,11 @@ type PipelineVizProps = {
   /** Inclusive window in seconds; omit for full file (detection still scans whole video). */
   ingestStartSec?: number;
   ingestEndSec?: number;
+  /**
+   * Enqueue ingest on the worker and poll job status (short HTTP requests).
+   * Safe to leave the page; resume token is stored in sessionStorage.
+   */
+  backgroundIngest?: boolean;
   onComplete?: (result: { filmId: string; shotCount: number; sceneCount: number }) => void;
   onError?: (error: string) => void;
 };
@@ -424,6 +466,7 @@ export function PipelineViz({
   boundaryCutPresetId,
   ingestStartSec,
   ingestEndSec,
+  backgroundIngest = false,
   onComplete,
   onError,
 }: PipelineVizProps) {
@@ -437,10 +480,12 @@ export function PipelineViz({
     error: null,
     dbSnapshot: null,
     ingestStreamDeliveredBytes: false,
+    backgroundPoll: backgroundIngest ? { status: "starting", stage: "queued", message: "Starting…" } : null,
   });
 
   const [elapsed, setElapsed] = useState(0);
   const stripRef = useRef<HTMLDivElement>(null);
+  const asyncCompleteNotifiedRef = useRef(false);
 
   const handleEvent = useCallback(
     (e: Record<string, unknown>) => {
@@ -567,6 +612,218 @@ export function PipelineViz({
   }, [videoPath, filmTitle, year, ingestStartSec, ingestEndSec, boundaryCutPresetId]);
 
   useEffect(() => {
+    if (!backgroundIngest) return undefined;
+    const ac = new AbortController();
+    let intervalId: number | undefined;
+
+    (async () => {
+      try {
+        const isHttpSource = /^https?:\/\//i.test(videoPath);
+        const bodyPayload = {
+          ...(isHttpSource
+            ? { videoUrl: videoPath, filmTitle, director, year, concurrency, detector }
+            : { videoPath, filmTitle, director, year, concurrency, detector }),
+          ...(boundaryCutPresetId?.trim() ? { boundaryCutPresetId: boundaryCutPresetId.trim() } : {}),
+          ...(ingestStartSec !== undefined ? { ingestStartSec } : {}),
+          ...(ingestEndSec !== undefined ? { ingestEndSec } : {}),
+        };
+
+        const startRes = await fetch(getIngestAsyncPostUrl(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(bodyPayload),
+          signal: ac.signal,
+        });
+
+        if (!startRes.ok) {
+          const errText = await startRes.text();
+          let msg: string;
+          try {
+            const j = JSON.parse(errText) as { error?: string; proxyTarget?: string };
+            if (typeof j.error === "string") {
+              msg =
+                j.proxyTarget && !j.error.includes(j.proxyTarget)
+                  ? `${j.error} — target: ${j.proxyTarget}`
+                  : j.error;
+            } else {
+              msg = sanitizeIngestHttpErrorBody(startRes.status, errText);
+            }
+          } catch {
+            msg = sanitizeIngestHttpErrorBody(startRes.status, errText);
+          }
+          setState((s) => ({ ...s, error: msg }));
+          onError?.(msg);
+          return;
+        }
+
+        const startJson = (await startRes.json()) as { jobId?: string; pollToken?: string };
+        if (typeof startJson.jobId !== "string" || typeof startJson.pollToken !== "string") {
+          const msg = "Async ingest started but response missing jobId or pollToken.";
+          setState((s) => ({ ...s, error: msg }));
+          onError?.(msg);
+          return;
+        }
+
+        try {
+          sessionStorage.setItem(
+            ASYNC_JOB_SESSION_KEY,
+            JSON.stringify({
+              jobId: startJson.jobId,
+              pollToken: startJson.pollToken,
+              filmTitle,
+              year,
+            }),
+          );
+        } catch {
+          /* quota / private mode */
+        }
+
+        const pollOnce = async () => {
+          const r = await fetch(
+            `/api/ingest-film/jobs/${encodeURIComponent(startJson.jobId!)}?t=${encodeURIComponent(startJson.pollToken!)}`,
+            { signal: ac.signal },
+          );
+          if (!r.ok) {
+            const errText = await r.text();
+            let msg: string;
+            try {
+              const j = JSON.parse(errText) as { error?: string };
+              msg = typeof j.error === "string" ? j.error : sanitizeIngestHttpErrorBody(r.status, errText);
+            } catch {
+              msg = sanitizeIngestHttpErrorBody(r.status, errText);
+            }
+            setState((s) => ({ ...s, error: msg }));
+            onError?.(msg);
+            if (intervalId) window.clearInterval(intervalId);
+            return;
+          }
+
+          const data = (await r.json()) as {
+            status?: string;
+            stage?: string;
+            progress?: Record<string, unknown> | null;
+            filmId?: string | null;
+            errorMessage?: string | null;
+          };
+
+          const prog = data.progress;
+          const stageFromProg = typeof prog?.stage === "string" ? prog.stage : null;
+          const effectiveStage = stageFromProg ?? data.stage ?? "queued";
+          const message = typeof prog?.message === "string" ? prog.message : undefined;
+          const totalShots =
+            typeof prog?.totalShots === "number" ? prog.totalShots : undefined;
+          const extractDone =
+            typeof prog?.extractDone === "number" ? prog.extractDone : undefined;
+          const classifyDone =
+            typeof prog?.classifyDone === "number" ? prog.classifyDone : undefined;
+          const writeDone = typeof prog?.writeDone === "number" ? prog.writeDone : undefined;
+
+          if (data.status === "failed") {
+            const msg = (data.errorMessage ?? "Ingest failed").trim() || "Ingest failed";
+            setState((s) => ({
+              ...s,
+              error: msg,
+              steps: buildStepsFromPipelineStage("failed", message),
+              backgroundPoll: {
+                status: "failed",
+                stage: effectiveStage,
+                message,
+                totalShots,
+                extractDone,
+                classifyDone,
+                writeDone,
+              },
+            }));
+            onError?.(msg);
+            if (intervalId) window.clearInterval(intervalId);
+            return;
+          }
+
+          if (data.status === "completed" && typeof data.filmId === "string") {
+            const shotCount = typeof prog?.shotCount === "number" ? prog.shotCount : 0;
+            const sceneCount = typeof prog?.sceneCount === "number" ? prog.sceneCount : 0;
+            setState((s) => ({
+              ...s,
+              result: {
+                filmId: data.filmId!,
+                filmTitle,
+                shotCount,
+                sceneCount,
+              },
+              totalShots: totalShots ?? s.totalShots,
+              steps: buildStepsFromPipelineStage("complete"),
+              error: null,
+              backgroundPoll: {
+                status: "completed",
+                stage: "complete",
+                message,
+                totalShots,
+                extractDone,
+                classifyDone,
+                writeDone,
+              },
+            }));
+            if (!asyncCompleteNotifiedRef.current) {
+              asyncCompleteNotifiedRef.current = true;
+              onComplete?.({ filmId: data.filmId!, shotCount, sceneCount });
+            }
+            if (intervalId) window.clearInterval(intervalId);
+            return;
+          }
+
+          setState((s) => ({
+            ...s,
+            totalShots: totalShots ?? s.totalShots,
+            steps: buildStepsFromPipelineStage(effectiveStage, message),
+            backgroundPoll: {
+              status: data.status ?? "running",
+              stage: effectiveStage,
+              message,
+              totalShots,
+              extractDone,
+              classifyDone,
+              writeDone,
+            },
+          }));
+        };
+
+        await pollOnce();
+        intervalId = window.setInterval(() => {
+          void pollOnce();
+        }, 4_000);
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return;
+        const e = err as Error;
+        let message = (e?.message ?? String(e)).trim() || "Request failed";
+        if (/failed to fetch|network\s*error|load failed|networkerror|connection.*refused|aborted/i.test(message)) {
+          message = appendIngestErrorDetails(message, INGEST_NETWORK_TROUBLESHOOT);
+        }
+        setState((s) => ({ ...s, error: message }));
+        onError?.(message);
+      }
+    })();
+
+    return () => {
+      ac.abort();
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, [
+    backgroundIngest,
+    videoPath,
+    filmTitle,
+    director,
+    year,
+    concurrency,
+    detector,
+    boundaryCutPresetId,
+    ingestStartSec,
+    ingestEndSec,
+    onComplete,
+    onError,
+  ]);
+
+  useEffect(() => {
+    if (backgroundIngest) return undefined;
     if (state.result) return undefined;
 
     let cancelled = false;
@@ -599,7 +856,7 @@ export function PipelineViz({
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [filmTitle, year, state.result]);
+  }, [backgroundIngest, filmTitle, year, state.result]);
 
   useEffect(() => {
     if (state.result || state.error) return;
@@ -609,6 +866,7 @@ export function PipelineViz({
 
   // SSE
   useEffect(() => {
+    if (backgroundIngest) return undefined;
     const abort = new AbortController();
     setState((s) => ({
       ...s,
@@ -735,17 +993,30 @@ export function PipelineViz({
     ingestStartSec,
     ingestEndSec,
     handleEvent,
+    backgroundIngest,
   ]);
 
 
   // Computed
-  const extracted = state.frames.filter((f) => f.extract === "complete").length;
-  const classified = state.frames.filter((f) => f.classify === "complete").length;
-  const written = state.frames.filter((f) => f.write === "complete").length;
+  const extracted = backgroundIngest
+    ? (state.backgroundPoll?.extractDone ?? 0)
+    : state.frames.filter((f) => f.extract === "complete").length;
+  const classified = backgroundIngest
+    ? (state.backgroundPoll?.classifyDone ?? 0)
+    : state.frames.filter((f) => f.classify === "complete").length;
+  const written = backgroundIngest
+    ? (state.backgroundPoll?.writeDone ?? 0)
+    : state.frames.filter((f) => f.write === "complete").length;
   const dedupedClassifierLabels = dedupeClassifierFramingLabels(state.frames);
   const discoveredScenes = new Set(state.frames.map((f) => f.sceneTitle).filter(Boolean));
   const activeStep = rightmostActiveStep(state.steps);
-  const isDetecting = activeStep?.id === "detect" || (activeStep?.id === "lookup" && state.totalShots === 0);
+  const isDetecting =
+    activeStep?.id === "detect" ||
+    (activeStep?.id === "lookup" && state.totalShots === 0) ||
+    (backgroundIngest &&
+      (state.backgroundPoll?.stage === "detect" ||
+        state.backgroundPoll?.stage === "queued" ||
+        state.backgroundPoll?.stage === "running"));
 
   const showStreamStaleHint =
     state.dbSnapshot !== null &&
@@ -778,9 +1049,20 @@ export function PipelineViz({
         )
       : null;
 
-  const overallPct = state.totalShots > 0
-    ? ((extracted / state.totalShots) * 30 + (classified / state.totalShots) * 50 + (written / state.totalShots) * 20)
-    : 0;
+  const bgTotal = state.backgroundPoll?.totalShots ?? 0;
+  const overallPct =
+    backgroundIngest && bgTotal > 0
+      ? Math.min(
+          100,
+          (((state.backgroundPoll?.extractDone ?? 0) +
+            (state.backgroundPoll?.classifyDone ?? 0) +
+            (state.backgroundPoll?.writeDone ?? 0)) /
+            (3 * bgTotal)) *
+            100,
+        )
+      : state.totalShots > 0
+        ? (extracted / state.totalShots) * 30 + (classified / state.totalShots) * 50 + (written / state.totalShots) * 20
+        : 0;
 
   const etas = useETAs(state, elapsed);
   const pacingInfo = PACING[etas.pacing];
@@ -872,6 +1154,29 @@ export function PipelineViz({
             )}
           </div>
         </div>
+
+        {backgroundIngest ? (
+          <div
+            className="rounded-[var(--radius-lg)] border px-4 py-3 text-sm leading-relaxed text-[var(--color-text-secondary)]"
+            style={{
+              borderColor: "color-mix(in oklch, var(--color-accent-base) 35%, transparent)",
+              backgroundColor: "color-mix(in oklch, var(--color-accent-base) 8%, transparent)",
+            }}
+          >
+            <p>
+              <strong className="text-[var(--color-text-primary)]">Background ingest</strong> — progress is polled every few
+              seconds. You can navigate away or close the tab; the worker keeps running. Re-open this site on the same
+              browser to reuse the poll token from session storage, or check{" "}
+              <Link href="/browse" className="text-[var(--color-accent-base)] underline-offset-2 hover:underline">
+                Browse
+              </Link>{" "}
+              for your film when the job completes.
+            </p>
+            {state.backgroundPoll?.message ? (
+              <p className="mt-2 font-mono text-xs text-[var(--color-text-tertiary)]">{state.backgroundPoll.message}</p>
+            ) : null}
+          </div>
+        ) : null}
 
         {showStreamStaleHint && state.dbSnapshot ? (
           <div
@@ -981,7 +1286,7 @@ export function PipelineViz({
         ) : null}
 
         {/* ─── Film Strip ─── */}
-        {state.frames.length > 0 ? (
+        {!backgroundIngest && state.frames.length > 0 ? (
           <div
             className="relative overflow-hidden rounded-[var(--radius-xl)] border"
             style={{ backgroundColor: "#0d0d12", borderColor: "color-mix(in oklch, var(--color-border-default) 50%, transparent)" }}

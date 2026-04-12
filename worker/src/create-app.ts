@@ -1,7 +1,11 @@
 import express from "express";
 import cors from "cors";
 import { boundaryDetectHandler } from "./boundary-detect.js";
-import { ingestFilmHandler } from "./ingest.js";
+import {
+  ingestFilmHandler,
+  ingestFilmAsyncPostHandler,
+  ingestFilmJobGetHandler,
+} from "./ingest.js";
 
 const defaultOrigins = [
   "http://localhost:3000",
@@ -62,6 +66,8 @@ export function createMetrovisionWorkerApp(): express.Express {
   });
 
   app.post("/api/ingest-film/stream", ingestFilmHandler);
+  app.post("/api/ingest-film/async", ingestFilmAsyncPostHandler);
+  app.get("/api/ingest-film/jobs/:id", ingestFilmJobGetHandler);
   app.post("/api/boundary-detect", boundaryDetectHandler);
 
   return app;
