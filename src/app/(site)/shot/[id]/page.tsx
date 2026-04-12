@@ -4,8 +4,7 @@ import { notFound } from "next/navigation";
 
 import { getNextShotAfterBoundary, getShotById } from "@/db/queries";
 import { ShotProvenanceCard } from "@/components/archive/shot-provenance-card";
-import { BoundaryHitlTools } from "@/components/shots/boundary-hitl-tools";
-import { ShotPlayer } from "@/components/video/shot-player";
+import { ShotDetailVideoBlock } from "@/components/shots/shot-detail-video-block";
 import {
   formatShotDuration,
   getBlockingDisplayName,
@@ -150,16 +149,9 @@ export default async function ShotDetailPage({ params }: ShotDetailPageProps) {
         </div>
       </section>
 
+      <ShotDetailVideoBlock shot={shot} nextShotId={nextShot?.id ?? null} />
+
       <ShotProvenanceCard shot={shot} />
-
-      <ShotPlayer shot={shot} />
-
-      <BoundaryHitlTools
-        shotId={shot.id}
-        startTc={shot.startTc}
-        endTc={shot.endTc}
-        nextShotId={nextShot?.id ?? null}
-      />
 
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
         <div

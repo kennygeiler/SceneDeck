@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import type { RefObject } from "react";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
@@ -11,11 +12,12 @@ import type { ShotWithDetails } from "@/lib/types";
 
 type ShotPlayerProps = {
   shot: ShotWithDetails;
-  /** `verify` hides the long legend and shows a short reviewer hint. */
   variant?: "default" | "verify";
+  /** When set, attached to the underlying `<video>` for timeline sync (e.g. boundary HITL). */
+  videoRef?: RefObject<HTMLVideoElement | null>;
 };
 
-export function ShotPlayer({ shot, variant = "default" }: ShotPlayerProps) {
+export function ShotPlayer({ shot, variant = "default", videoRef }: ShotPlayerProps) {
   const [showOverlay, setShowOverlay] = useState(true);
 
   return (
@@ -40,6 +42,7 @@ export function ShotPlayer({ shot, variant = "default" }: ShotPlayerProps) {
 
         {shot.videoUrl ? (
           <video
+            ref={videoRef}
             className="absolute inset-0 h-full w-full object-cover"
             src={shot.videoUrl}
             poster={shot.thumbnailUrl ?? undefined}
@@ -104,28 +107,10 @@ export function ShotPlayer({ shot, variant = "default" }: ShotPlayerProps) {
 
       {variant === "verify" ? (
         <p className="text-sm leading-7 text-[var(--color-text-secondary)]">
-          Use <strong className="font-medium text-[var(--color-text-primary)]">Show labels</strong> to compare the
-          side columns with the ratings you enter below. Labels stay above the player timeline so you can still scrub.
+          Toggle <strong className="font-medium text-[var(--color-text-primary)]">Show labels</strong> to compare the
+          composition block with your ratings. The panel stays above the player timeline.
         </p>
-      ) : (
-        <div
-          className="rounded-[var(--radius-xl)] border p-4"
-          style={{
-            backgroundColor:
-              "color-mix(in oklch, var(--color-surface-secondary) 74%, transparent)",
-            borderColor:
-              "color-mix(in oklch, var(--color-border-subtle) 88%, transparent)",
-          }}
-        >
-          <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-            About this overlay
-          </p>
-          <p className="mt-2 text-sm leading-7 text-[var(--color-text-secondary)]">
-            Labels sit in left and right columns and stop above the native play bar so the timeline and controls stay
-            easy to use.
-          </p>
-        </div>
-      )}
+      ) : null}
     </div>
   );
 }
