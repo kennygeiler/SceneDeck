@@ -157,8 +157,6 @@ export type ExportShotRecord = {
   startTc: number | null;
   endTc: number | null;
   duration: number;
-  videoUrl: string | null;
-  thumbnailUrl: string | null;
   framing: FramingSlug;
   depth: DepthTypeSlug;
   blocking: BlockingTypeSlug;
@@ -173,9 +171,6 @@ export type ExportShotRecord = {
   durationCategory: DurationCategorySlug;
   classificationSource: string | null;
   reviewStatus: string | null;
-  /** Auto-derived scene group from model (not screenplay truth). */
-  autoGroupedSceneTitle: string | null;
-  autoGroupedSceneNumber: number | null;
   description: string | null;
   subjects: string;
   mood: string | null;

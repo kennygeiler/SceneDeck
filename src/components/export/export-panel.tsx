@@ -248,7 +248,7 @@ export function ExportPanel({
             JSON + manifest
           </button>
           <p className="text-sm text-[var(--color-text-secondary)]">
-            Rows are one detected shot; autoGroupedScene* is model navigation only (
+            Exports omit clip/poster URLs and model scene-grouping fields. Rows are one detected shot (
             <a
               href="https://github.com/kennygeiler/MetroVision/blob/main/.planning/research/pipeline-whitepaper.md"
               className="text-[var(--color-text-accent)] underline-offset-2 hover:underline"
