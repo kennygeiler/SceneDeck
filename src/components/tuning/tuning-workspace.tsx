@@ -12,6 +12,10 @@ type PresetRow = {
   description: string | null;
   config: unknown;
   isArchived: boolean;
+  isSystem?: boolean;
+  shareWithCommunity?: boolean;
+  contributorLabel?: string | null;
+  validatedF1?: number | null;
 };
 
 type HumanVerifiedCutsRevision = {
@@ -51,6 +55,9 @@ export function TuningWorkspace({ films }: { films: FilmOption[] }) {
   const [tolerance, setTolerance] = useState(0.5);
   const [lastEval, setLastEval] = useState<unknown>(null);
   const [applyPresetId, setApplyPresetId] = useState("");
+  const [duplicateShareWithCommunity, setDuplicateShareWithCommunity] = useState(true);
+  /** When a non-system preset is expanded, mirrors `share_with_community` for PATCH. */
+  const [shareEditValue, setShareEditValue] = useState(true);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -94,6 +101,13 @@ export function TuningWorkspace({ films }: { films: FilmOption[] }) {
   }, [loadRuns]);
 
   useEffect(() => {
+    const p = presets.find((x) => x.id === expandedPreset);
+    if (p && !p.isSystem) {
+      setShareEditValue(p.shareWithCommunity !== false);
+    }
+  }, [expandedPreset, presets]);
+
+  useEffect(() => {
     const w =
       typeof window !== "undefined"
         ? process.env.NEXT_PUBLIC_WORKER_URL?.replace(/\/$/, "") ?? ""
@@ -113,6 +127,26 @@ export function TuningWorkspace({ films }: { films: FilmOption[] }) {
 export METROVISION_BOUNDARY_MERGE_GAP_SEC=${gap}`;
   }, [presets, applyPresetId]);
 
+  async function savePresetCommunityShare(id: string) {
+    setBusy(true);
+    setStatus(null);
+    try {
+      const res = await fetch(`/api/boundary-presets/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shareWithCommunity: shareEditValue }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? res.statusText);
+      await loadPresets();
+      setStatus("Community visibility updated.");
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "PATCH failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function duplicatePreset(fromId: string) {
     setBusy(true);
     setStatus(null);
@@ -120,7 +154,10 @@ export METROVISION_BOUNDARY_MERGE_GAP_SEC=${gap}`;
       const res = await fetch("/api/boundary-presets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ duplicateFromId: fromId }),
+        body: JSON.stringify({
+          duplicateFromId: fromId,
+          shareWithCommunity: duplicateShareWithCommunity,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? res.statusText);
@@ -235,8 +272,17 @@ export METROVISION_BOUNDARY_MERGE_GAP_SEC=${gap}`;
         <p className="mt-2 text-sm leading-7 text-[var(--color-text-secondary)]">
           This workspace is for <strong>shot-boundary</strong> detection only.{" "}
           Gemini classification and composition slots are unchanged and shared
-          globally — tune those elsewhere.
+          globally — tune those elsewhere. Presets can be marked <strong>community</strong> so they appear in the
+          shared ingest picker; system rows are operator baselines.
         </p>
+        <label className="mt-4 flex cursor-pointer items-center gap-2 text-xs text-[var(--color-text-secondary)]">
+          <input
+            type="checkbox"
+            checked={duplicateShareWithCommunity}
+            onChange={(e) => setDuplicateShareWithCommunity(e.target.checked)}
+          />
+          New duplicates are community-shared (listed on ingest) — turn off for private experiments
+        </label>
       </section>
 
       {status ? (
@@ -262,6 +308,25 @@ export METROVISION_BOUNDARY_MERGE_GAP_SEC=${gap}`;
                   className="text-left font-medium text-[var(--color-text-primary)]"
                 >
                   {p.name}
+                  {p.isSystem ? (
+                    <span className="ml-2 font-mono text-[10px] uppercase text-[var(--color-text-accent)]">
+                      system
+                    </span>
+                  ) : null}
+                  {p.shareWithCommunity === false ? (
+                    <span className="ml-2 font-mono text-[10px] uppercase text-[var(--color-text-tertiary)]">
+                      private
+                    </span>
+                  ) : !p.isSystem ? (
+                    <span className="ml-2 font-mono text-[10px] uppercase text-[var(--color-text-tertiary)]">
+                      community
+                    </span>
+                  ) : null}
+                  {p.contributorLabel ? (
+                    <span className="ml-2 font-mono text-xs text-[var(--color-text-tertiary)]">
+                      · {p.contributorLabel}
+                    </span>
+                  ) : null}
                   {p.slug ? (
                     <span className="ml-2 font-mono text-xs text-[var(--color-text-tertiary)]">
                       {p.slug}
@@ -278,9 +343,36 @@ export METROVISION_BOUNDARY_MERGE_GAP_SEC=${gap}`;
                 </button>
               </div>
               {expandedPreset === p.id ? (
-                <pre className="mt-3 max-h-48 overflow-auto rounded-lg bg-[var(--color-surface-primary)] p-3 font-mono text-[11px] text-[var(--color-text-secondary)]">
-                  {JSON.stringify(p.config, null, 2)}
-                </pre>
+                <div className="mt-3 space-y-3">
+                  <pre className="max-h-48 overflow-auto rounded-lg bg-[var(--color-surface-primary)] p-3 font-mono text-[11px] text-[var(--color-text-secondary)]">
+                    {JSON.stringify(p.config, null, 2)}
+                  </pre>
+                  {!p.isSystem ? (
+                    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[var(--color-border-subtle)] p-3 text-xs text-[var(--color-text-secondary)]">
+                      <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={shareEditValue}
+                          onChange={(e) => setShareEditValue(e.target.checked)}
+                          disabled={busy}
+                        />
+                        List on ingest model picker (community)
+                      </label>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void savePresetCommunityShare(p.id)}
+                        className="rounded-md border border-[var(--color-border-default)] px-3 py-1.5 font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-primary)] hover:border-[var(--color-text-accent)]"
+                      >
+                        Save visibility
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-[var(--color-text-tertiary)]">
+                      System presets cannot be edited here; duplicate to fork.
+                    </p>
+                  )}
+                </div>
               ) : null}
             </li>
           ))}

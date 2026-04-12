@@ -96,6 +96,63 @@ Placeholder: `https://scenedeck-demo.vercel.app`
 4. Use **Verify** / **batch verify** to fix bad rows.  
 5. Re-run checks locally: `pnpm check:schema-drift`, `pnpm check:taxonomy`, `pnpm test`.
 
+### Boundary evaluation, community presets, and ingest (operator path)
+
+Use this when you care about **shot-boundary** quality before burning a full **Gemini** classification pass. Human verified cuts live in Postgres (`eval_gold_revisions`); boundary presets live in `boundary_cut_presets` (system baselines + **community-shared** contributions).
+
+**ASCII — end-to-end**
+
+```
+                         ┌──────────────────────────────────────────┐
+                         │  1. Human verified cuts (gold)           │
+                         │     /eval/gold-annotate or API           │
+                         │     same time window as worker video     │
+                         └────────────────────┬─────────────────────┘
+                                              │
+                         ┌────────────────────▼─────────────────────┐
+                         │  2. Community prep (guided)               │
+                         │     /community/prep                       │
+                         │     pick film + gold revision + preset    │
+                         └────────────────────┬─────────────────────┘
+                                              │
+              ┌───────────────────────────────▼───────────────────────────────┐
+              │  3. TS worker: POST /api/boundary-detect (local videoPath)      │
+              │     → predicted interior cutsSec                               │
+              └───────────────────────────────┬───────────────────────────────┘
+                                              │
+              ┌───────────────────────────────▼───────────────────────────────┐
+              │  4. Next: POST /api/boundary-eval-runs                         │
+              │     → F1 / unmatched FN·FP saved on boundary_eval_runs         │
+              └───────────────────────────────┬───────────────────────────────┘
+                                              │
+              ┌───────────────────────────────▼───────────────────────────────┐
+         │  5. Optional: POST /api/boundary-eval-insights (Gemini)        │
+         │     plain-language summary + suggested knob automations          │
+         │     (gated with METROVISION_LLM_GATE_SECRET when set — AGENTS.md) │
+              └───────────────────────────────┬───────────────────────────────┘
+                                              │
+         ┌────────────────────────────────────▼────────────────────────────────┐
+         │  6. Publish duplicate preset (default: share_with_community=true)    │
+         │     POST /api/boundary-presets { duplicateFromId, sourceEvalRunId } │
+         │     Everyone sees it in GET …?forIngest=1                          │
+         └────────────────────────────────────┬────────────────────────────────┘
+                                              │
+         ┌────────────────────────────────────▼────────────────────────────────┐
+         │  7. Ingest                                                         │
+         │     /ingest → Boundary model dropdown OR ?boundaryPreset=<uuid>     │
+         │     Body includes boundaryCutPresetId → worker OR inline Next path  │
+         └────────────────────────────────────┬────────────────────────────────┘
+                                              │
+                                              ▼
+                                    Shots + S3 + classify…
+```
+
+**After publish,** operators can flip **community visibility** without re-duplicating: `PATCH /api/boundary-presets/<id>` with `{ "shareWithCommunity": false }` (also in **tuning workspace** when you expand a non-system preset). **System** presets cannot be PATCHed.
+
+**CLI parity (no UI):** `pnpm eval:pipeline`, `pnpm detect:export-cuts`, `pnpm eval:export-film` — see `AGENTS.md` and `eval/gold/README.md`.
+
+**Schema:** apply community columns with `pnpm db:push` (migration `drizzle/0010_boundary_presets_community.sql`).
+
 ## Quality gates (CI & tests)
 
 For **labs and toolmakers evaluating the stack**, automated checks are part of the product story—not “cleanup only.”
@@ -118,7 +175,7 @@ git clone <your-repo-url>
 cd <repo-root>
 pnpm install
 cp .env.example .env.local
-pnpm db:push    # apply schema to Neon (requires DATABASE_URL)
+pnpm db:push    # apply schema to Neon (requires DATABASE_URL; includes community preset columns from 0010)
 pnpm db:seed    # optional dev seed row
 pnpm dev
 ```

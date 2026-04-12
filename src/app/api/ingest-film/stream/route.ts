@@ -1,8 +1,9 @@
 import path from "node:path";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { db, schema } from "@/db";
+import { getBoundaryCutPresetById } from "@/db/boundary-tuning-queries";
 import { generateTextEmbedding } from "@/db/embeddings";
 import {
   type ProgressEvent,
@@ -26,9 +27,14 @@ import {
 import { searchTmdbMovieId, fetchTmdbMovieDetails, fetchTmdbCast } from "@/lib/tmdb";
 import { planContiguousScenesByNormalizedTitle } from "@/lib/scene-grouping";
 import {
+  mergeBoundaryCutSources,
   parseInlineBoundaryCuts,
-  shouldRunPysceneEnsemble,
+  shouldRunPysceneEnsembleForMode,
 } from "@/lib/boundary-ensemble";
+import {
+  parseBoundaryCutPresetConfig,
+  presetConfigToDetectOptions,
+} from "@/lib/boundary-cut-preset";
 import {
   buildIngestProvenance,
   initialReviewStatusForShot,
@@ -185,10 +191,59 @@ export async function POST(request: Request) {
             ? ` (segment ${timelinePlan.segmentFilmWindow.absStart.toFixed(1)}–${timelinePlan.segmentFilmWindow.absEnd.toFixed(1)}s only)`
             : "";
 
-        // Step 1: Detect shots (on segment file when timeline bounds are set)
+        let presetCfg: ReturnType<typeof parseBoundaryCutPresetConfig> | null = null;
+        let presetDetectOpts: Parameters<typeof detectShotsForIngest>[2] = {};
+        const bodyPresetIdRaw = body.boundaryCutPresetId ?? body.boundaryPresetId;
+        const bodyPresetId =
+          typeof bodyPresetIdRaw === "string" ? bodyPresetIdRaw.trim() : "";
+
+        if (bodyPresetId) {
+          const p = await getBoundaryCutPresetById(bodyPresetId);
+          if (p?.config) {
+            presetCfg = parseBoundaryCutPresetConfig(p.config);
+            const po = presetConfigToDetectOptions(presetCfg);
+            presetDetectOpts = {
+              boundaryFusionPolicy: po.boundaryFusionPolicy,
+              boundaryOverrides: po.boundaryOverrides,
+              inlineExtraBoundaryCuts: po.inlineExtraBoundaryCuts,
+            };
+          }
+        } else if (Number.isFinite(yearNum)) {
+          const [filmRow] = await db
+            .select({ boundaryCutPresetId: schema.films.boundaryCutPresetId })
+            .from(schema.films)
+            .where(
+              and(
+                eq(schema.films.title, filmTitleStr),
+                eq(schema.films.director, directorStr),
+                eq(schema.films.year, yearNum),
+              ),
+            )
+            .limit(1);
+          if (filmRow?.boundaryCutPresetId) {
+            const p = await getBoundaryCutPresetById(filmRow.boundaryCutPresetId);
+            if (p?.config) {
+              presetCfg = parseBoundaryCutPresetConfig(p.config);
+              const po = presetConfigToDetectOptions(presetCfg);
+              presetDetectOpts = {
+                boundaryFusionPolicy: po.boundaryFusionPolicy,
+                boundaryOverrides: po.boundaryOverrides,
+                inlineExtraBoundaryCuts: po.inlineExtraBoundaryCuts,
+              };
+            }
+          }
+        }
+
+        const effectiveDetector: "content" | "adaptive" = presetCfg?.detector ?? detector;
+        const modeForUi =
+          presetDetectOpts.boundaryOverrides?.boundaryDetector ??
+          process.env.METROVISION_BOUNDARY_DETECTOR ??
+          "pyscenedetect_cli";
         const detectorLabel =
-          detector === "adaptive" ? "Adaptive (default, research)" : "Content (faster, hard cuts)";
-        const detectMessage = shouldRunPysceneEnsemble()
+          effectiveDetector === "adaptive"
+            ? "Adaptive (default, research)"
+            : "Content (faster, hard cuts)";
+        const detectMessage = shouldRunPysceneEnsembleForMode(String(modeForUi))
           ? "PySceneDetect ensemble (adaptive + content + NMS)"
           : detectorLabel;
         const detectHint =
@@ -203,6 +258,15 @@ export async function POST(request: Request) {
         });
         const t0 = Date.now();
         const inlineCuts = parseInlineBoundaryCuts(body.extraBoundaryCuts);
+        const mergedInline = mergeBoundaryCutSources(
+          presetDetectOpts.inlineExtraBoundaryCuts ?? [],
+          inlineCuts,
+        );
+        const detectOptions: Parameters<typeof detectShotsForIngest>[2] = {
+          ...presetDetectOpts,
+          inlineExtraBoundaryCuts: mergedInline.length > 0 ? mergedInline : undefined,
+          segmentFilmWindow: timelinePlan.segmentFilmWindow,
+        };
         const detectHeartbeat = setInterval(() => {
           const sec = Math.floor((Date.now() - t0) / 1000);
           emit({
@@ -217,11 +281,8 @@ export async function POST(request: Request) {
         try {
           const r = await detectShotsForIngest(
             timelinePlan.analysisPath,
-            detector,
-            {
-              inlineExtraBoundaryCuts: inlineCuts,
-              segmentFilmWindow: timelinePlan.segmentFilmWindow,
-            },
+            effectiveDetector,
+            detectOptions,
           );
           rawSplits = r.splits;
           detectCtx = r.ctx;

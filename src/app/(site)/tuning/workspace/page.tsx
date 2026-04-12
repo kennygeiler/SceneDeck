@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { TuningWorkspace } from "@/components/tuning/tuning-workspace";
 import { getAllFilms } from "@/db/queries";
@@ -31,10 +32,15 @@ export default async function TuningWorkspacePage() {
           Tuning workspace
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--color-text-secondary)]">
-          Boundary-cut presets are <strong>global</strong>. Human verified cuts
-          are stored as <strong>versioned</strong> revisions. Run detection on the{" "}
-          <strong>TS worker</strong> (not Vercel), then score against DB-backed
-          human verified cuts.
+          Boundary-cut presets live in the <strong>shared database</strong>. Community contributions (and system
+          baselines) appear on <Link href="/ingest" className="text-[var(--color-text-accent)] underline">ingest</Link>
+          . Human verified cuts are <strong>versioned</strong> revisions. Run detection on the{" "}
+          <strong>TS worker</strong> (not Vercel), then score against DB-backed human verified cuts. For the guided
+          flow, use{" "}
+          <Link href="/community/prep" className="text-[var(--color-text-accent)] underline">
+            community prep
+          </Link>
+          .
         </p>
         <p className="mt-4">
           <a

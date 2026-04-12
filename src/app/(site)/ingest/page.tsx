@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { Suspense, useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { PipelineViz } from "@/components/ingest/pipeline-viz";
 import { TmdbTitleSearch } from "@/components/ingest/tmdb-title-search";
 import { normalizeS3SourceReuseInput } from "@/lib/s3-source-reuse";
@@ -9,6 +10,21 @@ import { normalizeS3SourceReuseInput } from "@/lib/s3-source-reuse";
 type IngestPhase = "form" | "uploading" | "processing";
 
 const LAST_SOURCE_S3_KEY = "metrovision_ingest_last_source_s3_key";
+const INGEST_PRESET_STORAGE_KEY = "metrovision_ingest_boundary_preset_id";
+
+function isUuid(s: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    s.trim(),
+  );
+}
+
+type IngestBoundaryPresetOption = {
+  id: string;
+  name: string;
+  isSystem?: boolean;
+  contributorLabel?: string | null;
+  validatedF1?: number | null;
+};
 
 /** Empty, 0, or invalid → undefined; supports optional `763,222`-style decimals. */
 function tryParseOptionalTimelineBound(
@@ -160,7 +176,8 @@ function postFormDataWithProgress(
   });
 }
 
-export default function IngestPage() {
+function IngestPageContent() {
+  const searchParams = useSearchParams();
   const [phase, setPhase] = useState<IngestPhase>("form");
   const [filmTitle, setFilmTitle] = useState("");
   const [director, setDirector] = useState("");
@@ -187,6 +204,53 @@ export default function IngestPage() {
   const uploadProgressThrottleRef = useRef(0);
 
   const [lastSourceKeyAvailable, setLastSourceKeyAvailable] = useState(false);
+  const [boundaryPresets, setBoundaryPresets] = useState<IngestBoundaryPresetOption[]>([]);
+  const [boundaryPresetId, setBoundaryPresetId] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/boundary-presets?forIngest=1");
+        const d = (await r.json()) as { presets?: IngestBoundaryPresetOption[] };
+        if (!cancelled) setBoundaryPresets(d.presets ?? []);
+      } catch {
+        if (!cancelled) setBoundaryPresets([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const q = searchParams.get("boundaryPreset")?.trim() ?? "";
+    if (q && isUuid(q)) {
+      setBoundaryPresetId(q);
+      try {
+        sessionStorage.setItem(INGEST_PRESET_STORAGE_KEY, q);
+      } catch {
+        /* */
+      }
+      return;
+    }
+    try {
+      const stored = sessionStorage.getItem(INGEST_PRESET_STORAGE_KEY)?.trim() ?? "";
+      if (stored && isUuid(stored)) setBoundaryPresetId(stored);
+    } catch {
+      /* */
+    }
+  }, [searchParams]);
+
+  function handleBoundaryPresetChange(next: string) {
+    setBoundaryPresetId(next);
+    try {
+      if (next.trim()) sessionStorage.setItem(INGEST_PRESET_STORAGE_KEY, next.trim());
+      else sessionStorage.removeItem(INGEST_PRESET_STORAGE_KEY);
+    } catch {
+      /* */
+    }
+  }
 
   useEffect(() => {
     try {
@@ -418,6 +482,27 @@ export default function IngestPage() {
           depth, scale, lighting cues, and related fields), group scenes, and upload assets — visualized in
           real time.
         </p>
+        <div
+          className="mt-6 rounded-[var(--radius-xl)] border p-4"
+          style={{
+            borderColor: "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
+            backgroundColor: "color-mix(in oklch, var(--color-surface-secondary) 55%, transparent)",
+          }}
+        >
+          <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+            Community boundary model
+          </p>
+          <p className="mt-2 text-sm leading-7 text-[var(--color-text-secondary)]">
+            Tune against human verified cuts, run eval, and optionally publish a preset for{" "}
+            <strong>everyone</strong> on this deployment — then pick it here before you start.
+          </p>
+          <Link
+            href="/community/prep"
+            className="mt-3 inline-block text-sm font-medium text-[var(--color-text-accent)] underline-offset-2 hover:underline"
+          >
+            Open community prep →
+          </Link>
+        </div>
       </div>
 
       {/* Form — only show when not processing */}
@@ -604,6 +689,35 @@ export default function IngestPage() {
             empty or use 0 for an unset start or end (full length). Decimals: 763.222 or 763,222.
           </p>
 
+          {/* Boundary preset (community + system) */}
+          <div>
+            <label className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+              Boundary detection model
+            </label>
+            <select
+              value={boundaryPresetId}
+              onChange={(e) => handleBoundaryPresetChange(e.target.value)}
+              disabled={phase !== "form"}
+              className="mt-2 block w-full max-w-xl rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+            >
+              <option value="">Auto (worker / film default)</option>
+              {boundaryPresets.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                  {p.isSystem ? " · system" : ""}
+                  {p.contributorLabel ? ` · ${p.contributorLabel}` : ""}
+                  {p.validatedF1 != null && Number.isFinite(p.validatedF1)
+                    ? ` · F1 ${p.validatedF1.toFixed(3)}`
+                    : ""}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 font-mono text-[10px] leading-relaxed text-[var(--color-text-tertiary)]">
+              Presets listed here include system baselines and community-shared profiles. Omit for Auto unless you
+              assigned a default on the film row in the tuning workspace.
+            </p>
+          </div>
+
           {/* Concurrency */}
           <div>
             <label className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
@@ -721,10 +835,25 @@ export default function IngestPage() {
           director={director}
           year={parseInt(year, 10)}
           concurrency={concurrency}
+          boundaryCutPresetId={boundaryPresetId.trim() || undefined}
           ingestStartSec={ingestTimelineForRun.ingestStartSec}
           ingestEndSec={ingestTimelineForRun.ingestEndSec}
         />
       ) : null}
     </div>
+  );
+}
+
+export default function IngestPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-4xl py-16 font-mono text-sm text-[var(--color-text-tertiary)]">
+          Loading ingest…
+        </div>
+      }
+    >
+      <IngestPageContent />
+    </Suspense>
   );
 }

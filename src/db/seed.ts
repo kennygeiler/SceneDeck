@@ -21,6 +21,8 @@ async function main() {
       description:
         "Matches eval/runs/STATUS.md CEMENTED row — ensemble + merge gap 0.22.",
       config: DEFAULT_BOUNDARY_CUT_PRESET_CONFIG,
+      isSystem: true,
+      shareWithCommunity: true,
     });
     console.info("Seed: inserted default boundary_cut_presets row.");
   }

@@ -405,6 +405,8 @@ type PipelineVizProps = {
   year: number;
   concurrency: number;
   detector?: "content" | "adaptive"; // default adaptive (see ingest page)
+  /** DB boundary_cut_presets id — forwarded to worker ingest (omit for Auto / film default). */
+  boundaryCutPresetId?: string;
   /** Inclusive window in seconds; omit for full file (detection still scans whole video). */
   ingestStartSec?: number;
   ingestEndSec?: number;
@@ -419,6 +421,7 @@ export function PipelineViz({
   year,
   concurrency,
   detector = "adaptive",
+  boundaryCutPresetId,
   ingestStartSec,
   ingestEndSec,
   onComplete,
@@ -561,7 +564,7 @@ export function PipelineViz({
 
   useEffect(() => {
     setState((s) => ({ ...s, dbSnapshot: null }));
-  }, [videoPath, filmTitle, year, ingestStartSec, ingestEndSec]);
+  }, [videoPath, filmTitle, year, ingestStartSec, ingestEndSec, boundaryCutPresetId]);
 
   useEffect(() => {
     if (state.result) return undefined;
@@ -622,6 +625,9 @@ export function PipelineViz({
           ...(isHttpSource
             ? { videoUrl: videoPath, filmTitle, director, year, concurrency, detector }
             : { videoPath, filmTitle, director, year, concurrency, detector }),
+          ...(boundaryCutPresetId?.trim()
+            ? { boundaryCutPresetId: boundaryCutPresetId.trim() }
+            : {}),
           ...(ingestStartSec !== undefined ? { ingestStartSec } : {}),
           ...(ingestEndSec !== undefined ? { ingestEndSec } : {}),
         };
@@ -718,7 +724,18 @@ export function PipelineViz({
       }
     })();
     return () => abort.abort();
-  }, [videoPath, filmTitle, director, year, concurrency, detector, ingestStartSec, ingestEndSec, handleEvent]);
+  }, [
+    videoPath,
+    filmTitle,
+    director,
+    year,
+    concurrency,
+    detector,
+    boundaryCutPresetId,
+    ingestStartSec,
+    ingestEndSec,
+    handleEvent,
+  ]);
 
 
   // Computed

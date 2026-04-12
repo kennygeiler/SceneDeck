@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -8,15 +8,41 @@ import {
   films,
 } from "@/db/schema";
 
-export async function listBoundaryCutPresets(includeArchived = false) {
+export type ListBoundaryCutPresetsOptions = {
+  /** Only presets safe to show in the public ingest model picker (system + community-shared). */
+  forCommunityIngest?: boolean;
+};
+
+export async function listBoundaryCutPresets(
+  includeArchived = false,
+  options?: ListBoundaryCutPresetsOptions,
+) {
+  const parts = [];
   if (!includeArchived) {
-    return db
-      .select()
-      .from(boundaryCutPresets)
-      .where(eq(boundaryCutPresets.isArchived, false))
-      .orderBy(asc(boundaryCutPresets.name));
+    parts.push(eq(boundaryCutPresets.isArchived, false));
   }
-  return db.select().from(boundaryCutPresets).orderBy(asc(boundaryCutPresets.name));
+  if (options?.forCommunityIngest) {
+    parts.push(
+      or(
+        eq(boundaryCutPresets.isSystem, true),
+        eq(boundaryCutPresets.shareWithCommunity, true),
+      ),
+    );
+  }
+  const whereClause = parts.length === 0 ? undefined : parts.length === 1 ? parts[0] : and(...parts);
+
+  const q = db
+    .select()
+    .from(boundaryCutPresets)
+    .orderBy(
+      desc(boundaryCutPresets.isSystem),
+      sql`${boundaryCutPresets.validatedF1} DESC NULLS LAST`,
+      asc(boundaryCutPresets.name),
+    );
+  if (whereClause) {
+    return q.where(whereClause);
+  }
+  return q;
 }
 
 export async function getBoundaryCutPresetById(id: string) {
@@ -42,6 +68,11 @@ export async function insertBoundaryCutPreset(values: {
   slug?: string | null;
   description?: string | null;
   config: (typeof boundaryCutPresets.$inferInsert)["config"];
+  isSystem?: boolean;
+  shareWithCommunity?: boolean;
+  contributorLabel?: string | null;
+  validatedF1?: number | null;
+  sourceEvalRunId?: string | null;
 }) {
   const [row] = await db
     .insert(boundaryCutPresets)
@@ -50,6 +81,11 @@ export async function insertBoundaryCutPreset(values: {
       slug: values.slug ?? null,
       description: values.description ?? null,
       config: values.config,
+      isSystem: values.isSystem ?? false,
+      shareWithCommunity: values.shareWithCommunity ?? true,
+      contributorLabel: values.contributorLabel ?? null,
+      validatedF1: values.validatedF1 ?? null,
+      sourceEvalRunId: values.sourceEvalRunId ?? null,
     })
     .returning();
   return row ?? null;
@@ -63,6 +99,10 @@ export async function updateBoundaryCutPreset(
     description: string | null;
     config: (typeof boundaryCutPresets.$inferInsert)["config"];
     isArchived: boolean;
+    shareWithCommunity: boolean;
+    contributorLabel: string | null;
+    validatedF1: number | null;
+    sourceEvalRunId: string | null;
   }>,
 ) {
   const [row] = await db

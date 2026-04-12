@@ -397,6 +397,18 @@ export const boundaryCutPresets = pgTable("boundary_cut_presets", {
   slug: text("slug").unique(),
   description: text("description"),
   config: jsonb("config").$type<BoundaryCutPresetConfig>().notNull(),
+  /** Operator-seeded baselines (e.g. slugged cemented profiles). Not set by public API. */
+  isSystem: boolean("is_system").default(false).notNull(),
+  /**
+   * When true, preset appears in community ingest picker. System presets are always listed.
+   * Set false for experimental duplicates operators do not want to surface globally.
+   */
+  shareWithCommunity: boolean("share_with_community").default(true).notNull(),
+  contributorLabel: text("contributor_label"),
+  /** F1 snapshot from the eval run cited at publish time (informational). */
+  validatedF1: real("validated_f1"),
+  /** Optional link to the boundary_eval_runs row that validated this contribution. */
+  sourceEvalRunId: uuid("source_eval_run_id"),
   isArchived: boolean("is_archived").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),

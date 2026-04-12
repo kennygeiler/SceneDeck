@@ -71,6 +71,13 @@
       "when": 1774828800000,
       "tag": "0009_boundary_cut_tuning",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1774915200000,
+      "tag": "0010_boundary_presets_community",
+      "breakpoints": true
     }
   ]
 }

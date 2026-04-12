@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 const navigation = [
   { href: "/browse", label: "Browse" },
   { href: "/ingest", label: "Ingest" },
+  { href: "/community/prep", label: "Community" },
   { href: "/tuning", label: "Tuning" },
   { href: "/visualize", label: "Visualize" },
   { href: "/verify", label: "Verify" },
