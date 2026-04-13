@@ -225,6 +225,24 @@ From there, run the ingestion / classification / upload steps against your sourc
 
 MetroVision is a **Next.js 15 App Router** app (UI + API routes) backed by **Neon**, **Drizzle**, and **S3**. A separate **Express worker** can run the same style of ingest with **SSE** for progress. The **Python** tree is ideal for **batch** and automation. Shared **taxonomy** and **schema drift** checks help keep TS, worker, and Python from silently diverging.
 
+## Structural influence (GEPA-style, adapted)
+
+MetroVision borrows a few **repository-structure ideas** from the GEPA project style, adapted to a film-ingest product rather than a prompt-optimization framework:
+
+- **Clear top-level separation by responsibility** (`src/`, `worker/`, `pipeline/`, `docs/`, `eval/`) so UI, online ingest, offline ingest, docs, and evaluation assets evolve independently.
+- **Adapter-like boundaries between systems** where Next routes, worker endpoints, and pipeline scripts exchange explicit payloads (e.g., cut lists, ingest options, eval artifacts) instead of sharing hidden runtime state.
+- **Evaluation as a first-class directory**, not scattered scripts: reproducible boundary-quality workflows live under `eval/` and `scripts/`, similar to GEPA’s “measure + iterate” organization pattern.
+- **Docs near execution paths** (`AGENTS.md`, tuning docs, production ingest docs) so operational commands and architecture constraints stay close to code.
+
+## Language influence (GEPA-style, adapted)
+
+GEPA is Python-first; MetroVision applies a **mixed-language pattern** for practical runtime boundaries:
+
+- **TypeScript-first product surface** (`src/` and `worker/`) for UI, APIs, and long-running ingest orchestration with shared types and taxonomy contracts.
+- **Python for media-heavy batch workflows** (`pipeline/`) where PySceneDetect and offline processing ergonomics are stronger.
+- **Contract parity across languages** enforced by mirrored taxonomy definitions (`src/lib/taxonomy.ts` and `pipeline/taxonomy.py`) plus `pnpm check:taxonomy` and schema-drift checks.
+- **Single datastore contract** (Neon Postgres via shared schema concepts) keeps both language lanes convergent even when execution environments differ.
+
 ## Built With
 
 - Next.js 15 App Router  
