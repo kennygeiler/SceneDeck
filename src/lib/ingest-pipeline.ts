@@ -914,8 +914,11 @@ export async function extractLocally(
   split: DetectedSplit,
   filmSlug: string,
   outputDir: string,
+  opts?: { assetBaseName?: string },
 ): Promise<ExtractedAssets> {
-  const shotName = `shot-${String(split.index + 1).padStart(3, "0")}`;
+  const shotName =
+    opts?.assetBaseName?.trim() ||
+    `shot-${String(split.index + 1).padStart(3, "0")}`;
   const clipPath = path.join(outputDir, `${shotName}.mp4`);
   const thumbPath = path.join(outputDir, `${shotName}.jpg`);
   const midpoint = split.start + (split.end - split.start) / 2;

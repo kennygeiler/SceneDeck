@@ -208,6 +208,9 @@ function IngestPageContent() {
   const [lastSourceKeyAvailable, setLastSourceKeyAvailable] = useState(false);
   const [boundaryPresets, setBoundaryPresets] = useState<IngestBoundaryPresetOption[]>([]);
   const [boundaryPresetId, setBoundaryPresetId] = useState("");
+  const [selectiveReclassifyFilmId, setSelectiveReclassifyFilmId] = useState<string | null>(null);
+  const [selectiveReclassifyShotIds, setSelectiveReclassifyShotIds] = useState<string[]>([]);
+  const [selectiveReclassifyNotice, setSelectiveReclassifyNotice] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -224,6 +227,62 @@ function IngestPageContent() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    const fid = searchParams.get("reclassifyFilmId")?.trim() ?? "";
+    if (!fid || !isUuid(fid)) {
+      setSelectiveReclassifyFilmId(null);
+      setSelectiveReclassifyShotIds([]);
+      setSelectiveReclassifyNotice(null);
+      return;
+    }
+    let cancelled = false;
+    setSelectiveReclassifyNotice("Loading weak-shot list…");
+    (async () => {
+      try {
+        const r = await fetch(`/api/films/${encodeURIComponent(fid)}/reclassify-targets`);
+        if (!r.ok) {
+          if (!cancelled) {
+            setSelectiveReclassifyFilmId(null);
+            setSelectiveReclassifyShotIds([]);
+            setSelectiveReclassifyNotice("Could not load selective reclassify targets for this film.");
+          }
+          return;
+        }
+        const j = (await r.json()) as {
+          shotIds?: string[];
+          film?: { title: string; director: string; year: number | null };
+        };
+        if (cancelled) return;
+        setSelectiveReclassifyFilmId(fid);
+        setSelectiveReclassifyShotIds(j.shotIds ?? []);
+        if (j.film?.title) setFilmTitle(j.film.title);
+        if (j.film?.director) setDirector(j.film.director);
+        if (j.film?.year != null && Number.isFinite(j.film.year)) {
+          setYear(String(Math.trunc(j.film.year)));
+        }
+        const n = j.shotIds?.length ?? 0;
+        if (n === 0) {
+          setSelectiveReclassifyNotice(
+            "No shots need a fresh classification pass (nothing with template fallback or needs_review). You can still run a full ingest from this page.",
+          );
+        } else {
+          setSelectiveReclassifyNotice(
+            `Selective reclassify: ${n} shot(s) will be re-extracted and classified. Use the same full source file or URL as the original ingest. Requires the TS ingest worker (INGEST_WORKER_URL / NEXT_PUBLIC_WORKER_URL). Timeline start/end are ignored for this run.`,
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setSelectiveReclassifyFilmId(null);
+          setSelectiveReclassifyShotIds([]);
+          setSelectiveReclassifyNotice("Failed to load selective reclassify targets.");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams]);
 
   useEffect(() => {
     const q = searchParams.get("boundaryPreset")?.trim() ?? "";
@@ -296,7 +355,15 @@ function IngestPageContent() {
   }
 
   async function handleStart() {
-    if (!filmTitle || !director || !year) return;
+    if (!filmTitle || !director) return;
+    if (selectiveReclassifyFilmId && selectiveReclassifyShotIds.length === 0) {
+      setUploadError("No shots qualify for selective reclassify, or targets are still loading.");
+      return;
+    }
+    if (!year?.trim()) {
+      setUploadError("Enter a release year (used in the Gemini classify prompt).");
+      return;
+    }
 
     const yearNum = parseInt(year, 10);
     if (!Number.isFinite(yearNum)) {
@@ -544,6 +611,17 @@ function IngestPageContent() {
             borderColor: "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
           }}
         >
+          {selectiveReclassifyNotice ? (
+            <div
+              className="rounded-[var(--radius-lg)] border px-4 py-3 text-sm leading-relaxed text-[var(--color-text-secondary)]"
+              style={{
+                borderColor: "color-mix(in oklch, var(--color-accent-base) 45%, transparent)",
+                backgroundColor: "color-mix(in oklch, var(--color-surface-tertiary) 88%, transparent)",
+              }}
+            >
+              {selectiveReclassifyNotice}
+            </div>
+          ) : null}
           {/* File picker */}
           <div>
             <label className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
@@ -886,6 +964,12 @@ function IngestPageContent() {
           ingestStartSec={ingestTimelineForRun.ingestStartSec}
           ingestEndSec={ingestTimelineForRun.ingestEndSec}
           backgroundIngest={backgroundIngest}
+          reclassifyFilmId={selectiveReclassifyFilmId ?? undefined}
+          reclassifyShotIds={
+            selectiveReclassifyFilmId && selectiveReclassifyShotIds.length > 0
+              ? selectiveReclassifyShotIds
+              : undefined
+          }
         />
       ) : null}
     </div>

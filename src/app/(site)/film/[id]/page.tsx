@@ -6,11 +6,7 @@ import { FilmHeader } from "@/components/films/film-header";
 import { FilmCoverageStats } from "@/components/films/film-coverage-stats";
 import { FilmTimeline } from "@/components/films/film-timeline";
 import { FilmShotsTable } from "@/components/shots/film-shots-table";
-import {
-  getFilmById,
-  getFilmCoverageStats,
-  getFilmTrustSummary,
-} from "@/db/queries";
+import { getFilmById, getFilmCoverageStats } from "@/db/queries";
 import { countShotsNeedingReliableClassification } from "@/lib/shot-pipeline-health";
 
 type Props = {
@@ -29,11 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function FilmDetailPage({ params }: Props) {
   const { id } = await params;
-  const [film, stats, filmTrust] = await Promise.all([
-    getFilmById(id),
-    getFilmCoverageStats(id),
-    getFilmTrustSummary(id),
-  ]);
+  const [film, stats] = await Promise.all([getFilmById(id), getFilmCoverageStats(id)]);
 
   if (!film) notFound();
 
@@ -45,6 +37,7 @@ export default async function FilmDetailPage({ params }: Props) {
     yearStr !== ""
       ? `/ingest?filmTitle=${encodeURIComponent(film.title)}&director=${encodeURIComponent(film.director)}&year=${encodeURIComponent(yearStr)}`
       : `/ingest?filmTitle=${encodeURIComponent(film.title)}&director=${encodeURIComponent(film.director)}`;
+  const selectiveReclassifyHref = `/ingest?reclassifyFilmId=${encodeURIComponent(film.id)}`;
 
   return (
     <div className="space-y-10 pb-16">
@@ -59,7 +52,7 @@ export default async function FilmDetailPage({ params }: Props) {
       </div>
 
       {/* Film Header */}
-      <FilmHeader film={film} trust={filmTrust} />
+      <FilmHeader film={film} />
 
       {film.boundaryCutPresetName ? (
         <p className="text-sm text-[var(--color-text-secondary)]">
@@ -86,9 +79,9 @@ export default async function FilmDetailPage({ params }: Props) {
         </h2>
         <p className="mt-1 max-w-3xl text-sm text-[var(--color-text-secondary)]">
           Cuts in story order; segment width matches shot duration and color follows framing. Striped / outlined
-          segments used a template fallback or are flagged for another pipeline pass — the usual fix is to{" "}
-          <strong className="text-[var(--color-text-primary)]">re-run ingest</strong> for this film (same title,
-          director, year replaces prior shots).{" "}
+          segments used a template fallback or are flagged for another pipeline pass — use{" "}
+          <strong className="text-[var(--color-text-primary)]">selective reclassify</strong> (ingest with only those
+          shots) or full re-ingest (same title, director, year replaces all shots).{" "}
           <Link
             href={`/verify/boundary-triage?filmId=${film.id}`}
             className="inline-flex items-center rounded-full border border-[var(--color-accent-base)] bg-[var(--color-surface-tertiary)] px-3 py-1 font-mono text-[11px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-primary)] transition-colors hover:border-[var(--color-accent-base)]"
@@ -108,14 +101,23 @@ export default async function FilmDetailPage({ params }: Props) {
             <p className="text-[var(--color-text-primary)]">
               <span className="font-mono tabular-nums">{weakClassificationCount}</span> shot
               {weakClassificationCount === 1 ? "" : "s"} may need a fresh classification pass (template fallback or
-              &ldquo;needs review&rdquo; status). They are highlighted on the bar below.
+              &ldquo;needs review&rdquo; status). They are highlighted on the bar below. Re-run uses the same source
+              file or URL; only these shots are re-extracted and sent to Gemini (requires TS ingest worker).
             </p>
-            <Link
-              href={ingestPrefillHref}
-              className="mt-3 inline-flex items-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-secondary)] px-4 py-2 font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-primary)] transition-colors hover:border-[var(--color-accent-base)]"
-            >
-              Open ingest (film pre-filled) →
-            </Link>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <Link
+                href={selectiveReclassifyHref}
+                className="inline-flex items-center rounded-full border border-[var(--color-accent-base)] bg-[var(--color-surface-tertiary)] px-4 py-2 font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-primary)] transition-colors hover:border-[var(--color-accent-base)]"
+              >
+                Selective reclassify (weak shots only) →
+              </Link>
+              <Link
+                href={ingestPrefillHref}
+                className="inline-flex items-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-surface-secondary)] px-4 py-2 font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-primary)] transition-colors hover:border-[var(--color-accent-base)]"
+              >
+                Full re-ingest (replace all shots) →
+              </Link>
+            </div>
           </div>
         ) : (
           <p className="mt-3 text-sm text-[var(--color-status-verified)]">

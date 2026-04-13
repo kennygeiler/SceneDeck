@@ -4,12 +4,9 @@ import { useMemo, useState } from "react";
 import { Check, Copy } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
-import { humanReviewArchivePercent } from "@/lib/archive-trust";
-import type { VerificationStats } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type ExportCitationPanelProps = {
-  stats: VerificationStats;
   framingTypeCount: number;
   siteOrigin: string;
   demoShotId: string | null;
@@ -18,7 +15,6 @@ type ExportCitationPanelProps = {
 };
 
 export function ExportCitationPanel({
-  stats,
   framingTypeCount,
   siteOrigin,
   demoShotId,
@@ -26,10 +22,6 @@ export function ExportCitationPanel({
   demoDirector,
 }: ExportCitationPanelProps) {
   const [copied, setCopied] = useState(false);
-  const reviewPct = humanReviewArchivePercent(
-    stats.verifiedShots,
-    stats.totalShots,
-  );
 
   const citation = useMemo(() => {
     const retrieved = new Intl.DateTimeFormat(undefined, {
@@ -47,19 +39,9 @@ export function ExportCitationPanel({
       `${record}` +
       `Retrieved ${retrieved}. ` +
       `Composition taxonomy includes ${framingTypeCount} framing types and related fields (depth, blocking, lighting, shot size, angles). ` +
-      "Labels may be model-assist or hand-entered (see classification_source in exports); " +
-      `${reviewPct}% of archive shots (${stats.verifiedShots}/${stats.totalShots}) have at least one human verification row.`
+      "Labels are primarily model-assist; exports include classification_source and related provenance fields."
     );
-  }, [
-    demoDirector,
-    demoFilmTitle,
-    demoShotId,
-    framingTypeCount,
-    reviewPct,
-    siteOrigin,
-    stats.verifiedShots,
-    stats.totalShots,
-  ]);
+  }, [demoDirector, demoFilmTitle, demoShotId, framingTypeCount, siteOrigin]);
 
   async function handleCopy() {
     await navigator.clipboard.writeText(citation);
@@ -89,9 +71,8 @@ export function ExportCitationPanel({
             Copy for papers or READMEs
           </h2>
           <p className="mt-2 max-w-prose text-sm leading-7 text-[var(--color-text-secondary)]">
-            Plain-text citation referencing this deployment, the composition
-            taxonomy, and the share of shots with human verification. Adjust
-            wording to match your style guide.
+            Plain-text citation referencing this deployment and the composition
+            taxonomy. Adjust wording to match your style guide.
           </p>
         </div>
         <button

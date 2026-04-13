@@ -2,19 +2,12 @@ import Link from "next/link";
 
 import { ArchiveDemoSliceActions } from "@/components/archive/archive-demo-slice-actions";
 import { MethodologyBlurb } from "@/components/archive/methodology-blurb";
-import type { VerificationStats } from "@/lib/types";
-
 type ArchiveDemoSliceProps = {
-  stats: VerificationStats;
   framingTypeCount: number;
   spotlightShotId: string | null;
 };
 
-export function ArchiveDemoSlice({
-  stats,
-  framingTypeCount,
-  spotlightShotId,
-}: ArchiveDemoSliceProps) {
+export function ArchiveDemoSlice({ framingTypeCount, spotlightShotId }: ArchiveDemoSliceProps) {
   const vizHref = "/visualize#composition-scatter";
   const exportHref = spotlightShotId
     ? `/export?demoShot=${encodeURIComponent(spotlightShotId)}`
@@ -73,8 +66,7 @@ export function ArchiveDemoSlice({
                     >
                       Shot detail
                     </Link>{" "}
-                    — playback, metadata, model confidence, review status,
-                    last verification.
+                    — playback, metadata, model confidence, and review status.
                   </>
                 ) : (
                   <>
@@ -135,11 +127,7 @@ export function ArchiveDemoSlice({
           <ArchiveDemoSliceActions spotlightShotId={spotlightShotId} />
         </div>
 
-        <MethodologyBlurb
-          stats={stats}
-          framingTypeCount={framingTypeCount}
-          className="rounded-[var(--radius-xl)] border p-6"
-        />
+        <MethodologyBlurb framingTypeCount={framingTypeCount} className="rounded-[var(--radius-xl)] border p-6" />
       </div>
     </section>
   );

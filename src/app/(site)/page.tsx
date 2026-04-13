@@ -5,7 +5,7 @@ import { ArchiveDemoSlice } from "@/components/archive/archive-demo-slice";
 import { FilmCard } from "@/components/films/film-card";
 import { HomeHero } from "@/components/home/home-hero";
 import { ShotCard } from "@/components/shots/shot-card";
-import { getAllFilms, getAllShots, getVerificationStats } from "@/db/queries";
+import { getAllFilms, getAllShots } from "@/db/queries";
 import { FRAMINGS } from "@/lib/taxonomy";
 import {
   formatShotDuration,
@@ -40,11 +40,7 @@ const workflowSteps = [
 ] as const;
 
 export default async function Home() {
-  const [films, allShots, verificationStats] = await Promise.all([
-    getAllFilms(),
-    getAllShots(),
-    getVerificationStats(),
-  ]);
+  const [films, allShots] = await Promise.all([getAllFilms(), getAllShots()]);
   const featuredShots = allShots.slice(0, 3);
   const [spotlightShot, ...secondaryShots] = featuredShots;
   const framingTypeCount = Object.keys(FRAMINGS).length;
@@ -53,11 +49,7 @@ export default async function Home() {
     <div className="flex flex-col gap-16 pb-16 sm:gap-20 lg:gap-24">
       <HomeHero />
 
-      <ArchiveDemoSlice
-        stats={verificationStats}
-        framingTypeCount={framingTypeCount}
-        spotlightShotId={spotlightShot?.id ?? null}
-      />
+      <ArchiveDemoSlice framingTypeCount={framingTypeCount} spotlightShotId={spotlightShot?.id ?? null} />
 
       <section
         id="featured"

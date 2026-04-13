@@ -5,7 +5,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline as streamPipeline } from "node:stream/promises";
 
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 
 import { db, schema } from "./db.js";
 import * as ffmpegBinModule from "../../src/lib/ffmpeg-bin.js";
@@ -179,6 +179,501 @@ async function resolveWorkerIngestSource(
   return resolveVideo(raw);
 }
 
+const MAX_RECLASSIFY_SHOTS = 300;
+
+function normalizeReclassifyShotIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const uuidRe =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const out: string[] = [];
+  for (const x of raw) {
+    if (typeof x !== "string") continue;
+    const t = x.trim();
+    if (uuidRe.test(t)) out.push(t);
+  }
+  return [...new Set(out)];
+}
+
+/**
+ * Re-extract + Gemini classify + DB update for existing shots only (no boundary detect, no film reset).
+ */
+async function runWorkerReclassifyShotsPipeline(
+  params: { filmId: string; shotIds: string[]; body: Record<string, unknown> },
+  emit: (e: Record<string, unknown>) => void,
+  ctx: WorkerIngestRunContext,
+  onProgress?: (p: WorkerIngestProgressSnapshot) => void | Promise<void>,
+): Promise<{ filmId: string; filmTitle: string; shotCount: number; sceneCount: number }> {
+  const { filmId, shotIds, body } = params;
+  ctx.ingestRunId = null;
+
+  if (shotIds.length > MAX_RECLASSIFY_SHOTS) {
+    throw new Error(
+      `reclassifyShotIds exceeds max (${MAX_RECLASSIFY_SHOTS}). Split into multiple runs.`,
+    );
+  }
+
+  const pushProgress = async (p: WorkerIngestProgressSnapshot) => {
+    if (onProgress) await onProgress(p);
+  };
+
+  const concurrency =
+    typeof body.concurrency === "number" && Number.isFinite(body.concurrency) ? body.concurrency : 5;
+
+  const [filmRow] = await db
+    .select()
+    .from(schema.films)
+    .where(eq(schema.films.id, filmId))
+    .limit(1);
+  if (!filmRow) {
+    throw new Error("Film not found for selective reclassify.");
+  }
+
+  const filmTitleStr = filmRow.title;
+  const directorStr = filmRow.director;
+  const bodyYearRaw = body.year;
+  const bodyYear =
+    typeof bodyYearRaw === "number"
+      ? bodyYearRaw
+      : typeof bodyYearRaw === "string"
+        ? Number(bodyYearRaw.trim())
+        : NaN;
+  const yearNum =
+    Number.isFinite(bodyYear) && bodyYear > 0
+      ? Math.trunc(bodyYear)
+      : filmRow.year != null && Number.isFinite(filmRow.year)
+        ? Math.trunc(filmRow.year)
+        : 0;
+
+  const shotRows = await db
+    .select({
+      id: schema.shots.id,
+      startTc: schema.shots.startTc,
+      endTc: schema.shots.endTc,
+    })
+    .from(schema.shots)
+    .where(and(eq(schema.shots.filmId, filmId), inArray(schema.shots.id, shotIds)))
+    .orderBy(asc(schema.shots.startTc));
+
+  if (shotRows.length !== shotIds.length) {
+    throw new Error(
+      `Some shot ids are missing or not in this film (requested ${shotIds.length}, matched ${shotRows.length}).`,
+    );
+  }
+
+  for (const r of shotRows) {
+    if (
+      typeof r.startTc !== "number" ||
+      !Number.isFinite(r.startTc) ||
+      typeof r.endTc !== "number" ||
+      !Number.isFinite(r.endTc) ||
+      r.endTc <= r.startTc
+    ) {
+      throw new Error(`Shot ${r.id} has invalid start_tc/end_tc for reclassify.`);
+    }
+  }
+
+  const rawSource = String(body.videoUrl ?? body.videoPath ?? "");
+  console.log("[worker] selective reclassify", {
+    filmId,
+    shots: shotRows.length,
+    sourceHost: rawSource.startsWith("http")
+      ? (() => {
+          try {
+            return new URL(rawSource).host;
+          } catch {
+            return null;
+          }
+        })()
+      : null,
+  });
+
+  emit({
+    type: "step",
+    step: "detect",
+    status: "active",
+    message: rawSource.startsWith("http")
+      ? `Selective reclassify: preparing HTTP source (full file; ${shotRows.length} shot(s); boundary detection skipped)…`
+      : `Selective reclassify: opening source video (${shotRows.length} shot(s); boundary detection skipped)…`,
+  });
+  const prepStarted = Date.now();
+  const prepHeartbeat = setInterval(() => {
+    const sec = Math.floor((Date.now() - prepStarted) / 1000);
+    emit({
+      type: "step",
+      step: "detect",
+      status: "active",
+      message: rawSource.startsWith("http")
+        ? `Still preparing source (${sec}s)…`
+        : `Still opening video… (${sec}s)`,
+    });
+  }, 8_000);
+  let sourceVideoPath: string;
+  try {
+    sourceVideoPath = await resolveWorkerIngestSource(rawSource, {});
+  } finally {
+    clearInterval(prepHeartbeat);
+  }
+
+  emit({
+    type: "step",
+    step: "detect",
+    status: "complete",
+    message: `Source ready — skipped boundary detection (${shotRows.length} shot reclassify target(s))`,
+    duration: (Date.now() - prepStarted) / 1000,
+  });
+  await pushProgress({
+    stage: "detect",
+    message: "Source ready",
+    totalShots: shotRows.length,
+  });
+
+  emit({ type: "init", totalShots: shotRows.length, concurrency });
+
+  emit({ type: "step", step: "lookup", status: "active", message: "Loading cast context for classification…" });
+  const t1 = Date.now();
+  const castList = filmRow.tmdbId ? await fetchTmdbCast(filmRow.tmdbId) : [];
+  emit({
+    type: "step",
+    step: "lookup",
+    status: "complete",
+    message: castList.length ? `Cast context (${castList.length})` : "No TMDB cast",
+    duration: (Date.now() - t1) / 1000,
+  });
+  await pushProgress({
+    stage: "lookup",
+    message: "Lookup complete",
+    totalShots: shotRows.length,
+  });
+
+  const filmSlug = `${sanitize(filmTitleStr)}-${yearNum}`;
+  const splits = shotRows.map((r, index) => ({
+    shotId: r.id,
+    split: { start: r.startTc as number, end: r.endTc as number, index },
+  }));
+
+  const extractConcurrency = Math.min(concurrency, 4);
+  emit({
+    type: "step",
+    step: "extract",
+    status: "active",
+    message: `Extracting ${splits.length} clips (${extractConcurrency} workers)…`,
+  });
+  await pushProgress({
+    stage: "extract",
+    message: `Extracting ${splits.length} clips…`,
+    totalShots: splits.length,
+    extractDone: 0,
+  });
+
+  const extractDir = await mkdtemp(path.join(tmpdir(), "metrovision-reclass-extract-"));
+  let extractDone = 0;
+  const t2 = Date.now();
+  const localAssets = await processInParallel(
+    splits,
+    extractConcurrency,
+    async ({ shotId, split }, w) => {
+      emit({
+        type: "shot",
+        step: "extract",
+        index: split.index,
+        total: splits.length,
+        worker: w,
+        status: "start",
+      });
+      const result = await extractLocally(sourceVideoPath, split, filmSlug, extractDir, {
+        assetBaseName: `reclass-${shotId}`,
+      });
+      emit({
+        type: "shot",
+        step: "extract",
+        index: split.index,
+        total: splits.length,
+        worker: w,
+        status: "complete",
+      });
+      extractDone++;
+      if (extractDone % 12 === 0 || extractDone === splits.length) {
+        await pushProgress({
+          stage: "extract",
+          message: `Extract ${extractDone}/${splits.length}`,
+          totalShots: splits.length,
+          extractDone,
+        });
+      }
+      return result;
+    },
+  );
+
+  emit({
+    type: "step",
+    step: "extract",
+    status: "complete",
+    message: `${splits.length} clips`,
+    duration: (Date.now() - t2) / 1000,
+  });
+  await pushProgress({
+    stage: "extract",
+    message: `${splits.length} clips extracted`,
+    totalShots: splits.length,
+    extractDone: splits.length,
+  });
+
+  const classifyConcurrency = resolveGeminiClassifyParallelism(concurrency);
+  beginClassificationDiagBatch();
+  emit({
+    type: "step",
+    step: "classify",
+    status: "active",
+    message: `Classifying ${splits.length} shots (${classifyConcurrency} parallel)…`,
+  });
+  await pushProgress({
+    stage: "classify",
+    message: `Classifying ${splits.length} shots…`,
+    totalShots: splits.length,
+    extractDone: splits.length,
+    classifyDone: 0,
+  });
+
+  const t3 = Date.now();
+  let classifyDone = 0;
+  const classifyResults = await processInParallel(
+    splits,
+    classifyConcurrency,
+    async ({ split }, w) => {
+      emit({
+        type: "shot",
+        step: "classify",
+        index: split.index,
+        total: splits.length,
+        worker: w,
+        status: "start",
+      });
+      const wrapped = await classifyShot(
+        sourceVideoPath,
+        split,
+        filmTitleStr,
+        directorStr,
+        yearNum,
+        castList,
+      );
+      const result = wrapped.classification;
+      emit({
+        type: "shot",
+        step: "classify",
+        index: split.index,
+        total: splits.length,
+        worker: w,
+        status: "complete",
+        framing: result.framing,
+      });
+      classifyDone++;
+      if (classifyDone % 10 === 0 || classifyDone === splits.length) {
+        await pushProgress({
+          stage: "classify",
+          message: `Classify ${classifyDone}/${splits.length}`,
+          totalShots: splits.length,
+          extractDone: splits.length,
+          classifyDone,
+        });
+      }
+      return wrapped;
+    },
+  );
+
+  emit({
+    type: "step",
+    step: "classify",
+    status: "complete",
+    message: `${splits.length} classified`,
+    duration: (Date.now() - t3) / 1000,
+  });
+  await pushProgress({
+    stage: "classify",
+    message: `${splits.length} classified`,
+    totalShots: splits.length,
+    extractDone: splits.length,
+    classifyDone: splits.length,
+  });
+
+  emit({
+    type: "step",
+    step: "group",
+    status: "active",
+    message: "Updating existing shot rows (no full film reset)…",
+  });
+  emit({
+    type: "step",
+    step: "group",
+    status: "complete",
+    message: "Ready to write",
+    duration: 0,
+  });
+  await pushProgress({
+    stage: "group",
+    message: "Updating shots",
+    totalShots: splits.length,
+    extractDone: splits.length,
+    classifyDone: splits.length,
+  });
+
+  emit({ type: "step", step: "write", status: "active", message: "Upload + database…" });
+  await pushProgress({
+    stage: "write",
+    message: "Upload + database…",
+    totalShots: splits.length,
+    extractDone: splits.length,
+    classifyDone: splits.length,
+    writeDone: 0,
+  });
+
+  const t5 = Date.now();
+  const uploadedAssets = await processInParallel(
+    localAssets,
+    Math.min(concurrency * 3, 20),
+    async (asset) => uploadAssets(asset),
+  );
+
+  const classifications = classifyResults.map((r) => r.classification);
+  const searchTexts = splits.map((_, i) =>
+    [filmTitleStr, directorStr, classifications[i].framing, classifications[i].description, classifications[i].mood]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  const embeddings = await processInParallel(
+    searchTexts,
+    Math.min(concurrency * 2, 10),
+    async (text) => {
+      try {
+        return await generateTextEmbedding(text);
+      } catch {
+        return null;
+      }
+    },
+  );
+
+  let writeDone = 0;
+  for (let i = 0; i < splits.length; i++) {
+    const { shotId, split } = splits[i]!;
+    const asset = uploadedAssets[i]!;
+    const cls = classifications[i]!;
+    const clsMeta = classifyResults[i]!;
+    const durationSec = roundTime(split.end - split.start);
+    const reviewStatus = initialReviewStatusForShot(durationSec, clsMeta.usedFallback);
+    const classificationSource = clsMeta.usedFallback ? "gemini_fallback" : "gemini";
+
+    const videoUrl = `/api/s3?key=${encodeURIComponent(asset.clipKey)}`;
+    const thumbnailUrl = `/api/s3?key=${encodeURIComponent(asset.thumbnailKey)}`;
+
+    const fg = Array.isArray(cls.foreground_elements) ? cls.foreground_elements : [];
+    const bg = Array.isArray(cls.background_elements) ? cls.background_elements : [];
+
+    await db
+      .update(schema.shots)
+      .set({
+        videoUrl,
+        thumbnailUrl,
+        duration: durationSec,
+      })
+      .where(eq(schema.shots.id, shotId));
+
+    await db
+      .update(schema.shotMetadata)
+      .set({
+        framing: cls.framing as typeof schema.shotMetadata.$inferInsert.framing,
+        depth: cls.depth as typeof schema.shotMetadata.$inferInsert.depth,
+        blocking: cls.blocking as typeof schema.shotMetadata.$inferInsert.blocking,
+        symmetry: cls.symmetry as typeof schema.shotMetadata.$inferInsert.symmetry,
+        dominantLines: cls.dominant_lines as typeof schema.shotMetadata.$inferInsert.dominantLines,
+        lightingDirection:
+          cls.lighting_direction as typeof schema.shotMetadata.$inferInsert.lightingDirection,
+        lightingQuality: cls.lighting_quality as typeof schema.shotMetadata.$inferInsert.lightingQuality,
+        colorTemperature: cls.color_temperature as typeof schema.shotMetadata.$inferInsert.colorTemperature,
+        foregroundElements: fg.length > 0 ? fg : null,
+        backgroundElements: bg.length > 0 ? bg : null,
+        shotSize: cls.shot_size as typeof schema.shotMetadata.$inferInsert.shotSize,
+        angleVertical: cls.angle_vertical as typeof schema.shotMetadata.$inferInsert.angleVertical,
+        angleHorizontal: cls.angle_horizontal as typeof schema.shotMetadata.$inferInsert.angleHorizontal,
+        durationCat: cls.duration_cat as typeof schema.shotMetadata.$inferInsert.durationCat,
+        classificationSource,
+        reviewStatus,
+      })
+      .where(eq(schema.shotMetadata.shotId, shotId));
+
+    await db
+      .update(schema.shotSemantic)
+      .set({
+        description: cls.description || null,
+        subjects: Array.isArray(cls.subjects) ? cls.subjects : [],
+        mood: cls.mood || null,
+        lighting: cls.lighting || null,
+      })
+      .where(eq(schema.shotSemantic.shotId, shotId));
+
+    await db.delete(schema.shotEmbeddings).where(eq(schema.shotEmbeddings.shotId, shotId));
+    if (embeddings[i]) {
+      await db.insert(schema.shotEmbeddings).values({
+        shotId,
+        embedding: embeddings[i]!,
+        searchText: searchTexts[i],
+      });
+    }
+
+    emit({
+      type: "shot",
+      step: "write",
+      index: i,
+      total: splits.length,
+      worker: 0,
+      status: "complete",
+    });
+    writeDone++;
+    if (writeDone % 15 === 0 || writeDone === splits.length) {
+      await pushProgress({
+        stage: "write",
+        message: `Write ${writeDone}/${splits.length}`,
+        totalShots: splits.length,
+        extractDone: splits.length,
+        classifyDone: splits.length,
+        writeDone,
+      });
+    }
+  }
+
+  await rm(extractDir, { recursive: true, force: true }).catch(() => {});
+
+  emit({
+    type: "step",
+    step: "write",
+    status: "complete",
+    message: `${writeDone} shots updated`,
+    duration: (Date.now() - t5) / 1000,
+  });
+
+  emit({
+    type: "complete",
+    filmId,
+    filmTitle: filmTitleStr,
+    shotCount: writeDone,
+    sceneCount: 0,
+  });
+  await pushProgress({
+    stage: "complete",
+    message: "Selective reclassify done",
+    totalShots: splits.length,
+    extractDone: splits.length,
+    classifyDone: splits.length,
+    writeDone,
+  });
+
+  return {
+    filmId,
+    filmTitle: filmTitleStr,
+    shotCount: writeDone,
+    sceneCount: 0,
+  };
+}
+
 /**
  * Full worker ingest pipeline (shared by SSE stream and async job runner).
  * Emits SSE-shaped events via `emit`. Updates `ctx.ingestRunId` after the film row exists.
@@ -189,6 +684,20 @@ export async function runWorkerIngestFilmPipeline(
   ctx: WorkerIngestRunContext,
   onProgress?: (p: WorkerIngestProgressSnapshot) => void | Promise<void>,
 ): Promise<{ filmId: string; filmTitle: string; shotCount: number; sceneCount: number }> {
+  const reclassifyShotIds = normalizeReclassifyShotIds(body.reclassifyShotIds);
+  if (reclassifyShotIds.length > 0) {
+    const filmIdRaw = body.filmId;
+    if (typeof filmIdRaw !== "string" || !filmIdRaw.trim()) {
+      throw new Error("filmId is required when reclassifyShotIds is set.");
+    }
+    return runWorkerReclassifyShotsPipeline(
+      { filmId: filmIdRaw.trim(), shotIds: reclassifyShotIds, body },
+      emit,
+      ctx,
+      onProgress,
+    );
+  }
+
   const filmTitleStr = String(body.filmTitle ?? "");
   const directorStr = String(body.director ?? "");
   const yearNum = Number(body.year);

@@ -1,22 +1,9 @@
-import type { VerificationStats } from "@/lib/types";
-import { humanReviewArchivePercent } from "@/lib/archive-trust";
-
 type MethodologyBlurbProps = {
-  stats: VerificationStats;
   framingTypeCount: number;
   className?: string;
 };
 
-export function MethodologyBlurb({
-  stats,
-  framingTypeCount,
-  className,
-}: MethodologyBlurbProps) {
-  const reviewPct = humanReviewArchivePercent(
-    stats.verifiedShots,
-    stats.totalShots,
-  );
-
+export function MethodologyBlurb({ framingTypeCount, className }: MethodologyBlurbProps) {
   return (
     <div
       className={className}
@@ -35,15 +22,12 @@ export function MethodologyBlurb({
         <span className="text-[var(--color-text-primary)]">
           {framingTypeCount} framing types
         </span>
-        ), plus depth, blocking, lighting, shot size, and angles. Labels may be
-        hand-entered or model-assist;{" "}
-        <span className="text-[var(--color-text-primary)]">
-          {reviewPct}% of archive shots
+        ), plus depth, blocking, lighting, shot size, and angles. Labels are
+        primarily model-assist; exports include{" "}
+        <span className="font-mono text-[10px] text-[var(--color-text-tertiary)]">
+          classification_source
         </span>{" "}
-        have at least one human verification event (
-        {stats.verifiedShots.toLocaleString()} /{" "}
-        {stats.totalShots.toLocaleString()}). Exports include fields suitable for
-        reproducible citations.
+        and related fields for reproducible citations.
       </p>
     </div>
   );

@@ -31,7 +31,6 @@ import type {
   ExportShotRecord,
   FilmCard,
   FilmCoverageStats,
-  FilmTrustSummary,
   FilmWithDetails,
   ShotReviewQueueItem,
   ShotWithDetails,
@@ -610,27 +609,40 @@ export async function getShotById(id: string) {
   };
 }
 
-export async function getFilmTrustSummary(filmId: string): Promise<FilmTrustSummary> {
-  const rows = await db
+/** Shots that need a fresh Gemini classification pass (same predicate as film timeline / shot-pipeline-health). */
+export async function getFilmReclassifyTargets(filmId: string): Promise<{
+  shotIds: string[];
+  film: { title: string; director: string; year: number | null };
+} | null> {
+  const [film] = await db
     .select({
-      shotId: schema.verifications.shotId,
-      verifiedAt: schema.verifications.verifiedAt,
+      title: schema.films.title,
+      director: schema.films.director,
+      year: schema.films.year,
     })
-    .from(schema.verifications)
-    .innerJoin(schema.shots, eq(schema.verifications.shotId, schema.shots.id))
-    .where(eq(schema.shots.filmId, filmId));
+    .from(schema.films)
+    .where(eq(schema.films.id, filmId))
+    .limit(1);
+  if (!film) return null;
 
-  const uniqueShots = new Set(rows.map((r) => r.shotId));
-  let latest: Date | null = null;
-  for (const r of rows) {
-    if (r.verifiedAt && (!latest || r.verifiedAt > latest)) {
-      latest = r.verifiedAt;
-    }
-  }
+  const rows = await db
+    .select({ id: schema.shots.id })
+    .from(schema.shots)
+    .innerJoin(schema.shotMetadata, eq(schema.shotMetadata.shotId, schema.shots.id))
+    .where(
+      and(
+        eq(schema.shots.filmId, filmId),
+        or(
+          eq(schema.shotMetadata.classificationSource, "gemini_fallback"),
+          eq(schema.shotMetadata.reviewStatus, "needs_review"),
+        ),
+      ),
+    )
+    .orderBy(asc(schema.shots.startTc));
 
   return {
-    shotsWithHumanVerification: uniqueShots.size,
-    lastVerifiedAt: latest ? latest.toISOString() : null,
+    shotIds: rows.map((r) => r.id),
+    film: { title: film.title, director: film.director, year: film.year },
   };
 }
 

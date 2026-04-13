@@ -19,6 +19,19 @@ function validateIngestBody(body: unknown): body is Record<string, unknown> {
   return typeof body === "object" && body !== null;
 }
 
+function normalizeReclassifyShotIdsBody(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const uuidRe =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const out: string[] = [];
+  for (const x of raw) {
+    if (typeof x !== "string") continue;
+    const t = x.trim();
+    if (uuidRe.test(t)) out.push(t);
+  }
+  return [...new Set(out)];
+}
+
 export async function ingestFilmHandler(req: Request, res: Response) {
   const gate = checkWorkerIngestSecret((n) => req.get(n));
   if (!gate.ok) {
@@ -32,7 +45,14 @@ export async function ingestFilmHandler(req: Request, res: Response) {
     res.status(400).json({ error: "videoPath or videoUrl is required" });
     return;
   }
-  if (!body.filmTitle || !body.director || !body.year) {
+
+  const reclassifyShotIds = normalizeReclassifyShotIdsBody(body.reclassifyShotIds);
+  if (reclassifyShotIds.length > 0) {
+    if (typeof body.filmId !== "string" || !body.filmId.trim()) {
+      res.status(400).json({ error: "filmId is required when reclassifyShotIds is set" });
+      return;
+    }
+  } else if (!body.filmTitle || !body.director || !body.year) {
     res.status(400).json({ error: "filmTitle, director, and year are required" });
     return;
   }
@@ -241,7 +261,14 @@ export async function ingestFilmAsyncPostHandler(req: Request, res: Response) {
     res.status(400).json({ error: "videoPath or videoUrl is required" });
     return;
   }
-  if (!body.filmTitle || !body.director || !body.year) {
+
+  const asyncReclassifyIds = normalizeReclassifyShotIdsBody(body.reclassifyShotIds);
+  if (asyncReclassifyIds.length > 0) {
+    if (typeof body.filmId !== "string" || !body.filmId.trim()) {
+      res.status(400).json({ error: "filmId is required when reclassifyShotIds is set" });
+      return;
+    }
+  } else if (!body.filmTitle || !body.director || !body.year) {
     res.status(400).json({ error: "filmTitle, director, and year are required" });
     return;
   }

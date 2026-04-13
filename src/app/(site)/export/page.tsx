@@ -2,11 +2,7 @@ import type { Metadata } from "next";
 
 import { ExportCitationPanel } from "@/components/export/export-citation-panel";
 import { ExportPanel } from "@/components/export/export-panel";
-import {
-  getShotById,
-  getShotsForExport,
-  getVerificationStats,
-} from "@/db/queries";
+import { getShotById, getShotsForExport } from "@/db/queries";
 import { FRAMINGS } from "@/lib/taxonomy";
 
 export const metadata: Metadata = {
@@ -30,9 +26,8 @@ export default async function ExportPage({ searchParams }: ExportPageProps) {
   const sp = searchParams ? await searchParams : {};
   const demoId = sp.demoShot?.trim() || null;
 
-  const [shots, stats, demoShot] = await Promise.all([
+  const [shots, demoShot] = await Promise.all([
     getShotsForExport(),
-    getVerificationStats(),
     demoId ? getShotById(demoId) : Promise.resolve(null),
   ]);
 
@@ -109,7 +104,6 @@ export default async function ExportPage({ searchParams }: ExportPageProps) {
       </section>
 
       <ExportCitationPanel
-        stats={stats}
         framingTypeCount={framingTypeCount}
         siteOrigin={siteOrigin()}
         demoShotId={demoShot?.id ?? null}

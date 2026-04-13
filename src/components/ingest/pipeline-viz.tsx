@@ -449,6 +449,9 @@ type PipelineVizProps = {
    * Safe to leave the page; resume token is stored in sessionStorage.
    */
   backgroundIngest?: boolean;
+  /** When set with non-empty `reclassifyShotIds`, worker skips detection and full film reset; only these shots are re-extracted and classified. */
+  reclassifyFilmId?: string;
+  reclassifyShotIds?: string[];
   onComplete?: (result: { filmId: string; shotCount: number }) => void;
   onError?: (error: string) => void;
 };
@@ -464,9 +467,17 @@ export function PipelineViz({
   ingestStartSec,
   ingestEndSec,
   backgroundIngest = false,
+  reclassifyFilmId,
+  reclassifyShotIds,
   onComplete,
   onError,
 }: PipelineVizProps) {
+  const selectiveReclassify =
+    Boolean(reclassifyFilmId?.trim()) &&
+    Array.isArray(reclassifyShotIds) &&
+    reclassifyShotIds.length > 0;
+  const effectiveIngestStartSec = selectiveReclassify ? undefined : ingestStartSec;
+  const effectiveIngestEndSec = selectiveReclassify ? undefined : ingestEndSec;
   const [state, setState] = useState<PipelineState>({
     steps: STEP_DEFS.map((s) => ({ ...s, status: "pending" as const })),
     frames: [],
@@ -604,7 +615,16 @@ export function PipelineViz({
 
   useEffect(() => {
     setState((s) => ({ ...s, dbSnapshot: null }));
-  }, [videoPath, filmTitle, year, ingestStartSec, ingestEndSec, boundaryCutPresetId]);
+  }, [
+    videoPath,
+    filmTitle,
+    year,
+    ingestStartSec,
+    ingestEndSec,
+    boundaryCutPresetId,
+    reclassifyFilmId,
+    reclassifyShotIds,
+  ]);
 
   useEffect(() => {
     if (!backgroundIngest) return undefined;
@@ -619,8 +639,11 @@ export function PipelineViz({
             ? { videoUrl: videoPath, filmTitle, director, year, concurrency, detector }
             : { videoPath, filmTitle, director, year, concurrency, detector }),
           ...(boundaryCutPresetId?.trim() ? { boundaryCutPresetId: boundaryCutPresetId.trim() } : {}),
-          ...(ingestStartSec !== undefined ? { ingestStartSec } : {}),
-          ...(ingestEndSec !== undefined ? { ingestEndSec } : {}),
+          ...(effectiveIngestStartSec !== undefined ? { ingestStartSec: effectiveIngestStartSec } : {}),
+          ...(effectiveIngestEndSec !== undefined ? { ingestEndSec: effectiveIngestEndSec } : {}),
+          ...(selectiveReclassify
+            ? { filmId: reclassifyFilmId!.trim(), reclassifyShotIds: reclassifyShotIds! }
+            : {}),
         };
 
         const startRes = await fetch(getIngestAsyncPostUrl(), {
@@ -811,6 +834,11 @@ export function PipelineViz({
     boundaryCutPresetId,
     ingestStartSec,
     ingestEndSec,
+    reclassifyFilmId,
+    reclassifyShotIds,
+    selectiveReclassify,
+    effectiveIngestStartSec,
+    effectiveIngestEndSec,
     onComplete,
     onError,
   ]);
@@ -878,8 +906,11 @@ export function PipelineViz({
           ...(boundaryCutPresetId?.trim()
             ? { boundaryCutPresetId: boundaryCutPresetId.trim() }
             : {}),
-          ...(ingestStartSec !== undefined ? { ingestStartSec } : {}),
-          ...(ingestEndSec !== undefined ? { ingestEndSec } : {}),
+          ...(effectiveIngestStartSec !== undefined ? { ingestStartSec: effectiveIngestStartSec } : {}),
+          ...(effectiveIngestEndSec !== undefined ? { ingestEndSec: effectiveIngestEndSec } : {}),
+          ...(selectiveReclassify
+            ? { filmId: reclassifyFilmId!.trim(), reclassifyShotIds: reclassifyShotIds! }
+            : {}),
         };
 
         const res = await fetch(endpoint, {
@@ -984,6 +1015,11 @@ export function PipelineViz({
     boundaryCutPresetId,
     ingestStartSec,
     ingestEndSec,
+    reclassifyFilmId,
+    reclassifyShotIds,
+    selectiveReclassify,
+    effectiveIngestStartSec,
+    effectiveIngestEndSec,
     handleEvent,
     backgroundIngest,
   ]);

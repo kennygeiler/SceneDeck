@@ -273,12 +273,6 @@ export type FilmWithDetails = {
   boundaryCutPresetName: string | null;
 };
 
-/** Shots in this film that have at least one human verification row. */
-export type FilmTrustSummary = {
-  shotsWithHumanVerification: number;
-  lastVerifiedAt: string | null;
-};
-
 export type FilmCard = {
   id: string;
   title: string;

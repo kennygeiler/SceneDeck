@@ -1,34 +1,12 @@
 import Image from "next/image";
 
-import type { FilmTrustSummary, FilmWithDetails } from "@/lib/types";
-import { humanReviewArchivePercent } from "@/lib/archive-trust";
+import type { FilmWithDetails } from "@/lib/types";
 
 type FilmHeaderProps = {
   film: FilmWithDetails;
-  trust: FilmTrustSummary;
 };
 
-function formatVerifiedAt(iso: string | null) {
-  if (!iso) return "—";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
-}
-
-export function FilmHeader({ film, trust }: FilmHeaderProps) {
-  const reviewPct =
-    film.shotCount > 0
-      ? humanReviewArchivePercent(
-          trust.shotsWithHumanVerification,
-          film.shotCount,
-        )
-      : "0";
-
+export function FilmHeader({ film }: FilmHeaderProps) {
   return (
     <div className="relative overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border-default)]">
       {/* Backdrop */}
@@ -154,26 +132,6 @@ export function FilmHeader({ film, trust }: FilmHeaderProps) {
               </p>
               <p className="mt-1 text-2xl font-bold text-[var(--color-text-primary)]">
                 {formatTotalDuration(film.totalDuration)}
-              </p>
-            </div>
-            <div>
-              <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                Shots human-verified
-              </p>
-              <p className="mt-1 text-2xl font-bold text-[var(--color-text-primary)]">
-                {film.shotCount > 0 ? `${reviewPct}%` : "—"}
-              </p>
-              <p className="mt-1 font-mono text-[10px] text-[var(--color-text-tertiary)]">
-                {trust.shotsWithHumanVerification} / {film.shotCount} with at least
-                one verification
-              </p>
-            </div>
-            <div>
-              <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                Last verification
-              </p>
-              <p className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">
-                {formatVerifiedAt(trust.lastVerifiedAt)}
               </p>
             </div>
           </div>

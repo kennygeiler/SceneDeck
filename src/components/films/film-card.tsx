@@ -48,7 +48,7 @@ export function FilmCard({ film }: FilmCardProps) {
                 borderColor: "color-mix(in oklch, var(--color-status-error) 45%, transparent)",
                 backgroundColor: "color-mix(in oklch, var(--color-status-error) 12%, transparent)",
               }}
-              title="Shots may need a fresh model pass — open film for timeline & re-ingest"
+              title="Some shots may need a fresh Gemini pass — open film for selective reclassify or full re-ingest"
             >
               Re-run · {film.pipelineAttentionShotCount}
             </span>
