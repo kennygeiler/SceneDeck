@@ -3,15 +3,17 @@
 export function formatReviewStatusLabel(status: string | null | undefined): string {
   switch (status) {
     case "human_verified":
-      return "Human verified";
+      return "Cut accepted";
     case "human_corrected":
-      return "Human corrected";
+      return "Legacy composition edit";
     case "needs_review":
-      return "Queued for review";
+      return "Needs cut review";
+    case "boundary_motion_rejected":
+      return "Not a cut (motion artifact)";
     case "unreviewed":
     case null:
     case undefined:
-      return "Not reviewed";
+      return "No cut triage";
     default:
       return status.replace(/_/g, " ");
   }

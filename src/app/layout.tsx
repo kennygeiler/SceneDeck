@@ -30,11 +30,11 @@ export const metadata: Metadata = {
     template: "%s | MetroVision",
   },
   description:
-    "A searchable archive of film shots with composition metadata, semantic tags, and human verification hooks.",
+    "A searchable archive of film shots with composition metadata, semantic tags, and cut-boundary human triage.",
   openGraph: {
     title: "MetroVision — The Motion Intelligence Archive",
     description:
-      "A searchable archive of film shots with composition metadata, semantic tags, and human verification hooks.",
+      "A searchable archive of film shots with composition metadata, semantic tags, and cut-boundary human triage.",
     url: "/",
     siteName: "MetroVision",
     type: "website",
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "MetroVision — The Motion Intelligence Archive",
     description:
-      "A searchable archive of film shots with composition metadata, semantic tags, and human verification hooks.",
+      "A searchable archive of film shots with composition metadata, semantic tags, and cut-boundary human triage.",
   },
   icons: {
     icon: [

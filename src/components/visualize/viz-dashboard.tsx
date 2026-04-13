@@ -19,15 +19,14 @@ type VizDashboardProps = {
   data: VisualizationData;
 };
 
-/** Preset: emphasize human-verified + model confidence floor (Phase 3.1 “low-confidence unreviewed” guard). */
-const HIGH_TRUST_MIN_CONFIDENCE_PCT = 50;
+/** Preset: model confidence floor (hides known low scores when populated). */
+const HIGH_CONFIDENCE_MIN_PCT = 50;
 
 export function VizDashboard({ data }: VizDashboardProps) {
   const [selectedFraming, setSelectedFraming] = useState<string | null>(null);
   const [selectedDirector, setSelectedDirector] = useState<string | null>(null);
   const [selectedFilm, setSelectedFilm] = useState<string | null>(null);
   const [minConfidencePct, setMinConfidencePct] = useState(0);
-  const [verifiedOnly, setVerifiedOnly] = useState(false);
 
   const minConfidence = minConfidencePct / 100;
 
@@ -40,9 +39,6 @@ export function VizDashboard({ data }: VizDashboardProps) {
 
   const trustFilteredShots = useMemo(() => {
     let shots = data.shots;
-    if (verifiedOnly) {
-      shots = shots.filter((s) => s.verificationCount > 0);
-    }
     if (minConfidence > 0) {
       shots = shots.filter((s) => {
         const c = s.confidence;
@@ -52,7 +48,7 @@ export function VizDashboard({ data }: VizDashboardProps) {
       });
     }
     return shots;
-  }, [data.shots, verifiedOnly, minConfidence]);
+  }, [data.shots, minConfidence]);
 
   const excludedByTrust = data.shots.length - trustFilteredShots.length;
 
@@ -64,7 +60,7 @@ export function VizDashboard({ data }: VizDashboardProps) {
     return shots;
   }, [trustFilteredShots, selectedFraming, selectedDirector, selectedFilm]);
 
-  const trustFiltersActive = verifiedOnly || minConfidencePct > 0;
+  const trustFiltersActive = minConfidencePct > 0;
   const chipFiltersActive = Boolean(
     selectedFraming || selectedDirector || selectedFilm,
   );
@@ -101,7 +97,7 @@ export function VizDashboard({ data }: VizDashboardProps) {
             <>
               {" "}
               Showing {filteredShots.length} shots after filters
-              {excludedByTrust > 0 ? ` (${excludedByTrust} excluded by trust rules).` : "."}
+              {excludedByTrust > 0 ? ` (${excludedByTrust} excluded by confidence filter).` : "."}
             </>
           ) : null}
         </p>
@@ -110,7 +106,7 @@ export function VizDashboard({ data }: VizDashboardProps) {
       <section
         id="trust-filters"
         className="rounded-xl border border-[#1e1e28] bg-[#0d0d12]/80 px-4 py-3"
-        aria-label="Trust and confidence filters"
+        aria-label="Confidence filters"
       >
         <h2 className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
           Corpus filters
@@ -132,27 +128,17 @@ export function VizDashboard({ data }: VizDashboardProps) {
                 : `Hide shots whose stored score is below ${minConfidencePct}%`}
             </span>
           </label>
-          <label className="flex cursor-pointer items-center gap-2 font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-secondary)]">
-            <input
-              type="checkbox"
-              checked={verifiedOnly}
-              onChange={(e) => setVerifiedOnly(e.target.checked)}
-              className="rounded border-[#2a2a34] bg-[#14141c]"
-            />
-            Verified shots only
-          </label>
           <button
             type="button"
-            title="Requires verification rows; among shots with a stored composition confidence, hides those below 50%."
+            title="Among shots with a stored composition confidence, hides those below 50%."
             onClick={() => {
-              setVerifiedOnly(true);
-              setMinConfidencePct(HIGH_TRUST_MIN_CONFIDENCE_PCT);
+              setMinConfidencePct(HIGH_CONFIDENCE_MIN_PCT);
             }}
             className="rounded-lg border border-[#2a2a34] bg-[#14141c] px-3 py-2 font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-text-accent)] hover:text-[var(--color-text-primary)]"
           >
-            High-trust preset
+            High-confidence preset
             <span className="ml-1 normal-case text-[9px] text-[#55555e]">
-              (≥{HIGH_TRUST_MIN_CONFIDENCE_PCT}% + verified)
+              (≥{HIGH_CONFIDENCE_MIN_PCT}% stored score)
             </span>
           </button>
         </div>
@@ -173,7 +159,7 @@ export function VizDashboard({ data }: VizDashboardProps) {
         </p>
         {excludedByTrust > 0 ? (
           <p className="mt-2 text-[11px] text-[#8e8e99]">
-            Trust filters exclude {excludedByTrust} shot
+            Confidence filter excludes {excludedByTrust} shot
             {excludedByTrust === 1 ? "" : "s"} from aggregations below.
           </p>
         ) : null}
@@ -243,7 +229,7 @@ export function VizDashboard({ data }: VizDashboardProps) {
       {chordTooFew ? (
         <p className="rounded-lg border border-[#2a2a34] bg-[#14141c] px-3 py-2 font-mono text-[11px] text-[#8e8e99]">
           Framing adjacency needs at least two shots in the current filter. Add films
-          or relax trust filters to see transition chords.
+          or relax the confidence filter to see transition chords.
         </p>
       ) : null}
 

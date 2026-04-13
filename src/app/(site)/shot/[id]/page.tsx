@@ -111,10 +111,10 @@ export default async function ShotDetailPage({ params }: ShotDetailPageProps) {
 
         <div className="flex flex-wrap items-center gap-3">
           <Link
-            href={`/verify/${shot.id}`}
+            href={`/verify?filmId=${shot.film.id}`}
             className="inline-flex h-7 items-center justify-center rounded-full border border-[var(--color-border-default)] bg-transparent px-4 text-[0.8rem] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-tertiary)] hover:text-[var(--color-text-primary)]"
           >
-            Verify this shot
+            Cut review
           </Link>
           <Link
             href="/browse"

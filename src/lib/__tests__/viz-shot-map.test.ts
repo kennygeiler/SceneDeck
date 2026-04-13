@@ -34,7 +34,7 @@ const nullRow = (): RawVisualizationRow => ({
 
 describe("mapRawVisualizationRowToVizShot", () => {
   it("fills taxonomy defaults when metadata joined null", () => {
-    const v = mapRawVisualizationRowToVizShot(nullRow(), 3, 0, 0);
+    const v = mapRawVisualizationRowToVizShot(nullRow(), 3, 0);
     expect(v.framing).toBe("centered");
     expect(v.depth).toBe("medium");
     expect(v.blocking).toBe("single");
@@ -52,7 +52,6 @@ describe("mapRawVisualizationRowToVizShot", () => {
     expect(v.duration).toBe(0);
     expect(v.confidence).toBeNull();
     expect(v.reviewStatus).toBeNull();
-    expect(v.verificationCount).toBe(0);
     expect(v.shotIndex).toBe(3);
   });
 
@@ -70,7 +69,6 @@ describe("mapRawVisualizationRowToVizShot", () => {
       },
       0,
       5,
-      2,
     );
     expect(v.framing).toBe("split");
     expect(v.depth).toBe("deep_staging");
@@ -80,13 +78,11 @@ describe("mapRawVisualizationRowToVizShot", () => {
     expect(v.confidence).toBe(0.91);
     expect(v.reviewStatus).toBe("human_verified");
     expect(v.objectCount).toBe(5);
-    expect(v.verificationCount).toBe(2);
   });
 
   it("treats undefined element arrays as empty", () => {
     const v = mapRawVisualizationRowToVizShot(
       { ...nullRow(), foregroundElements: undefined, backgroundElements: undefined },
-      0,
       0,
       0,
     );

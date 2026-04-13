@@ -125,8 +125,7 @@ export async function GET(request: Request) {
 type ReviewRequest = {
   shotId?: string;
   shotIds?: string[];
-  action: "approve" | "correct" | "reject_motion";
-  corrections?: Record<string, string>;
+  action: "approve" | "reject_motion";
 };
 
 export async function POST(request: Request) {
@@ -166,65 +165,8 @@ export async function POST(request: Request) {
       });
     }
 
-    if (body.action === "correct") {
-      if (shotIds.length > 1) {
-        return NextResponse.json(
-          { error: "Corrections can only be applied to a single shot." },
-          { status: 400 },
-        );
-      }
-
-      const corrections = body.corrections ?? {};
-      const metadataUpdate: Record<string, unknown> = {
-        reviewStatus: "human_corrected",
-      };
-
-      const allowedMetadataFields = [
-        "framing",
-        "depth",
-        "blocking",
-        "shotSize",
-        "angleVertical",
-        "angleHorizontal",
-        "durationCat",
-      ] as const;
-
-      for (const field of allowedMetadataFields) {
-        if (corrections[field]) {
-          metadataUpdate[field] = corrections[field];
-        }
-      }
-
-      await db
-        .update(schema.shotMetadata)
-        .set(metadataUpdate)
-        .where(eq(schema.shotMetadata.shotId, shotIds[0]));
-
-      const semanticUpdate: Record<string, unknown> = {};
-      const allowedSemanticFields = [
-        "description",
-        "mood",
-        "lighting",
-      ] as const;
-
-      for (const field of allowedSemanticFields) {
-        if (corrections[field]) {
-          semanticUpdate[field] = corrections[field];
-        }
-      }
-
-      if (Object.keys(semanticUpdate).length > 0) {
-        await db
-          .update(schema.shotSemantic)
-          .set(semanticUpdate)
-          .where(eq(schema.shotSemantic.shotId, shotIds[0]));
-      }
-
-      return NextResponse.json({ ok: true, status: "human_corrected", count: 1 });
-    }
-
     return NextResponse.json(
-      { error: 'action must be "approve", "reject_motion", or "correct".' },
+      { error: 'action must be "approve" or "reject_motion" (composition corrections are deprecated).' },
       { status: 400 },
     );
   } catch (error) {

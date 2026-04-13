@@ -32,7 +32,7 @@ const heroSignals = [
   },
   {
     label: "Trust surface",
-    value: "Confidence, review, verification",
+    value: "Confidence, cut-boundary triage",
     icon: Clapperboard,
     accent: "var(--color-overlay-trajectory)",
   },

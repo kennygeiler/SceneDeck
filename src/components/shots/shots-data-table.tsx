@@ -102,7 +102,7 @@ export function ShotsDataTable({
             <SortTh label="Shot size" sortK="shotSize" />
             <SortTh label="Duration" sortK="duration" />
             <SortTh label="Start" sortK="startTc" />
-            <SortTh label="Review" sortK="reviewStatus" />
+            <SortTh label="Cut review" sortK="reviewStatus" />
             <SortTh label="Conf." sortK="confidence" />
             <SortTh label="Added" sortK="created" className="hidden lg:table-cell" />
           </tr>

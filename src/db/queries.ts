@@ -33,7 +33,6 @@ import type {
   FilmCard,
   FilmCoverageStats,
   FilmWithDetails,
-  ShotReviewQueueItem,
   ShotWithDetails,
   VerificationCorrectionsMap,
   VerificationFieldRatingsMap,
@@ -58,8 +57,6 @@ import type {
   SymmetryTypeSlug,
   VerticalAngleSlug,
 } from "@/lib/taxonomy";
-
-const REVIEW_PASSING_RATING = 4;
 
 export type ShotQueryFilters = {
   framing?: string;
@@ -139,14 +136,6 @@ function selectJoinedShots() {
 
 function toIsoString(value: Date | null) {
   return value ? value.toISOString() : null;
-}
-
-function toRoundedAverage(values: number[]) {
-  if (values.length === 0) {
-    return null;
-  }
-
-  return Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10;
 }
 
 function mapShotRow(row: ShotRow): ShotWithDetails {
@@ -370,48 +359,6 @@ function mapVerificationRecord(
   };
 }
 
-function buildVerificationSummary(
-  verifications: Array<{
-    shotId: string;
-    overallRating: number | null;
-    verifiedAt: Date | null;
-  }>,
-) {
-  const summaryByShot = new Map<
-    string,
-    {
-      verificationCount: number;
-      ratings: number[];
-      latestVerifiedAt: Date | null;
-    }
-  >();
-
-  for (const verification of verifications) {
-    const summary = summaryByShot.get(verification.shotId) ?? {
-      verificationCount: 0,
-      ratings: [],
-      latestVerifiedAt: null,
-    };
-
-    summary.verificationCount += 1;
-
-    if (typeof verification.overallRating === "number") {
-      summary.ratings.push(verification.overallRating);
-    }
-
-    if (
-      verification.verifiedAt &&
-      (!summary.latestVerifiedAt || verification.verifiedAt > summary.latestVerifiedAt)
-    ) {
-      summary.latestVerifiedAt = verification.verifiedAt;
-    }
-
-    summaryByShot.set(verification.shotId, summary);
-  }
-
-  return summaryByShot;
-}
-
 function getRelevanceScore(shot: ShotWithDetails, query: string) {
   const normalizedQuery = query.trim().toLowerCase();
 
@@ -592,22 +539,7 @@ export async function getShotById(id: string) {
   }
 
   const clipTimelinePeers = await getClipTimelinePeersForShot(shot.film.id, shot.videoUrl);
-  const shotWithPeers = { ...shot, clipTimelinePeers };
-
-  const verifications = await getVerificationsForShot(id);
-  if (verifications.length === 0) {
-    return { ...shotWithPeers, trust: null };
-  }
-
-  const latest = verifications[0];
-  return {
-    ...shotWithPeers,
-    trust: {
-      verificationCount: verifications.length,
-      latestVerifiedAt: latest.verifiedAt,
-      latestOverallRating: latest.overallRating,
-    },
-  };
+  return { ...shot, clipTimelinePeers };
 }
 
 /** Shots that need a fresh Gemini classification pass (same predicate as film timeline / shot-pipeline-health). */
@@ -938,62 +870,6 @@ export async function getVisuallySimilarShots(
   return attachObjectsToShots(ordered);
 }
 
-export async function getShotsForReview(): Promise<ShotReviewQueueItem[]> {
-  const [shots, verificationRows] = await Promise.all([
-    getAllShots(),
-    db
-      .select({
-        shotId: schema.verifications.shotId,
-        overallRating: schema.verifications.overallRating,
-        verifiedAt: schema.verifications.verifiedAt,
-      })
-      .from(schema.verifications),
-  ]);
-
-  const verificationSummary = buildVerificationSummary(verificationRows);
-
-  return shots
-    .map((shot) => {
-      const summary = verificationSummary.get(shot.id);
-      const averageOverallRating = toRoundedAverage(summary?.ratings ?? []);
-
-      return {
-        ...shot,
-        verificationCount: summary?.verificationCount ?? 0,
-        averageOverallRating,
-        latestVerifiedAt: toIsoString(summary?.latestVerifiedAt ?? null),
-      };
-    })
-    .filter(
-      (shot) =>
-        shot.verificationCount === 0 ||
-        (shot.averageOverallRating ?? 0) < REVIEW_PASSING_RATING,
-    )
-    .sort((left, right) => {
-      if ((left.verificationCount === 0) !== (right.verificationCount === 0)) {
-        return left.verificationCount === 0 ? -1 : 1;
-      }
-
-      // Within unverified shots, sort by confidence ascending (least confident first)
-      if (left.verificationCount === 0 && right.verificationCount === 0) {
-        const leftConf = left.metadata.confidence ?? Number.POSITIVE_INFINITY;
-        const rightConf = right.metadata.confidence ?? Number.POSITIVE_INFINITY;
-        if (leftConf !== rightConf) {
-          return leftConf - rightConf;
-        }
-      }
-
-      const leftRating = left.averageOverallRating ?? Number.POSITIVE_INFINITY;
-      const rightRating = right.averageOverallRating ?? Number.POSITIVE_INFINITY;
-
-      if (leftRating !== rightRating) {
-        return leftRating - rightRating;
-      }
-
-      return left.film.title.localeCompare(right.film.title);
-    });
-}
-
 export async function getVerificationsForShot(
   shotId: string,
 ): Promise<VerificationRecord[]> {
@@ -1006,47 +882,9 @@ export async function getVerificationsForShot(
   return rows.map(mapVerificationRecord);
 }
 
-export async function submitVerification(data: {
-  shotId: string;
-  overallRating: number;
-  fieldRatings: Record<string, number>;
-  corrections?: Record<string, string>;
-  notes?: string;
-}): Promise<VerificationRecord> {
-  const fieldRatings = Object.fromEntries(
-    Object.entries(data.fieldRatings)
-      .filter(([, value]) => typeof value === "number")
-      .map(([field, value]) => [field, value]),
-  ) as VerificationFieldRatingsMap;
-
-  const corrections = Object.fromEntries(
-    Object.entries(data.corrections ?? {}).filter(([, value]) => Boolean(value)),
-  ) as VerificationCorrectionsMap;
-
-  const [row] = await db
-    .insert(schema.verifications)
-    .values({
-      shotId: data.shotId,
-      overallRating: data.overallRating,
-      fieldRatings,
-      corrections: Object.keys(corrections).length > 0 ? corrections : null,
-      notes: data.notes?.trim() ? data.notes.trim() : null,
-    })
-    .returning();
-
-  return mapVerificationRecord(row);
-}
-
 export async function getVerificationStats(): Promise<VerificationStats> {
-  const [shots, verificationRows, needsReviewAgg, unreviewedAgg] = await Promise.all([
+  const [shots, needsReviewAgg, unreviewedAgg] = await Promise.all([
     db.select({ id: schema.shots.id }).from(schema.shots),
-    db
-      .select({
-        shotId: schema.verifications.shotId,
-        overallRating: schema.verifications.overallRating,
-        verifiedAt: schema.verifications.verifiedAt,
-      })
-      .from(schema.verifications),
     db
       .select({ c: count() })
       .from(schema.shotMetadata)
@@ -1057,311 +895,13 @@ export async function getVerificationStats(): Promise<VerificationStats> {
       .where(eq(schema.shotMetadata.reviewStatus, "unreviewed")),
   ]);
 
-  const verificationSummary = buildVerificationSummary(verificationRows);
-  const ratings = verificationRows
-    .map((verification) => verification.overallRating)
-    .filter((rating): rating is number => typeof rating === "number");
-
   const needsReviewCount = Number(needsReviewAgg[0]?.c ?? 0);
   const unreviewedMetadataCount = Number(unreviewedAgg[0]?.c ?? 0);
 
   return {
     totalShots: shots.length,
-    verifiedShots: verificationSummary.size,
-    unverifiedShots: shots.length - verificationSummary.size,
-    totalVerifications: verificationRows.length,
-    averageOverallRating: toRoundedAverage(ratings),
-    /** Shots flagged `needs_review` in metadata (cut boundary / pipeline triage queue). */
     reviewQueueCount: needsReviewCount,
     unreviewedMetadataCount,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Accuracy Stats (M3 gate metric)
-// ---------------------------------------------------------------------------
-
-const ACCURACY_FIELDS = [
-  "framing",
-  "depth",
-  "blocking",
-  "shotSize",
-  "angleVertical",
-  "angleHorizontal",
-] as const;
-
-export async function getAccuracyStats(): Promise<
-  import("@/lib/types").AccuracyStats
-> {
-  // Fetch all verifications for human_corrected shots, joined with film title
-  const rows = await db
-    .select({
-      shotId: schema.verifications.shotId,
-      fieldRatings: schema.verifications.fieldRatings,
-      corrections: schema.verifications.corrections,
-      filmTitle: schema.films.title,
-    })
-    .from(schema.verifications)
-    .innerJoin(
-      schema.shotMetadata,
-      eq(schema.verifications.shotId, schema.shotMetadata.shotId),
-    )
-    .innerJoin(schema.shots, eq(schema.verifications.shotId, schema.shots.id))
-    .innerJoin(schema.films, eq(schema.shots.filmId, schema.films.id))
-    .where(
-      or(
-        eq(schema.shotMetadata.reviewStatus, "human_corrected"),
-        eq(schema.shotMetadata.reviewStatus, "human_verified"),
-      ),
-    );
-
-  if (rows.length === 0) {
-    return {
-      overallAccuracy: null,
-      perFieldAccuracy: Object.fromEntries(
-        ACCURACY_FIELDS.map((f) => [f, null]),
-      ),
-      perFilmAccuracy: {},
-      totalShotsReviewed: 0,
-      totalCorrections: 0,
-    };
-  }
-
-  // Per-field: count rated fields vs corrected fields
-  const fieldCorrect: Record<string, number> = {};
-  const fieldTotal: Record<string, number> = {};
-
-  // Per-film: count rated fields vs corrected fields
-  const filmCorrect: Record<string, number> = {};
-  const filmTotal: Record<string, number> = {};
-
-  let overallCorrect = 0;
-  let overallTotal = 0;
-  let totalCorrections = 0;
-  const reviewedShotIds = new Set<string>();
-
-  for (const row of rows) {
-    const ratings = (row.fieldRatings ?? {}) as Record<string, number | null>;
-    const corrections = (row.corrections ?? {}) as Record<string, string | null>;
-    const film = row.filmTitle;
-
-    reviewedShotIds.add(row.shotId);
-
-    for (const field of ACCURACY_FIELDS) {
-      if (ratings[field] == null) continue;
-
-      fieldTotal[field] = (fieldTotal[field] ?? 0) + 1;
-      filmTotal[film] = (filmTotal[film] ?? 0) + 1;
-      overallTotal++;
-
-      const wasCorrected =
-        corrections[field] != null && corrections[field]!.trim().length > 0;
-
-      if (wasCorrected) {
-        totalCorrections++;
-      } else {
-        fieldCorrect[field] = (fieldCorrect[field] ?? 0) + 1;
-        filmCorrect[film] = (filmCorrect[film] ?? 0) + 1;
-        overallCorrect++;
-      }
-    }
-  }
-
-  const toPercent = (correct: number, total: number) =>
-    total > 0 ? Math.round((correct / total) * 1000) / 10 : null;
-
-  return {
-    overallAccuracy: toPercent(overallCorrect, overallTotal),
-    perFieldAccuracy: Object.fromEntries(
-      ACCURACY_FIELDS.map((f) => [
-        f,
-        toPercent(fieldCorrect[f] ?? 0, fieldTotal[f] ?? 0),
-      ]),
-    ),
-    perFilmAccuracy: Object.fromEntries(
-      Object.keys(filmTotal).map((film) => [
-        film,
-        toPercent(filmCorrect[film] ?? 0, filmTotal[film] ?? 0),
-      ]),
-    ),
-    totalShotsReviewed: reviewedShotIds.size,
-    totalCorrections,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Correction Pattern Aggregation (prompt-tuning insights)
-// ---------------------------------------------------------------------------
-
-export async function getCorrectionPatterns(): Promise<
-  import("@/lib/types").CorrectionPatterns
-> {
-  // Fetch all verifications joined with shot metadata (for confidence) and film
-  const rows = await db
-    .select({
-      shotId: schema.verifications.shotId,
-      fieldRatings: schema.verifications.fieldRatings,
-      corrections: schema.verifications.corrections,
-      confidence: schema.shotMetadata.confidence,
-      filmTitle: schema.films.title,
-    })
-    .from(schema.verifications)
-    .innerJoin(
-      schema.shotMetadata,
-      eq(schema.verifications.shotId, schema.shotMetadata.shotId),
-    )
-    .innerJoin(schema.shots, eq(schema.verifications.shotId, schema.shots.id))
-    .innerJoin(schema.films, eq(schema.shots.filmId, schema.films.id));
-
-  if (rows.length === 0) {
-    return {
-      perFieldFrequency: {},
-      topTransitions: [],
-      perFilmCorrectionRates: {},
-      confidenceVsAccuracy: [],
-      totalVerifications: 0,
-    };
-  }
-
-  // --- 1. Per-field correction frequency ---
-  const fieldCorrections: Record<string, number> = {};
-  const fieldTotal: Record<string, number> = {};
-
-  // --- 2. Correction transitions (original → corrected) ---
-  // We need to look at the fieldRatings to see which fields were rated,
-  // and corrections to see what they were changed to.
-  // The "from" value is in shotMetadata (the AI value), but since corrections
-  // overwrite metadata, we need to derive from: the original AI value isn't stored
-  // post-correction. However, the corrections JSONB stores the NEW value, and
-  // the verification was done BEFORE the write-back. We'll track transitions as
-  // field → corrected value. To get the "from", we need the metadata value at
-  // time of review. Since write-back happens on submit, and we join shotMetadata
-  // (which now has the corrected value), for corrected shots the metadata IS the
-  // corrected value. For the original value, we'd need to look at uncorrected
-  // shots or accept we only have the correction target.
-  //
-  // Actually: the corrections JSONB in verifications stores the corrected value,
-  // and the shotMetadata for "human_corrected" shots has already been updated.
-  // But for "human_verified" shots, shotMetadata still has the AI value.
-  // We can use the fieldRatings to detect which fields were corrected (rating < 3
-  // and a correction value exists). The "from" is unknown per-verification since
-  // metadata was overwritten. We'll report transitions as "field: <corrected_to>"
-  // with counts — the key insight for prompt tuning is WHAT values the AI gets
-  // wrong and WHAT they should be.
-  const transitionCounts = new Map<string, number>();
-
-  // --- 3. Per-film correction rates ---
-  const filmCorrections: Record<string, number> = {};
-  const filmTotal: Record<string, number> = {};
-
-  // --- 4. Confidence buckets ---
-  type BucketAccum = { total: number; corrected: number };
-  const confidenceBuckets: Record<string, BucketAccum> = {
-    "0.0–0.2": { total: 0, corrected: 0 },
-    "0.2–0.4": { total: 0, corrected: 0 },
-    "0.4–0.6": { total: 0, corrected: 0 },
-    "0.6–0.8": { total: 0, corrected: 0 },
-    "0.8–1.0": { total: 0, corrected: 0 },
-    "no score": { total: 0, corrected: 0 },
-  };
-
-  function getBucket(confidence: number | null): string {
-    if (confidence == null) return "no score";
-    if (confidence < 0.2) return "0.0–0.2";
-    if (confidence < 0.4) return "0.2–0.4";
-    if (confidence < 0.6) return "0.4–0.6";
-    if (confidence < 0.8) return "0.6–0.8";
-    return "0.8–1.0";
-  }
-
-  for (const row of rows) {
-    const ratings = (row.fieldRatings ?? {}) as Record<string, number | null>;
-    const corrections = (row.corrections ?? {}) as Record<string, string | null>;
-    const film = row.filmTitle;
-    const bucket = getBucket(row.confidence);
-    let shotHadCorrection = false;
-
-    for (const field of ACCURACY_FIELDS) {
-      if (ratings[field] == null) continue;
-
-      fieldTotal[field] = (fieldTotal[field] ?? 0) + 1;
-      filmTotal[film] = (filmTotal[film] ?? 0) + 1;
-
-      const correctedTo = corrections[field];
-      const wasCorrected = correctedTo != null && correctedTo.trim().length > 0;
-
-      if (wasCorrected) {
-        fieldCorrections[field] = (fieldCorrections[field] ?? 0) + 1;
-        filmCorrections[film] = (filmCorrections[film] ?? 0) + 1;
-        shotHadCorrection = true;
-
-        // Track transition: "field: → correctedValue"
-        const key = `${field}:→ ${correctedTo.trim()}`;
-        transitionCounts.set(key, (transitionCounts.get(key) ?? 0) + 1);
-      }
-    }
-
-    confidenceBuckets[bucket].total++;
-    if (shotHadCorrection) {
-      confidenceBuckets[bucket].corrected++;
-    }
-  }
-
-  // Build per-field frequency
-  const perFieldFrequency: Record<
-    string,
-    { corrections: number; total: number; rate: number }
-  > = {};
-  for (const field of ACCURACY_FIELDS) {
-    const corr = fieldCorrections[field] ?? 0;
-    const tot = fieldTotal[field] ?? 0;
-    perFieldFrequency[field] = {
-      corrections: corr,
-      total: tot,
-      rate: tot > 0 ? Math.round((corr / tot) * 1000) / 10 : 0,
-    };
-  }
-
-  // Build top transitions sorted by count desc
-  const topTransitions = Array.from(transitionCounts.entries())
-    .map(([key, count]) => {
-      const [field, toValue] = key.split(":→ ");
-      return { field, from: "(AI value)", to: toValue, count };
-    })
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 50);
-
-  // Build per-film correction rates
-  const perFilmCorrectionRates: Record<
-    string,
-    { corrections: number; total: number; rate: number }
-  > = {};
-  for (const film of Object.keys(filmTotal)) {
-    const corr = filmCorrections[film] ?? 0;
-    const tot = filmTotal[film];
-    perFilmCorrectionRates[film] = {
-      corrections: corr,
-      total: tot,
-      rate: tot > 0 ? Math.round((corr / tot) * 1000) / 10 : 0,
-    };
-  }
-
-  // Build confidence buckets
-  const confidenceVsAccuracy = Object.entries(confidenceBuckets)
-    .filter(([, v]) => v.total > 0)
-    .map(([bucket, v]) => ({
-      bucket,
-      totalShots: v.total,
-      correctedShots: v.corrected,
-      correctionRate: Math.round((v.corrected / v.total) * 1000) / 10,
-    }));
-
-  return {
-    perFieldFrequency,
-    topTransitions,
-    perFilmCorrectionRates,
-    confidenceVsAccuracy,
-    totalVerifications: rows.length,
   };
 }
 
@@ -1579,18 +1119,6 @@ export async function getVisualizationData(): Promise<VisualizationData> {
     .leftJoin(schema.shotSemantic, eq(schema.shots.id, schema.shotSemantic.shotId))
     .orderBy(schema.films.title, schema.shots.startTc);
 
-  const verificationRows = await db
-    .select({
-      shotId: schema.verifications.shotId,
-      n: sql<number>`count(*)::int`.as("n"),
-    })
-    .from(schema.verifications)
-    .groupBy(schema.verifications.shotId);
-
-  const verificationCountMap = new Map(
-    verificationRows.map((r) => [r.shotId, Number(r.n)]),
-  );
-
   // Count objects per shot
   const objectCounts = await db
     .select({
@@ -1607,7 +1135,7 @@ export async function getVisualizationData(): Promise<VisualizationData> {
   const shots: VizShot[] = rows.map((row) => {
     const idx = filmShotIndices.get(row.filmId) ?? 0;
     filmShotIndices.set(row.filmId, idx + 1);
-    return mapRawVisualizationRowToVizShot(row, idx, objectCountMap.get(row.shotId) ?? 0, verificationCountMap.get(row.shotId) ?? 0);
+    return mapRawVisualizationRowToVizShot(row, idx, objectCountMap.get(row.shotId) ?? 0);
   });
 
   // Film summaries

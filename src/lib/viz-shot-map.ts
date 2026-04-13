@@ -32,7 +32,6 @@ export function mapRawVisualizationRowToVizShot(
   row: RawVisualizationRow,
   shotIndex: number,
   objectCount: number,
-  verificationCount: number,
 ): VizShot {
   const fg = row.foregroundElements ?? [];
   const bg = row.backgroundElements ?? [];
@@ -63,6 +62,5 @@ export function mapRawVisualizationRowToVizShot(
     description: row.description ?? null,
     confidence: row.confidence ?? null,
     reviewStatus: row.reviewStatus ?? null,
-    verificationCount,
   };
 }

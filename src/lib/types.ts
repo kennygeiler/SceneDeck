@@ -128,12 +128,6 @@ export type ShotWithDetails = {
     action: "split" | "merge";
     payload: Record<string, unknown>;
   }> | null;
-  /** Derived from `verifications` rows for this shot (latest first). */
-  trust?: {
-    verificationCount: number;
-    latestVerifiedAt: string | null;
-    latestOverallRating: number | null;
-  } | null;
   objects: Array<{
     id: string;
     trackId: string;
@@ -197,50 +191,10 @@ export type VerificationRecord = {
 
 export type VerificationStats = {
   totalShots: number;
-  verifiedShots: number;
-  unverifiedShots: number;
-  totalVerifications: number;
-  averageOverallRating: number | null;
   /** Count of shots with `review_status` = needs_review (cut triage queue). */
   reviewQueueCount: number;
-  /** Shots with `review_status` = unreviewed (automated labels, not in cut triage queue). */
+  /** Shots with `review_status` = unreviewed (automated pipeline; not in cut triage queue). */
   unreviewedMetadataCount: number;
-};
-
-export type AccuracyStats = {
-  overallAccuracy: number | null;
-  perFieldAccuracy: Record<string, number | null>;
-  perFilmAccuracy: Record<string, number | null>;
-  totalShotsReviewed: number;
-  totalCorrections: number;
-};
-
-export type CorrectionTransition = {
-  field: string;
-  from: string;
-  to: string;
-  count: number;
-};
-
-export type ConfidenceBucket = {
-  bucket: string;
-  totalShots: number;
-  correctedShots: number;
-  correctionRate: number;
-};
-
-export type CorrectionPatterns = {
-  perFieldFrequency: Record<string, { corrections: number; total: number; rate: number }>;
-  topTransitions: CorrectionTransition[];
-  perFilmCorrectionRates: Record<string, { corrections: number; total: number; rate: number }>;
-  confidenceVsAccuracy: ConfidenceBucket[];
-  totalVerifications: number;
-};
-
-export type ShotReviewQueueItem = ShotWithDetails & {
-  verificationCount: number;
-  averageOverallRating: number | null;
-  latestVerifiedAt: string | null;
 };
 
 export type SceneWithShots = {
@@ -328,7 +282,6 @@ export type VizShot = {
   description: string | null;
   confidence: number | null;
   reviewStatus: string | null;
-  verificationCount: number;
 };
 
 export type VizFilm = {

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { BoundaryTriageWorkspace } from "@/components/verify/boundary-triage-workspace";
-import { getAccuracyStats, getVerificationStats } from "@/db/queries";
+import { getVerificationStats } from "@/db/queries";
 
 export const metadata: Metadata = {
   title: "Review",
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default async function VerifyPage() {
-  const [stats, accuracy] = await Promise.all([getVerificationStats(), getAccuracyStats()]);
+  const stats = await getVerificationStats();
 
   return (
     <div className="space-y-10">
@@ -27,18 +27,19 @@ export default async function VerifyPage() {
             Review
           </h1>
           <p className="mt-4 text-base leading-8 text-[var(--color-text-secondary)]">
-            This page is for <strong className="text-[var(--color-text-primary)]">open cut boundaries</strong> — shots
-            flagged <code className="font-mono text-[10px]">needs_review</code> in metadata. Use the grid below
-            (before/after frames, confidence filter, bulk approve/reject). From{" "}
+            This page is only for <strong className="text-[var(--color-text-primary)]">cut boundary correctness</strong>{" "}
+            — shots flagged <code className="font-mono text-[10px]">needs_review</code> after ingest. Use the grid below
+            (before/after frames, confidence filter, bulk accept / reject motion). Composition labels (framing, shot size,
+            etc.) are model output and are <strong className="text-[var(--color-text-primary)]">not</strong> human-reviewed
+            here. From{" "}
             <Link href="/browse" className="text-[var(--color-text-accent)] underline-offset-2 hover:underline">
               Browse
             </Link>{" "}
-            → film you can jump here with that film pre-selected. Re-run{" "}
+            → film you can open this page with that film pre-selected. Re-run{" "}
             <Link href="/ingest" className="text-[var(--color-text-accent)] underline-offset-2 hover:underline">
               ingest
             </Link>{" "}
-            when a whole timeline needs a fresh pass. Optional per-shot composition QA still lives on each shot’s{" "}
-            <code className="font-mono text-[10px]">/verify/[shotId]</code> page.
+            when a whole timeline needs a fresh pass.
           </p>
         </div>
 
@@ -100,7 +101,7 @@ export default async function VerifyPage() {
           }}
         >
           <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-            Archive &amp; boundary queue
+            Archive &amp; cut queue
           </p>
           <p className="mt-3 text-3xl font-semibold text-[var(--color-text-primary)]">
             {stats.totalShots}{" "}
@@ -116,130 +117,14 @@ export default async function VerifyPage() {
               <span className="font-mono tabular-nums text-[var(--color-text-secondary)]">
                 {stats.unreviewedMetadataCount}
               </span>{" "}
-              shots are <code className="font-mono text-[10px]">unreviewed</code> (automated labels only; shown as
-              “Not reviewed” on film pages — not queued unless long take or model fallback).
+              shots have <code className="font-mono text-[10px]">unreviewed</code> cut status (pipeline default — not queued
+              unless long take or model fallback).
             </span>
           </p>
         </div>
       </section>
 
       <BoundaryTriageWorkspace />
-
-      {accuracy.totalShotsReviewed > 0 ? (
-        <section className="space-y-4">
-          <div className="flex items-baseline justify-between">
-            <h2
-              className="text-xl font-semibold tracking-[var(--letter-spacing-snug)]"
-              style={{ fontFamily: "var(--font-heading)" }}
-            >
-              Optional QA accuracy
-            </h2>
-            <p className="font-mono text-xs text-[var(--color-text-tertiary)]">
-              {accuracy.totalShotsReviewed} shots with reviews &middot; {accuracy.totalCorrections} corrections
-            </p>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div
-              className="rounded-[var(--radius-xl)] border p-5"
-              style={{
-                backgroundColor:
-                  "color-mix(in oklch, var(--color-surface-secondary) 78%, transparent)",
-                borderColor:
-                  "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
-              }}
-            >
-              <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                Overall accuracy
-              </p>
-              <p
-                className="mt-3 text-3xl font-semibold"
-                style={{
-                  color:
-                    accuracy.overallAccuracy !== null && accuracy.overallAccuracy >= 85
-                      ? "var(--color-status-verified)"
-                      : "var(--color-text-primary)",
-                }}
-              >
-                {accuracy.overallAccuracy !== null ? `${accuracy.overallAccuracy}%` : "N/A"}
-              </p>
-              <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
-                {accuracy.overallAccuracy !== null && accuracy.overallAccuracy >= 85
-                  ? "M3 gate: passing (>= 85%)"
-                  : "M3 gate: not yet passing (< 85%)"}
-              </p>
-            </div>
-
-            <div
-              className="rounded-[var(--radius-xl)] border p-5"
-              style={{
-                backgroundColor:
-                  "color-mix(in oklch, var(--color-surface-secondary) 78%, transparent)",
-                borderColor:
-                  "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
-              }}
-            >
-              <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                Per-field accuracy
-              </p>
-              <div className="mt-3 space-y-2">
-                {Object.entries(accuracy.perFieldAccuracy).map(([field, pct]) => (
-                  <div key={field} className="flex items-center justify-between text-sm">
-                    <span className="font-mono text-xs text-[var(--color-text-secondary)]">{field}</span>
-                    <span
-                      className="font-semibold"
-                      style={{
-                        color:
-                          pct !== null && pct >= 85
-                            ? "var(--color-status-verified)"
-                            : "var(--color-text-primary)",
-                      }}
-                    >
-                      {pct !== null ? `${pct}%` : "—"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {Object.keys(accuracy.perFilmAccuracy).length > 0 ? (
-            <div
-              className="rounded-[var(--radius-xl)] border p-5"
-              style={{
-                backgroundColor:
-                  "color-mix(in oklch, var(--color-surface-secondary) 78%, transparent)",
-                borderColor:
-                  "color-mix(in oklch, var(--color-border-default) 72%, transparent)",
-              }}
-            >
-              <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                Per-film accuracy
-              </p>
-              <div className="mt-3 space-y-2">
-                {Object.entries(accuracy.perFilmAccuracy)
-                  .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0))
-                  .map(([film, pct]) => (
-                    <div key={film} className="flex items-center justify-between text-sm">
-                      <span className="text-[var(--color-text-secondary)]">{film}</span>
-                      <span
-                        className="font-mono font-semibold"
-                        style={{
-                          color:
-                            pct !== null && pct >= 85
-                              ? "var(--color-status-verified)"
-                              : "var(--color-text-primary)",
-                        }}
-                      >
-                        {pct !== null ? `${pct}%` : "—"}
-                      </span>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
     </div>
   );
 }

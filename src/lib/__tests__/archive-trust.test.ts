@@ -9,9 +9,9 @@ import {
 
 describe("archive-trust", () => {
   it("formats review status for known slugs", () => {
-    expect(formatReviewStatusLabel("human_verified")).toBe("Human verified");
-    expect(formatReviewStatusLabel("needs_review")).toBe("Queued for review");
-    expect(formatReviewStatusLabel(null)).toBe("Not reviewed");
+    expect(formatReviewStatusLabel("human_verified")).toBe("Cut accepted");
+    expect(formatReviewStatusLabel("needs_review")).toBe("Needs cut review");
+    expect(formatReviewStatusLabel(null)).toBe("No cut triage");
   });
 
   it("formats classification source", () => {
