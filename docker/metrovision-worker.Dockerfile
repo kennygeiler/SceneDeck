@@ -13,6 +13,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && pip3 install --break-system-packages "scenedetect[opencv]" \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# ffmpeg-static’s install script skips the GitHub download when this points at an existing binary.
+ENV FFMPEG_BIN=/usr/bin/ffmpeg
+
 WORKDIR /app
 
 COPY src/lib ./src/lib

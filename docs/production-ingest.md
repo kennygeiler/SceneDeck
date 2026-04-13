@@ -25,6 +25,8 @@ The worker imports **`../../src/lib/*`** and **`../../src/db/*`**. Railway’s *
 
 **Manual Docker image** (full monorepo context): from repo root, **`docker build -f docker/metrovision-worker.Dockerfile .`**
 
+**FFmpeg / `ffmpeg-static` (pnpm or flaky GitHub):** `ffmpeg-static` normally downloads a binary from GitHub during its package **install** script. That can fail with **504** or blocked egress. This repo’s **`pnpm.onlyBuiltDependencies` lists only `esbuild`**, so **`pnpm install` does not run `ffmpeg-static`’s install script**; the app falls back to **`ffmpeg` on `PATH`** (install **system ffmpeg** in the image, e.g. the slim Dockerfile already does). For **cleaner logs**, set **`METROVISION_SKIP_FFMPEG_STATIC_DOWNLOAD=1`** so root `postinstall` does not retry the download. **`docker/metrovision-worker.Dockerfile`** sets **`FFMPEG_BIN=/usr/bin/ffmpeg`** so **`npm ci` in `worker/`** also skips the GitHub fetch when apt’s ffmpeg is present.
+
 **Watch paths** in `worker/railway.toml` include `worker/**`, `src/lib/**`, and `src/db/**` so ingest-related changes still trigger deploys.
 
 ## Required for reliable prod ingest

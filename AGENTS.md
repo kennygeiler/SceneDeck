@@ -29,7 +29,7 @@ pnpm worker:reachability-smoke  # Cron/uptime: `INGEST_WORKER_URL` or `WORKER_HE
 
 # TS Ingest Worker (Express, runs separately)
 cd worker && pnpm dev   # Start worker dev server (`node --import tsx/esm --watch`)
-cd worker && pnpm build # `tsc --noEmit` (worker imports `../../src/lib/*` at runtime via tsx loader)
+cd worker && pnpm build # esbuild bundle → `dist/server.mjs` (worker imports `../../src/lib/*` at runtime via tsx loader)
 
 # Python pipeline
 cd pipeline
@@ -178,4 +178,4 @@ Optional env vars (see `.planning/codebase/INTEGRATIONS.md`):
 
 ## Known Issues
 
-(None — Phase 01 aligned AC-14 and Drizzle docs with `^0.45.1`.)
+- **Worker / pnpm / Docker:** `pnpm.onlyBuiltDependencies` is **`esbuild` only**, so **`ffmpeg-static`’s install script does not run** during `pnpm install` (avoids flaky GitHub binary downloads). Use **system `ffmpeg`** in the image or set **`FFMPEG_BIN`** / **`FFMPEG_PATH`**. Optional **`METROVISION_SKIP_FFMPEG_STATIC_DOWNLOAD=1`** skips the root `postinstall` download retry. See **`docs/production-ingest.md`**.
