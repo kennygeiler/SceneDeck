@@ -529,6 +529,11 @@ export async function POST(request: Request) {
         angleHorizontal: shot.classification.angle_horizontal as typeof schema.shotMetadata.$inferInsert.angleHorizontal,
         durationCat: shot.classification.duration_cat as typeof schema.shotMetadata.$inferInsert.durationCat,
         classificationSource: "gemini",
+        confidence:
+          typeof shot.classification.confidence === "number" &&
+          Number.isFinite(shot.classification.confidence)
+            ? shot.classification.confidence
+            : null,
       });
 
       await db.insert(schema.shotSemantic).values({

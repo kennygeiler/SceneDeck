@@ -30,6 +30,18 @@ const base: ClassifiedShot = {
 };
 
 describe("sanitizeClassifiedShot", () => {
+  it("assigns confidence 1 when all taxonomy keys present (Python parity)", () => {
+    const o = sanitizeClassifiedShot(base);
+    expect(o.confidence).toBe(1);
+  });
+
+  it("lowers confidence when taxonomy keys missing in raw payload", () => {
+    const partial = { ...base, depth: "" as unknown as string };
+    const o = sanitizeClassifiedShot(partial);
+    expect(o.depth).toBe("medium");
+    expect(o.confidence).toBe(0.93);
+  });
+
   it("keeps valid framing slug", () => {
     const o = sanitizeClassifiedShot({ ...base, framing: "golden_ratio" });
     expect(o.framing).toBe("golden_ratio");

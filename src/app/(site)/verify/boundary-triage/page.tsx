@@ -1,13 +1,12 @@
-import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
-import { BoundaryTriageWorkspace } from "@/components/verify/boundary-triage-workspace";
-
-export const metadata: Metadata = {
-  title: "Cut verification",
-  description:
-    "Human-in-the-Loop cut verification: before/after frames at each flagged boundary, confidence filter, clusters, and keyboard shortcuts.",
+type Props = {
+  searchParams?: Promise<{ filmId?: string }>;
 };
 
-export default function BoundaryTriagePage() {
-  return <BoundaryTriageWorkspace />;
+/** Legacy URL — cut triage lives on `/verify`. */
+export default async function BoundaryTriageRedirectPage({ searchParams }: Props) {
+  const sp = (await searchParams) ?? {};
+  const filmId = typeof sp.filmId === "string" && sp.filmId.trim() !== "" ? sp.filmId.trim() : "";
+  redirect(filmId ? `/verify?filmId=${encodeURIComponent(filmId)}` : "/verify");
 }

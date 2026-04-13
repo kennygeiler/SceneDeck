@@ -1,15 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import {
   sanitizeIngestErrorDetailsText,
   sanitizeIngestHttpErrorBody,
 } from "@/lib/ingest-error-sanitize";
-import { getFramingDisplayName } from "@/lib/shot-display";
-import { getFramingColor } from "@/lib/timeline-colors";
-import type { FramingSlug } from "@/lib/taxonomy";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -23,7 +20,7 @@ type StepInfo = {
   status: "pending" | "active" | "complete";
   duration?: number;
   startedAt?: number;
-  /** Latest server message for this step (SSE `message` field). */
+  /** Latest server message for this step. */
   detail?: string;
 };
 
@@ -39,8 +36,6 @@ type FrameState = {
   classifyStartedAt?: number;
   classifyDuration?: number;
 };
-
-type DbSnapshot = { filmId: string; shotCount: number };
 
 type BackgroundPollSnapshot = {
   status: string;
@@ -60,11 +55,7 @@ type PipelineState = {
   startTime: number;
   result: { filmId: string; filmTitle: string; shotCount: number } | null;
   error: string | null;
-  /** Latest counts from DB while SSE may be stalled (poll live-status). */
-  dbSnapshot: DbSnapshot | null;
-  /** True after first byte chunk from the ingest SSE body (avoids "stream ended" + stale DB on immediate HTTP errors). */
-  ingestStreamDeliveredBytes: boolean;
-  /** Async job polling (no SSE); drives step labels + aggregate counts. */
+  /** Async job polling; drives step labels + aggregate counts. */
   backgroundPoll: BackgroundPollSnapshot | null;
 };
 
@@ -76,14 +67,6 @@ const STEP_DEFS: { id: StepId; label: string }[] = [
   { id: "group", label: "Prepare" },
   { id: "write", label: "Write" },
 ];
-
-function isStepId(x: string): x is StepId {
-  return STEP_DEFS.some((d) => d.id === (x as StepId));
-}
-
-function stepOrderIndex(id: StepId): number {
-  return STEP_DEFS.findIndex((d) => d.id === id);
-}
 
 const ASYNC_JOB_SESSION_KEY = "metrovision_ingest_async_job";
 
@@ -110,7 +93,7 @@ function getIngestAsyncPostUrl(): string {
   return "/api/ingest-film/async";
 }
 
-/** Prefer the latest active step so the header matches the true phase if an earlier step stayed "active" after a dropped SSE. */
+/** Prefer the latest active step so the header matches the true phase if an earlier step stayed "active". */
 function rightmostActiveStep(steps: StepInfo[]): StepInfo | undefined {
   for (let i = steps.length - 1; i >= 0; i--) {
     if (steps[i].status === "active") return steps[i];
@@ -128,49 +111,6 @@ const STEP_ESTIMATES: Record<StepId, (totalShots: number, concurrency: number) =
   group: () => 2,             // fast
   write: (n) => n * 0.3,     // S3 upload + DB write batched
 };
-
-/** Compact label for tiny strip cells (classifier framing slug). */
-function shortFramingLabel(slug: string): string {
-  const full = getFramingDisplayName(slug as FramingSlug);
-  return full.length > 12 ? `${full.slice(0, 11)}\u2026` : full;
-}
-
-// Distinct worker colors
-const WORKER_COLORS = [
-  "#5cb8d6", "#d6a05c", "#9b7cd6", "#5cd69b", "#d65c8e",
-  "#7cd6d6", "#d6d65c", "#d67c5c", "#5c7cd6", "#d65cd6",
-];
-
-const framingChipColor = (slug: string) => getFramingColor(slug);
-
-const getWorkerColor = (w: number) => WORKER_COLORS[w % WORKER_COLORS.length];
-
-/** Align with `normalizeWorkerOrigin` — always **origin** so `/api/ingest-film/stream` is not doubled. */
-function normalizeWorkerOriginClient(raw: string): string {
-  const t = raw.trim().replace(/\/+$/, "");
-  const withScheme = /^https?:\/\//i.test(t) ? t : `https://${t}`;
-  try {
-    return new URL(withScheme).origin;
-  } catch {
-    /* fall through */
-  }
-  let s = t;
-  if (s.endsWith("/api")) s = s.slice(0, -4).replace(/\/+$/, "");
-  return s;
-}
-
-/**
- * When `NEXT_PUBLIC_INGEST_SSE_DIRECT=1` and `NEXT_PUBLIC_WORKER_URL` is set, the browser POSTs the ingest
- * stream to the worker (avoids Vercel proxy timeouts on long SSE). Worker CORS must allow your site origin.
- */
-function getIngestStreamFetchUrl(): string {
-  if (process.env.NEXT_PUBLIC_INGEST_SSE_DIRECT !== "1") {
-    return "/api/ingest-film/stream";
-  }
-  const w = process.env.NEXT_PUBLIC_WORKER_URL?.trim();
-  if (!w) return "/api/ingest-film/stream";
-  return `${normalizeWorkerOriginClient(w)}/api/ingest-film/stream`;
-}
 
 // Pacing colors and messages
 const PACING = {
@@ -199,37 +139,9 @@ function splitIngestErrorDisplay(message: string): { summary: string; details: s
 
 const INGEST_NETWORK_TROUBLESHOOT = `Common causes: offline or flaky network, VPN/firewall/proxy blocking this site, or a browser extension (ad blocker) blocking fetch. Try another network or a private window.
 
-If it happens immediately: DevTools → Network → retry ingest → inspect POST /api/ingest-film/stream (status, blocked, CORS).
+If it happens immediately: DevTools → Network → retry ingest → inspect POST /api/ingest-film/async and GET /api/ingest-film/jobs/… (status, blocked, CORS).
 
-If it happens after Detect starts: the connection may have been reset (timeout, sleep, mobile handoff). On Vercel set INGEST_WORKER_URL (or NEXT_PUBLIC_WORKER_URL) to your TS worker origin; check Vercel and worker logs.`;
-
-const INGEST_STREAM_END_TROUBLESHOOT = `The HTTP stream from the ingest endpoint closed before the server sent a final success event. That usually means a timeout, proxy idle limit, worker crash/OOM/restart, network drop, or the browser tab/machine sleeping—not an S3 problem.
-
-If you already use a TS worker: check that service’s logs around the disconnect time; confirm the host allows long requests (no low proxy idle timeout); try lower concurrency to cut memory and API pressure; keep this tab focused and the machine awake.
-
-On Vercel: set INGEST_WORKER_URL or NEXT_PUBLIC_WORKER_URL so ingest proxies to your TS worker. If you force inline ingest (METROVISION_DELEGATE_INGEST=0), long films can still hit serverless limits—narrow ingestStartSec/ingestEndSec or use a short test clip.
-
-You can start a new ingest run; film-level reset will replace prior shot rows for that title when the run starts.`;
-
-async function fetchIngestLiveDbSnapshot(filmTitle: string, year: number): Promise<DbSnapshot | null> {
-  try {
-    const lr = await fetch(
-      `/api/ingest-film/live-status?title=${encodeURIComponent(filmTitle)}&year=${encodeURIComponent(String(year))}`,
-    );
-    if (!lr.ok) return null;
-    const d = (await lr.json()) as {
-      found?: boolean;
-      filmId?: string;
-      shotCount?: number;
-    };
-    if (!d.found || typeof d.filmId !== "string") return null;
-    const shotCount = typeof d.shotCount === "number" ? d.shotCount : 0;
-    if (shotCount <= 0) return null;
-    return { filmId: d.filmId, shotCount };
-  } catch {
-    return null;
-  }
-}
+If jobs stay queued or fail: set INGEST_WORKER_URL (or NEXT_PUBLIC_WORKER_URL) to your TS worker origin and confirm the worker is reachable; check Vercel and worker logs.`;
 
 // ---------------------------------------------------------------------------
 // ETA Hook
@@ -421,11 +333,6 @@ type PipelineVizProps = {
   /** Inclusive window in seconds; omit for full file (detection still scans whole video). */
   ingestStartSec?: number;
   ingestEndSec?: number;
-  /**
-   * Enqueue ingest on the worker and poll job status (short HTTP requests).
-   * Safe to leave the page; resume token is stored in sessionStorage.
-   */
-  backgroundIngest?: boolean;
   /** When set with non-empty `reclassifyShotIds`, worker skips detection and full film reset; only these shots are re-extracted and classified. */
   reclassifyFilmId?: string;
   reclassifyShotIds?: string[];
@@ -443,7 +350,6 @@ export function PipelineViz({
   boundaryCutPresetId,
   ingestStartSec,
   ingestEndSec,
-  backgroundIngest = false,
   reclassifyFilmId,
   reclassifyShotIds,
   onComplete,
@@ -463,148 +369,40 @@ export function PipelineViz({
     startTime: Date.now(),
     result: null,
     error: null,
-    dbSnapshot: null,
-    ingestStreamDeliveredBytes: false,
-    backgroundPoll: backgroundIngest ? { status: "starting", stage: "queued", message: "Starting…" } : null,
+    backgroundPoll: { status: "starting", stage: "queued", message: "Starting…" },
   });
 
   const [elapsed, setElapsed] = useState(0);
-  const stripRef = useRef<HTMLDivElement>(null);
   const asyncCompleteNotifiedRef = useRef(false);
 
-  const handleEvent = useCallback(
-    (e: Record<string, unknown>) => {
-      const now = Date.now();
-      setState((prev) => {
-        const next = { ...prev };
-        switch (e.type) {
-          case "step": {
-            const rawStep = typeof e.step === "string" ? e.step : "";
-            if (!isStepId(rawStep)) break;
-            const stepId = rawStep;
-            const orderIdx = stepOrderIndex(stepId);
-            const incoming = e.status as StepInfo["status"];
-            const msg = typeof e.message === "string" ? e.message : undefined;
-            const dur = typeof e.duration === "number" ? e.duration : undefined;
-
-            next.steps = prev.steps.map((s) => {
-              const sIdx = stepOrderIndex(s.id);
-              if (
-                sIdx >= 0 &&
-                orderIdx >= 0 &&
-                sIdx < orderIdx &&
-                s.status !== "complete"
-              ) {
-                return { ...s, status: "complete" as const, detail: s.detail };
-              }
-              if (s.id !== stepId) return s;
-              return {
-                ...s,
-                status: incoming,
-                duration: dur ?? s.duration,
-                startedAt: incoming === "active" ? (s.startedAt ?? now) : s.startedAt,
-                detail:
-                  msg !== undefined
-                    ? msg
-                    : incoming === "complete"
-                      ? undefined
-                      : s.detail,
-              };
-            });
-            break;
-          }
-          case "init":
-            next.totalShots = e.totalShots as number;
-            next.concurrency = (e.concurrency as number) ?? prev.concurrency;
-            next.frames = Array.from({ length: e.totalShots as number }, (_, i) => ({
-              index: i,
-              extract: "pending",
-              classify: "pending",
-              write: "pending",
-            }));
-            next.steps = prev.steps.map((s) =>
-              s.id === "detect" && s.status !== "complete"
-                ? { ...s, status: "complete" as const, detail: s.detail }
-                : s,
-            );
-            break;
-          case "shot": {
-            const idx = e.index as number;
-            const step = e.step as string;
-            const status = e.status as "start" | "complete";
-            next.frames = prev.frames.map((f, i) => {
-              if (i !== idx) return f;
-              const u = { ...f };
-              if (step === "extract") {
-                if (status === "start") {
-                  u.extract = "active";
-                  u.extractStartedAt = now;
-                } else {
-                  u.extract = "complete";
-                  u.extractDuration = u.extractStartedAt ? (now - u.extractStartedAt) / 1000 : undefined;
-                }
-              } else if (step === "classify") {
-                if (status === "start") {
-                  u.classify = "active";
-                  u.classifyStartedAt = now;
-                } else {
-                  u.classify = "complete";
-                  u.classifyDuration = u.classifyStartedAt ? (now - u.classifyStartedAt) / 1000 : undefined;
-                }
-                {
-                  const raw = e as Record<string, unknown>;
-                  const slug =
-                    (typeof raw.framing === "string" ? raw.framing : null)
-                    ?? (typeof raw.movementType === "string" ? raw.movementType : null);
-                  if (slug) u.movementType = slug;
-                }
-              } else if (step === "write") u.write = status === "start" ? "active" : "complete";
-              if (e.worker !== undefined) u.worker = e.worker as number;
-              return u;
-            });
-            setTimeout(() => {
-              if (!stripRef.current) return;
-              const active = stripRef.current.querySelector(".frame-extracting, .frame-classifying");
-              active?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-            }, 50);
-            break;
-          }
-          case "complete": {
-            const result = {
-              filmId: e.filmId as string,
-              filmTitle: e.filmTitle as string,
-              shotCount: e.shotCount as number,
-            };
-            next.result = result;
-            onComplete?.(result);
-            break;
-          }
-          case "error":
-            next.error = e.message as string;
-            onError?.(e.message as string);
-            break;
-        }
-        return next;
-      });
-    },
-    [onComplete, onError],
-  );
-
   useEffect(() => {
-    setState((s) => ({ ...s, dbSnapshot: null }));
+    setState({
+      steps: STEP_DEFS.map((s) => ({ ...s, status: "pending" as const })),
+      frames: [],
+      totalShots: 0,
+      concurrency,
+      startTime: Date.now(),
+      result: null,
+      error: null,
+      backgroundPoll: { status: "starting", stage: "queued", message: "Starting…" },
+    });
+    setElapsed(0);
+    asyncCompleteNotifiedRef.current = false;
   }, [
     videoPath,
     filmTitle,
     year,
+    director,
+    concurrency,
+    detector,
+    boundaryCutPresetId,
     ingestStartSec,
     ingestEndSec,
-    boundaryCutPresetId,
     reclassifyFilmId,
     reclassifyShotIds,
   ]);
 
   useEffect(() => {
-    if (!backgroundIngest) return undefined;
     const ac = new AbortController();
     let intervalId: number | undefined;
 
@@ -801,7 +599,6 @@ export function PipelineViz({
       if (intervalId) window.clearInterval(intervalId);
     };
   }, [
-    backgroundIngest,
     videoPath,
     filmTitle,
     director,
@@ -821,251 +618,37 @@ export function PipelineViz({
   ]);
 
   useEffect(() => {
-    if (backgroundIngest) return undefined;
-    if (state.result) return undefined;
-
-    let cancelled = false;
-    const poll = async () => {
-      try {
-        const r = await fetch(
-          `/api/ingest-film/live-status?title=${encodeURIComponent(filmTitle)}&year=${encodeURIComponent(String(year))}`,
-        );
-        if (!r.ok || cancelled) return;
-        const data = (await r.json()) as
-          | { found?: boolean; filmId?: string; shotCount?: number; error?: string };
-        const filmId = data.filmId;
-        if (cancelled || !data.found || typeof filmId !== "string") return;
-        const shotCount = typeof data.shotCount === "number" ? data.shotCount : 0;
-        setState((prev) => {
-          if (prev.result) return prev;
-          return {
-            ...prev,
-            dbSnapshot: { filmId, shotCount },
-          };
-        });
-      } catch {
-        /* ignore */
-      }
-    };
-    void poll();
-    const id = window.setInterval(poll, 12_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [backgroundIngest, filmTitle, year, state.result]);
-
-  useEffect(() => {
     if (state.result || state.error) return;
     const interval = setInterval(() => setElapsed(Math.floor((Date.now() - state.startTime) / 1000)), 1000);
     return () => clearInterval(interval);
   }, [state.startTime, state.result, state.error]);
 
-  // SSE
-  useEffect(() => {
-    if (backgroundIngest) return undefined;
-    const abort = new AbortController();
-    setState((s) => ({
-      ...s,
-      error: null,
-      ingestStreamDeliveredBytes: false,
-    }));
-    (async () => {
-      try {
-        const endpoint = getIngestStreamFetchUrl();
-
-        const isHttpSource = /^https?:\/\//i.test(videoPath);
-        // S3 / remote URLs must be videoUrl so the server never proxies the file through Next.js JSON/body limits.
-        const bodyPayload = {
-          ...(isHttpSource
-            ? { videoUrl: videoPath, filmTitle, director, year, concurrency, detector }
-            : { videoPath, filmTitle, director, year, concurrency, detector }),
-          ...(boundaryCutPresetId?.trim()
-            ? { boundaryCutPresetId: boundaryCutPresetId.trim() }
-            : {}),
-          ...(effectiveIngestStartSec !== undefined ? { ingestStartSec: effectiveIngestStartSec } : {}),
-          ...(effectiveIngestEndSec !== undefined ? { ingestEndSec: effectiveIngestEndSec } : {}),
-          ...(selectiveReclassify
-            ? { filmId: reclassifyFilmId!.trim(), reclassifyShotIds: reclassifyShotIds! }
-            : {}),
-        };
-
-        const res = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(bodyPayload),
-          signal: abort.signal,
-        });
-        if (!res.ok || !res.body) {
-          const errText = await res.text();
-          let msg: string;
-          try {
-            const j = JSON.parse(errText) as { error?: string; proxyTarget?: string };
-            if (typeof j.error === "string") {
-              msg =
-                j.proxyTarget && !j.error.includes(j.proxyTarget)
-                  ? `${j.error} — target: ${j.proxyTarget}`
-                  : j.error;
-            } else {
-              msg = sanitizeIngestHttpErrorBody(res.status, errText);
-            }
-          } catch {
-            msg = sanitizeIngestHttpErrorBody(res.status, errText);
-          }
-          setState((s) => ({ ...s, error: msg }));
-          return;
-        }
-        handleEvent({
-          type: "step",
-          step: "detect",
-          status: "active",
-          message: "Connected — waiting for first progress event…",
-        });
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = "";
-        let reportedStreamBytes = false;
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (!reportedStreamBytes && value && value.byteLength > 0) {
-            reportedStreamBytes = true;
-            setState((s) => ({ ...s, ingestStreamDeliveredBytes: true }));
-          }
-          buf += decoder.decode(value, { stream: true });
-          /** Split on blank line; `\r\n\r\n` is common (RFC 8895 / proxies) — `\n\n` alone misses it. */
-          const parts = buf.split(/\r?\n\r?\n/);
-          buf = parts.pop() ?? "";
-          for (const rawPart of parts) {
-            const part = rawPart.replace(/\r\n/g, "\n").trim();
-            if (!part || part.startsWith(":")) continue;
-            const dataLines = part
-              .split("\n")
-              .filter((l) => l.startsWith("data:"))
-              .map((l) => l.replace(/^data:\s*/, "").trim())
-              .filter(Boolean);
-            const payload = dataLines.join("");
-            if (!payload) continue;
-            try {
-              handleEvent(JSON.parse(payload));
-            } catch {
-              /* skip */
-            }
-          }
-        }
-        const freshDb = await fetchIngestLiveDbSnapshot(filmTitle, year);
-        setState((s) => {
-          if (s.result || s.error) return s;
-          return {
-            ...s,
-            ...(freshDb ? { dbSnapshot: freshDb } : {}),
-            error: appendIngestErrorDetails(
-              "Connection closed before ingest finished (timeout, worker restart, or network).",
-              INGEST_STREAM_END_TROUBLESHOOT,
-            ),
-          };
-        });
-      } catch (err) {
-        if ((err as Error).name === "AbortError") return;
-        const e = err as Error;
-        let message = (e?.message ?? String(e)).trim() || "Request failed";
-        if (/failed to fetch|network\s*error|load failed|networkerror|connection.*refused|aborted/i.test(message)) {
-          message = appendIngestErrorDetails(message, INGEST_NETWORK_TROUBLESHOOT);
-        }
-        const netDb = await fetchIngestLiveDbSnapshot(filmTitle, year);
-        setState((s) => ({
-          ...s,
-          ...(netDb ? { dbSnapshot: netDb } : {}),
-          error: message,
-        }));
-      }
-    })();
-    return () => abort.abort();
-  }, [
-    videoPath,
-    filmTitle,
-    director,
-    year,
-    concurrency,
-    detector,
-    boundaryCutPresetId,
-    ingestStartSec,
-    ingestEndSec,
-    reclassifyFilmId,
-    reclassifyShotIds,
-    selectiveReclassify,
-    effectiveIngestStartSec,
-    effectiveIngestEndSec,
-    handleEvent,
-    backgroundIngest,
-  ]);
-
-
   // Computed
-  const extracted = backgroundIngest
-    ? (state.backgroundPoll?.extractDone ?? 0)
-    : state.frames.filter((f) => f.extract === "complete").length;
-  const classified = backgroundIngest
-    ? (state.backgroundPoll?.classifyDone ?? 0)
-    : state.frames.filter((f) => f.classify === "complete").length;
-  const written = backgroundIngest
-    ? (state.backgroundPoll?.writeDone ?? 0)
-    : state.frames.filter((f) => f.write === "complete").length;
+  const extracted = state.backgroundPoll?.extractDone ?? 0;
+  const classified = state.backgroundPoll?.classifyDone ?? 0;
+  const written = state.backgroundPoll?.writeDone ?? 0;
   const activeStep = rightmostActiveStep(state.steps);
   const isDetecting =
     activeStep?.id === "detect" ||
     (activeStep?.id === "lookup" && state.totalShots === 0) ||
-    (backgroundIngest &&
-      (state.backgroundPoll?.stage === "detect" ||
-        state.backgroundPoll?.stage === "queued" ||
-        state.backgroundPoll?.stage === "running"));
+    state.backgroundPoll?.stage === "detect" ||
+    state.backgroundPoll?.stage === "queued" ||
+    state.backgroundPoll?.stage === "running";
 
-  const showStreamStaleHint =
-    state.dbSnapshot !== null &&
-    state.dbSnapshot.shotCount > 0 &&
-    !state.result &&
-    elapsed >= 12 &&
-    state.totalShots === 0;
+  const errorPlainParts = state.error ? splitIngestErrorDisplay(state.error) : null;
 
-  const errorDbPartial =
-    state.error &&
-    state.ingestStreamDeliveredBytes &&
-    state.dbSnapshot &&
-    state.dbSnapshot.shotCount > 0
-      ? state.dbSnapshot
-      : null;
-  const errorShotsLabel =
-    errorDbPartial && errorDbPartial.shotCount === 1
-      ? "1 shot"
-      : errorDbPartial
-        ? `${errorDbPartial.shotCount} shots`
-        : "";
-
-  const errorPlainParts =
-    state.error && !errorDbPartial ? splitIngestErrorDisplay(state.error) : null;
-
-  const errorPartialDetailsText =
-    state.error && errorDbPartial
-      ? sanitizeIngestErrorDetailsText(
-          splitIngestErrorDisplay(state.error).details || state.error.trim(),
-        )
-      : null;
-
-  const bgTotal = state.backgroundPoll?.totalShots ?? 0;
+  const barTotal = state.totalShots || state.backgroundPoll?.totalShots || 0;
   const overallPct =
-    backgroundIngest && bgTotal > 0
+    barTotal > 0
       ? Math.min(
           100,
           (((state.backgroundPoll?.extractDone ?? 0) +
             (state.backgroundPoll?.classifyDone ?? 0) +
             (state.backgroundPoll?.writeDone ?? 0)) /
-            (3 * bgTotal)) *
+            (3 * barTotal)) *
             100,
         )
-      : state.totalShots > 0
-        ? (extracted / state.totalShots) * 30 + (classified / state.totalShots) * 50 + (written / state.totalShots) * 20
-        : 0;
+      : 0;
 
   const etas = useETAs(state, elapsed);
   const pacingInfo = PACING[etas.pacing];
@@ -1142,47 +725,26 @@ export function PipelineViz({
           </div>
         </div>
 
-        {backgroundIngest ? (
-          <div
-            className="rounded-[var(--radius-lg)] border px-4 py-3 text-sm leading-relaxed text-[var(--color-text-secondary)]"
-            style={{
-              borderColor: "color-mix(in oklch, var(--color-accent-base) 35%, transparent)",
-              backgroundColor: "color-mix(in oklch, var(--color-accent-base) 8%, transparent)",
-            }}
-          >
-            <p>
-              <strong className="text-[var(--color-text-primary)]">Background ingest</strong> — progress is polled every few
-              seconds. You can navigate away or close the tab; the worker keeps running. Re-open this site on the same
-              browser to reuse the poll token from session storage, or check{" "}
-              <Link href="/browse" className="text-[var(--color-accent-base)] underline-offset-2 hover:underline">
-                Browse
-              </Link>{" "}
-              for your film when the job completes.
-            </p>
-            {state.backgroundPoll?.message ? (
-              <p className="mt-2 font-mono text-xs text-[var(--color-text-tertiary)]">{state.backgroundPoll.message}</p>
-            ) : null}
-          </div>
-        ) : null}
-
-        {showStreamStaleHint && state.dbSnapshot ? (
-          <div
-            className="rounded-[var(--radius-lg)] border px-4 py-3 text-sm leading-relaxed text-[var(--color-text-secondary)]"
-            style={{ borderColor: "rgba(214, 160, 92, 0.35)", backgroundColor: "rgba(214, 160, 92, 0.06)" }}
-          >
-            <p>
-              The database already shows{" "}
-              <strong className="text-[var(--color-text-primary)] tabular-nums">{state.dbSnapshot.shotCount} shots</strong>{" "}
-              for this title and year, but this view has not received the shot list yet — the live stream may be stalled while the worker still wrote rows. You can open the film to verify.
-            </p>
-            <Link
-              href={`/film/${state.dbSnapshot.filmId}`}
-              className="mt-2 inline-block font-mono text-xs text-[var(--color-accent-base)] underline-offset-2 hover:underline"
-            >
-              Open film page
-            </Link>
-          </div>
-        ) : null}
+        <div
+          className="rounded-[var(--radius-lg)] border px-4 py-3 text-sm leading-relaxed text-[var(--color-text-secondary)]"
+          style={{
+            borderColor: "color-mix(in oklch, var(--color-accent-base) 35%, transparent)",
+            backgroundColor: "color-mix(in oklch, var(--color-accent-base) 8%, transparent)",
+          }}
+        >
+          <p>
+            <strong className="text-[var(--color-text-primary)]">Background job</strong> — ingest is enqueued on the worker;
+            this page polls every few seconds. You can navigate away or close the tab; the worker keeps running. Re-open this
+            site in the same browser to reuse the poll token from session storage, or check{" "}
+            <Link href="/browse" className="text-[var(--color-accent-base)] underline-offset-2 hover:underline">
+              Browse
+            </Link>{" "}
+            for your film when the job completes.
+          </p>
+          {state.backgroundPoll?.message ? (
+            <p className="mt-2 font-mono text-xs text-[var(--color-text-tertiary)]">{state.backgroundPoll.message}</p>
+          ) : null}
+        </div>
 
         {/* ─── Progress bar ─── */}
         <div className="relative h-1 overflow-hidden rounded-full" style={{ backgroundColor: "var(--color-surface-tertiary)" }}>
@@ -1266,80 +828,6 @@ export function PipelineViz({
           <DetectionAnimation elapsed={elapsed} eta={STEP_ESTIMATES.detect(30, concurrency)} />
         ) : null}
 
-        {/* ─── Film Strip ─── */}
-        {!backgroundIngest && state.frames.length > 0 ? (
-          <div
-            className="relative overflow-hidden rounded-[var(--radius-xl)] border"
-            style={{ backgroundColor: "#0d0d12", borderColor: "color-mix(in oklch, var(--color-border-default) 50%, transparent)" }}
-          >
-            {/* Strip */}
-            <div ref={stripRef} className="flex gap-1 overflow-x-auto px-4 py-4" style={{ scrollbarWidth: "thin", scrollbarColor: "var(--color-surface-tertiary) transparent" }}>
-              {state.frames.map((frame) => {
-                const phase = getFramePhase(frame);
-                const bgColor =
-                  frame.movementType && frame.classify === "complete"
-                    ? framingChipColor(frame.movementType)
-                    : undefined;
-                const workerColor = frame.worker !== undefined ? getWorkerColor(frame.worker) : undefined;
-
-                return (
-                  <div
-                    key={frame.index}
-                    className={`relative flex-shrink-0 overflow-hidden rounded-sm border transition-all duration-300 ${
-                      phase === "pending" ? "frame-pending"
-                      : phase === "extracting" ? "frame-extracting"
-                      : phase === "classifying" ? "frame-classifying"
-                      : phase === "classified" ? "frame-classified"
-                      : ""
-                    } ${frame.write === "complete" ? "frame-written" : ""}`}
-                    style={{ width: "40px", height: "120px", borderColor: phase === "extracting" || phase === "classifying" ? workerColor : bgColor ?? undefined }}
-                  >
-                    <div className="frame-fill absolute inset-0" style={{ backgroundColor: phase === "classified" || phase === "written" ? bgColor : undefined }} />
-                    <span className="absolute bottom-1 left-0 w-full text-center font-mono text-[8px] tabular-nums" style={{ color: phase === "pending" ? "#333340" : phase === "classified" || phase === "written" ? "#000000aa" : "#ffffff66" }}>
-                      {frame.index + 1}
-                    </span>
-                    {frame.movementType && frame.classify === "complete" ? (
-                      <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-mono text-[7px] font-bold uppercase tracking-widest" style={{ writingMode: "vertical-lr", textOrientation: "mixed", color: "#000000aa", letterSpacing: "0.15em" }}>
-                        {shortFramingLabel(frame.movementType)}
-                      </span>
-                    ) : null}
-                    {frame.worker !== undefined && (phase === "extracting" || phase === "classifying") ? (
-                      <span className="absolute right-0.5 top-0.5 font-mono text-[7px] font-bold" style={{ color: workerColor }}>W{frame.worker + 1}</span>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Worker lanes */}
-            <div className="border-t px-4 py-3" style={{ borderColor: "#1a1a22" }}>
-              <div className="flex items-center gap-4">
-                <span className="font-mono text-[8px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">Workers</span>
-                <div className="flex gap-3">
-                  {Array.from({ length: state.concurrency }, (_, w) => {
-                    const wColor = getWorkerColor(w);
-                    const isActive = state.frames.some((f) => f.worker === w && (f.extract === "active" || f.classify === "active"));
-                    const completed = state.frames.filter((f) => f.worker === w && (f.extract === "complete" || f.classify === "complete")).length;
-                    return (
-                      <div key={w} className="flex items-center gap-1.5">
-                        <div className="h-3 w-3 rounded-full transition-all duration-300" style={{
-                          backgroundColor: isActive ? wColor : "#1a1a22",
-                          border: `1.5px solid ${isActive ? wColor : "#2a2a33"}`,
-                          boxShadow: isActive ? `0 0 10px ${wColor}50` : "none",
-                        }} />
-                        <div className="flex flex-col">
-                          <span className="font-mono text-[8px] font-bold" style={{ color: wColor }}>W{w + 1}</span>
-                          {completed > 0 ? <span className="font-mono text-[7px] text-[var(--color-text-tertiary)]">{completed}</span> : null}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
         {/* ─── Stats ─── */}
         <div className="flex flex-wrap items-start gap-6">
           <div className="flex gap-8">
@@ -1368,66 +856,32 @@ export function PipelineViz({
         ) : null}
 
         {/* ─── Error ─── */}
-        {state.error ? (
+        {state.error && errorPlainParts ? (
           <div
             className="rounded-[var(--radius-xl)] border p-6"
-            style={
-              errorDbPartial
-                ? {
-                    backgroundColor: "rgba(214, 160, 92, 0.08)",
-                    borderColor: "rgba(214, 160, 92, 0.35)",
-                  }
-                : {
-                    backgroundColor: "rgba(214,92,107,0.06)",
-                    borderColor: "rgba(214,92,107,0.3)",
-                  }
-            }
+            style={{
+              backgroundColor: "rgba(214,92,107,0.06)",
+              borderColor: "rgba(214,92,107,0.3)",
+            }}
           >
             <h3
               className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)]"
-              style={{ color: errorDbPartial ? "#d6a05c" : "#d65c6b" }}
+              style={{ color: "#d65c6b" }}
             >
-              {errorDbPartial ? "Live stream ended" : "Pipeline error"}
+              Pipeline error
             </h3>
-            {errorDbPartial ? (
-              <>
-                <p className="mt-3 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-                  The ingest stream disconnected, but the database already has{" "}
-                  <strong className="text-[var(--color-text-primary)]">{errorShotsLabel}</strong> for this film. The run may
-                  be partial — open the film to inspect what was written.
+            <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-[var(--color-text-secondary)]">
+              {sanitizeIngestErrorDetailsText(errorPlainParts.summary)}
+            </p>
+            {errorPlainParts.details ? (
+              <details className="mt-4">
+                <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+                  Troubleshooting
+                </summary>
+                <p className="mt-3 whitespace-pre-line text-xs leading-relaxed text-[var(--color-text-tertiary)]">
+                  {sanitizeIngestErrorDetailsText(errorPlainParts.details)}
                 </p>
-                <Link
-                  href={`/film/${errorDbPartial.filmId}`}
-                  className="mt-3 inline-block rounded-[var(--radius-md)] px-4 py-2 text-sm text-[var(--color-text-primary)]"
-                  style={{ backgroundColor: "var(--color-interactive-default)", boxShadow: "var(--shadow-glow)" }}
-                >
-                  Open film page
-                </Link>
-                <details className="mt-4">
-                  <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                    Troubleshooting (worker URL, clips, network)
-                  </summary>
-                  <p className="mt-3 whitespace-pre-line text-xs leading-relaxed text-[var(--color-text-tertiary)]">
-                    {errorPartialDetailsText}
-                  </p>
-                </details>
-              </>
-            ) : errorPlainParts ? (
-              <>
-                <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-[var(--color-text-secondary)]">
-                  {sanitizeIngestErrorDetailsText(errorPlainParts.summary)}
-                </p>
-                {errorPlainParts.details ? (
-                  <details className="mt-4">
-                    <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-                      Troubleshooting
-                    </summary>
-                    <p className="mt-3 whitespace-pre-line text-xs leading-relaxed text-[var(--color-text-tertiary)]">
-                      {sanitizeIngestErrorDetailsText(errorPlainParts.details)}
-                    </p>
-                  </details>
-                ) : null}
-              </>
+              </details>
             ) : null}
           </div>
         ) : null}
@@ -1455,14 +909,6 @@ function StatCounter({ label, value, total, eta, color }: { label: string; value
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function getFramePhase(f: FrameState): "pending" | "extracting" | "classifying" | "classified" | "written" {
-  if (f.write === "complete") return "written";
-  if (f.classify === "complete") return "classified";
-  if (f.classify === "active") return "classifying";
-  if (f.extract === "active") return "extracting";
-  return "pending";
-}
 
 function formatTimeCompact(s: number): string {
   if (s < 0) return "0s";

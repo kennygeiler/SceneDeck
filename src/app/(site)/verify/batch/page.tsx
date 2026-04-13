@@ -8,7 +8,5 @@ type Props = {
 export default async function VerifyBatchRedirectPage({ searchParams }: Props) {
   const sp = (await searchParams) ?? {};
   const filmId = typeof sp.filmId === "string" && sp.filmId.trim() !== "" ? sp.filmId.trim() : "";
-  redirect(
-    filmId ? `/verify/boundary-triage?filmId=${encodeURIComponent(filmId)}` : "/verify/boundary-triage",
-  );
+  redirect(filmId ? `/verify?filmId=${encodeURIComponent(filmId)}` : "/verify");
 }

@@ -189,8 +189,6 @@ function IngestPageContent() {
   const [director, setDirector] = useState("");
   const [year, setYear] = useState("");
   const [concurrency, setConcurrency] = useState(5);
-  /** Poll-based ingest job (worker + Postgres); avoids holding a long SSE connection. */
-  const [backgroundIngest, setBackgroundIngest] = useState(false);
   const [ingestTimelineStart, setIngestTimelineStart] = useState("");
   const [ingestTimelineEnd, setIngestTimelineEnd] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -931,32 +929,15 @@ function IngestPageContent() {
           </p>
           <p className="max-w-prose font-mono text-[10px] leading-relaxed text-[var(--color-text-secondary)]">
             Deployed on Vercel: set <code className="text-[10px]">INGEST_WORKER_URL</code> or{" "}
-            <code className="text-[10px]">NEXT_PUBLIC_WORKER_URL</code> to your TS worker base URL. The browser always
-            calls <code className="text-[10px]">/api/ingest-film/stream</code> on this app; Next proxies that request to
-            the worker so detection is not stuck decoding a full feature inside serverless.
+            <code className="text-[10px]">NEXT_PUBLIC_WORKER_URL</code> to your TS worker base URL. Ingest enqueues a job
+            via <code className="text-[10px]">/api/ingest-film/async</code>; Next proxies to the worker so heavy work does
+            not run inside serverless.
           </p>
 
           {/* Error */}
           {uploadError ? (
             <p className="text-sm text-[var(--color-status-error)]">{uploadError}</p>
           ) : null}
-
-          <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-primary)] px-4 py-3">
-            <input
-              type="checkbox"
-              checked={backgroundIngest}
-              onChange={(e) => setBackgroundIngest(e.target.checked)}
-              disabled={phase !== "form"}
-              className="mt-1 accent-[var(--color-interactive-default)]"
-            />
-            <span className="text-sm leading-relaxed text-[var(--color-text-secondary)]">
-              <span className="font-medium text-[var(--color-text-primary)]">Background ingest</span> — enqueue on the
-              worker and poll for status (short requests). Better for long films and flaky networks; you can leave this
-              page while the job runs. Requires the same TS worker URL as streaming ingest (
-              <code className="font-mono text-[10px]">INGEST_WORKER_URL</code> /{" "}
-              <code className="font-mono text-[10px]">NEXT_PUBLIC_WORKER_URL</code>).
-            </span>
-          </label>
 
           {/* Submit */}
           <button
@@ -1041,7 +1022,6 @@ function IngestPageContent() {
           boundaryCutPresetId={boundaryPresetId.trim() || undefined}
           ingestStartSec={ingestTimelineForRun.ingestStartSec}
           ingestEndSec={ingestTimelineForRun.ingestEndSec}
-          backgroundIngest={backgroundIngest}
           reclassifyFilmId={selectiveReclassifyFilmId ?? undefined}
           reclassifyShotIds={
             selectiveReclassifyFilmId && selectiveReclassifyShotIds.length > 0

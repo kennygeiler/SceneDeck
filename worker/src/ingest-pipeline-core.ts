@@ -652,6 +652,7 @@ async function runWorkerReclassifyShotsPipeline(
         durationCat: cls.duration_cat as typeof schema.shotMetadata.$inferInsert.durationCat,
         classificationSource,
         reviewStatus,
+        confidence: cls.confidence ?? 0.3,
       })
       .where(eq(schema.shotMetadata.shotId, shotId));
 
@@ -1308,6 +1309,7 @@ export async function runWorkerIngestFilmPipeline(
         durationCat: cls.duration_cat as typeof schema.shotMetadata.$inferInsert.durationCat,
         classificationSource,
         reviewStatus,
+        confidence: cls.confidence ?? 0.3,
       }),
       db.insert(schema.shotSemantic).values({
         shotId: shot.id,

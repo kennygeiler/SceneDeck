@@ -11,9 +11,9 @@ import { cn } from "@/lib/utils";
 
 const navigation = [
   { href: "/browse", label: "Browse" },
+  { href: "/visualize", label: "Visualize" },
   { href: "/ingest", label: "Ingest" },
   { href: "/tuning", label: "Boundary Tuning" },
-  { href: "/visualize", label: "Visualize" },
   { href: "/verify", label: "Review" },
   { href: "/export", label: "Export" },
 ] as const;

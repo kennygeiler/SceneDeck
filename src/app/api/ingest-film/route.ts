@@ -196,6 +196,7 @@ export async function POST(request: Request) {
         durationCat: classification.duration_cat as typeof schema.shotMetadata.$inferInsert.durationCat,
         classificationSource,
         reviewStatus,
+        confidence: classification.confidence ?? 0.3,
       });
 
       await db.insert(schema.shotSemantic).values({

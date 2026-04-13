@@ -1,7 +1,6 @@
 "use client";
 
 import { useVirtualizer } from "@tanstack/react-virtual";
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   useCallback,
@@ -151,6 +150,8 @@ export function BoundaryTriageWorkspace() {
   const anchorIndexRef = useRef<number | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  /** Pick first film with queued cuts once, so the grid is not empty when no film is in URL/storage. */
+  const didAutoPickFilm = useRef(false);
   const lassoRef = useRef<{
     active: boolean;
     x1: number;
@@ -211,6 +212,11 @@ export function BoundaryTriageWorkspace() {
       if (!fid) {
         setRawRows([]);
         setTotalRemote(0);
+        const list = (data.films ?? []) as FilmOption[];
+        if (list.length > 0 && !didAutoPickFilm.current) {
+          didAutoPickFilm.current = true;
+          setFilmId(list[0]!.id);
+        }
       } else {
         setRawRows(data.rows ?? []);
         setTotalRemote(data.total ?? 0);
@@ -531,31 +537,15 @@ export function BoundaryTriageWorkspace() {
 
   return (
     <div className="flex min-h-[calc(100vh-6rem)] flex-col gap-4">
-      <section className="flex flex-wrap items-end justify-between gap-4">
-        <div className="max-w-3xl">
-          <p className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-            Cut verification
-          </p>
-          <h1
-            className="mt-4 text-4xl font-bold tracking-[var(--letter-spacing-tight)] sm:text-5xl"
-            style={{ fontFamily: "var(--font-heading)" }}
-          >
-            Boundary triage
-          </h1>
-          <p className="mt-4 text-base leading-8 text-[var(--color-text-secondary)]">
-            Primary queue for <code className="font-mono text-[10px]">needs_review</code> shots: before/after frames at
-            each cut, confidence filter, cluster tabs, lasso/shift-select, and{" "}
-            <kbd className="font-mono text-[var(--color-text-tertiary)]">J</kbd> /{" "}
-            <kbd className="font-mono text-[var(--color-text-tertiary)]">K</kbd> on hover.
-          </p>
-        </div>
-        <Link
-          href="/verify"
-          className="inline-flex h-7 items-center justify-center rounded-full border border-[var(--color-border-default)] bg-transparent px-4 text-[0.8rem] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-tertiary)] hover:text-[var(--color-text-primary)]"
-        >
-          Review hub
-        </Link>
-      </section>
+      <p className="font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
+        Cut triage grid
+      </p>
+      <p className="max-w-3xl text-sm leading-relaxed text-[var(--color-text-secondary)]">
+        Before/after frames at each <code className="font-mono text-[10px]">needs_review</code> cut, confidence filter,
+        cluster tabs, lasso/shift-select, and{" "}
+        <kbd className="font-mono text-[var(--color-text-tertiary)]">J</kbd> /{" "}
+        <kbd className="font-mono text-[var(--color-text-tertiary)]">K</kbd> on hover.
+      </p>
 
       {/* Sticky control bar */}
       <div
@@ -688,7 +678,18 @@ export function BoundaryTriageWorkspace() {
 
       {/* Virtual grid */}
       {!filmId ? (
-        <p className="text-sm text-[var(--color-text-secondary)]">Choose a film to load up to 500 queued cuts.</p>
+        loading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="size-6 animate-spin text-[var(--color-text-tertiary)]" />
+          </div>
+        ) : films.length === 0 ? (
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            No films have shots flagged <code className="font-mono text-[10px]">needs_review</code> — nothing to triage
+            here.
+          </p>
+        ) : (
+          <p className="text-sm text-[var(--color-text-secondary)]">Select a film to load up to 500 queued cuts.</p>
+        )
       ) : loading && rawRows.length === 0 ? (
         <div className="flex justify-center py-24">
           <Loader2 className="size-8 animate-spin text-[var(--color-text-tertiary)]" />

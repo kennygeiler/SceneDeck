@@ -49,7 +49,7 @@ export function SiteShell({ children }: SiteShellProps) {
               href="/verify"
               className="font-mono text-xs uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-accent)]"
             >
-              Review hub
+              Review
             </Link>
           </div>
         </div>

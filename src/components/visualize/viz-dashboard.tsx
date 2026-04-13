@@ -31,15 +31,25 @@ export function VizDashboard({ data }: VizDashboardProps) {
 
   const minConfidence = minConfidencePct / 100;
 
+  /** Shots with a numeric `shot_metadata.confidence` from the composition classifier (same as film table “Conf.”). */
+  const storedConfidenceCount = useMemo(
+    () =>
+      data.shots.filter((s) => s.confidence != null && Number.isFinite(s.confidence)).length,
+    [data.shots],
+  );
+
   const trustFilteredShots = useMemo(() => {
     let shots = data.shots;
     if (verifiedOnly) {
       shots = shots.filter((s) => s.verificationCount > 0);
     }
     if (minConfidence > 0) {
-      shots = shots.filter(
-        (s) => s.confidence != null && s.confidence >= minConfidence,
-      );
+      shots = shots.filter((s) => {
+        const c = s.confidence;
+        // Missing / non-finite scores: TS ingest often omits this column; do not wipe the corpus.
+        if (c == null || !Number.isFinite(c)) return true;
+        return c >= minConfidence;
+      });
     }
     return shots;
   }, [data.shots, verifiedOnly, minConfidence]);
@@ -107,7 +117,7 @@ export function VizDashboard({ data }: VizDashboardProps) {
         </h2>
         <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           <label className="flex min-w-[200px] flex-1 flex-col gap-1 font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-tertiary)]">
-            Min model confidence
+            Min stored composition confidence
             <input
               type="range"
               min={0}
@@ -118,8 +128,8 @@ export function VizDashboard({ data }: VizDashboardProps) {
             />
             <span className="normal-case text-[11px] text-[var(--color-text-secondary)]">
               {minConfidencePct === 0
-                ? "Off (include all confidence values)"
-                : `≥ ${minConfidencePct}%`}
+                ? "Off — no threshold"
+                : `Hide shots whose stored score is below ${minConfidencePct}%`}
             </span>
           </label>
           <label className="flex cursor-pointer items-center gap-2 font-mono text-[10px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-secondary)]">
@@ -133,7 +143,7 @@ export function VizDashboard({ data }: VizDashboardProps) {
           </label>
           <button
             type="button"
-            title="Requires human verification rows and hides low model confidence (unreviewed noisy labels)."
+            title="Requires verification rows; among shots with a stored composition confidence, hides those below 50%."
             onClick={() => {
               setVerifiedOnly(true);
               setMinConfidencePct(HIGH_TRUST_MIN_CONFIDENCE_PCT);
@@ -146,6 +156,21 @@ export function VizDashboard({ data }: VizDashboardProps) {
             </span>
           </button>
         </div>
+        <p className="mt-2 text-[11px] leading-relaxed text-[#8e8e99]">
+          Uses the same field as the film shot table <span className="font-mono">Conf.</span> column: the composition
+          classifier&rsquo;s self-reported score in <span className="font-mono">shot_metadata.confidence</span>{" "}
+          (0–1, shown as %). Shots with no stored score stay in the corpus; only known low scores are removed when the
+          slider is above 0.{" "}
+          <span className="tabular-nums">
+            {storedConfidenceCount} / {data.shots.length} shots have a stored score.
+          </span>
+          {storedConfidenceCount === 0 && data.shots.length > 0 ? (
+            <span className="block pt-1 text-[var(--color-signal-amber)]">
+              No stored scores in this database yet — older rows may predate the field; run a fresh ingest to populate{" "}
+              <span className="font-mono">shot_metadata.confidence</span>.
+            </span>
+          ) : null}
+        </p>
         {excludedByTrust > 0 ? (
           <p className="mt-2 text-[11px] text-[#8e8e99]">
             Trust filters exclude {excludedByTrust} shot

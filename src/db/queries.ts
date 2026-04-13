@@ -1,6 +1,7 @@
 import {
   and,
   asc,
+  count,
   desc,
   eq,
   gte,
@@ -1037,7 +1038,7 @@ export async function submitVerification(data: {
 }
 
 export async function getVerificationStats(): Promise<VerificationStats> {
-  const [shots, verificationRows] = await Promise.all([
+  const [shots, verificationRows, needsReviewAgg] = await Promise.all([
     db.select({ id: schema.shots.id }).from(schema.shots),
     db
       .select({
@@ -1046,6 +1047,10 @@ export async function getVerificationStats(): Promise<VerificationStats> {
         verifiedAt: schema.verifications.verifiedAt,
       })
       .from(schema.verifications),
+    db
+      .select({ c: count() })
+      .from(schema.shotMetadata)
+      .where(eq(schema.shotMetadata.reviewStatus, "needs_review")),
   ]);
 
   const verificationSummary = buildVerificationSummary(verificationRows);
@@ -1053,22 +1058,16 @@ export async function getVerificationStats(): Promise<VerificationStats> {
     .map((verification) => verification.overallRating)
     .filter((rating): rating is number => typeof rating === "number");
 
+  const needsReviewCount = Number(needsReviewAgg[0]?.c ?? 0);
+
   return {
     totalShots: shots.length,
     verifiedShots: verificationSummary.size,
     unverifiedShots: shots.length - verificationSummary.size,
     totalVerifications: verificationRows.length,
     averageOverallRating: toRoundedAverage(ratings),
-    reviewQueueCount: shots.filter((shot) => {
-      const summary = verificationSummary.get(shot.id);
-      const averageOverallRating = toRoundedAverage(summary?.ratings ?? []);
-
-      return (
-        !summary ||
-        summary.verificationCount === 0 ||
-        (averageOverallRating ?? 0) < REVIEW_PASSING_RATING
-      );
-    }).length,
+    /** Shots flagged `needs_review` in metadata (cut boundary / pipeline triage queue). */
+    reviewQueueCount: needsReviewCount,
   };
 }
 

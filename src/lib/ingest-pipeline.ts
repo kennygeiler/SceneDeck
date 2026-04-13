@@ -1026,6 +1026,7 @@ function fallbackClassification(): ClassifiedShot {
     description: "Classification unavailable — fallback applied", mood: "neutral",
     lighting: "unknown", subjects: [], scene_title: "Unclassified",
     scene_description: "", location: "unknown", interior_exterior: "interior", time_of_day: "day",
+    confidence: 0.3,
   };
 }
 

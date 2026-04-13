@@ -18,6 +18,42 @@ function slugKeys<const T extends Record<string, { slug: string }>>(dict: T): st
   return Object.keys(dict);
 }
 
+const TAXONOMY_COMPOSITION_KEYS = [
+  "framing",
+  "depth",
+  "blocking",
+  "symmetry",
+  "dominant_lines",
+  "lighting_direction",
+  "lighting_quality",
+  "color_temperature",
+  "shot_size",
+  "angle_vertical",
+  "angle_horizontal",
+  "duration_cat",
+] as const satisfies readonly (keyof ClassifiedShot)[];
+
+function countMissingTaxonomyFields(c: ClassifiedShot): number {
+  let missing = 0;
+  for (const k of TAXONOMY_COMPOSITION_KEYS) {
+    const v = c[k];
+    if (v === undefined || v === null) {
+      missing++;
+      continue;
+    }
+    if (typeof v === "string" && !v.trim()) missing++;
+  }
+  return missing;
+}
+
+/**
+ * Python `pipeline/classify.py` `_normalize_response`: missing taxonomy keys reduce score, floor 0.28.
+ */
+export function compositionConfidenceFromParse(c: ClassifiedShot): number {
+  const missing = countMissingTaxonomyFields(c);
+  return Math.round(Math.max(1.0 - missing * 0.07, 0.28) * 1000) / 1000;
+}
+
 function coerceTaxonomySlug(raw: unknown, allowed: readonly string[], fallback: string): string {
   if (typeof raw !== "string") return fallback;
   const n = raw.trim().toLowerCase().replace(/\s+/g, "_");
@@ -74,5 +110,6 @@ export function sanitizeClassifiedShot(c: ClassifiedShot): ClassifiedShot {
     interior_exterior:
       typeof c.interior_exterior === "string" ? c.interior_exterior : "interior",
     time_of_day: typeof c.time_of_day === "string" ? c.time_of_day : "day",
+    confidence: compositionConfidenceFromParse(c),
   };
 }

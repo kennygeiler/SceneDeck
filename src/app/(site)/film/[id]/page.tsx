@@ -88,7 +88,7 @@ export default async function FilmDetailPage({ params }: Props) {
           <strong className="text-[var(--color-text-primary)]">selective reclassify</strong> (ingest with only those
           shots) or full re-ingest (same title, director, year replaces all shots).{" "}
           <Link
-            href={`/verify/boundary-triage?filmId=${film.id}`}
+            href={`/verify?filmId=${film.id}`}
             className="inline-flex items-center rounded-full border border-[var(--color-accent-base)] bg-[var(--color-surface-tertiary)] px-3 py-1 font-mono text-[11px] uppercase tracking-[var(--letter-spacing-wide)] text-[var(--color-text-primary)] transition-colors hover:border-[var(--color-accent-base)]"
           >
             Cut verification →

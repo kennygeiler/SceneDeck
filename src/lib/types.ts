@@ -42,6 +42,11 @@ export type ClassifiedShot = {
   location: string;
   interior_exterior: string;
   time_of_day: string;
+  /**
+   * 0–1 composition parse confidence. Set by `sanitizeClassifiedShot` (Python `classify._normalize_response` parity:
+   * penalize missing taxonomy keys in the raw model JSON). Optional on raw Gemini output before sanitize.
+   */
+  confidence?: number;
 };
 
 export type VerificationFieldKey =
@@ -196,6 +201,7 @@ export type VerificationStats = {
   unverifiedShots: number;
   totalVerifications: number;
   averageOverallRating: number | null;
+  /** Count of shots with `review_status` = needs_review (cut triage queue). */
   reviewQueueCount: number;
 };
 
